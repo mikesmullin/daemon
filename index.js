@@ -4,7 +4,7 @@ import { join } from 'path';
 import yaml from 'js-yaml';
 import open from 'open';
 import readline from 'readline';
-import { createOpenAI } from '@ai-sdk/openai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText } from 'ai';
 
 // Configuration
@@ -188,7 +188,7 @@ async function promptUser(question) {
 }
 
 // Call Copilot API
-async function callCopilot(prompt, tokens) {
+async function callCopilot(prompt, tokens, model = 'gpt-4o') {
   console.log('\n🤖 Calling Copilot API...\n');
 
   // GitHub Copilot uses OpenAI-compatible API format
@@ -202,9 +202,12 @@ async function callCopilot(prompt, tokens) {
 
   console.log('🔗 Using API endpoint:', baseURL);
 
-  const openai = createOpenAI({
+  // Use openai-compatible provider for all models to avoid API compatibility issues
+  const provider = createOpenAICompatible({
+    name: 'github-copilot',
     apiKey: tokens.copilot_token,
     baseURL: baseURL,
+    compatibility: 'compatible',
     headers: {
       'Editor-Version': 'vscode/1.99.3',
       'Editor-Plugin-Version': 'copilot-chat/0.26.7',
@@ -214,7 +217,7 @@ async function callCopilot(prompt, tokens) {
 
   try {
     const result = await generateText({
-      model: openai('gpt-4o'),
+      model: provider(model),
       prompt: prompt,
       maxTokens: 2000,
     });
@@ -225,28 +228,78 @@ async function callCopilot(prompt, tokens) {
     if (error.cause) {
       console.error('Cause:', error.cause);
     }
+    if (error.responseBody) {
+      console.error('Response body:', error.responseBody);
+    }
     throw error;
   }
+}
+
+// Parse command line arguments
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const options = {
+    prompt: null,
+    model: 'gpt-4o', // default model
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--prompt' && args[i + 1]) {
+      options.prompt = args[i + 1];
+      i++;
+    } else if (args[i] === '--model' && args[i + 1]) {
+      options.model = args[i + 1];
+      i++;
+    } else if (args[i] === '--help' || args[i] === '-h') {
+      console.log(`
+Usage: node index.js [options]
+
+Options:
+  --prompt <text>    Send this prompt directly (skip interactive input)
+  --model <name>     Model to use (default: gpt-4o)
+                     Examples: gpt-4o, claude-sonnet-4, o1-preview
+  --help, -h         Show this help message
+
+Examples:
+  node index.js
+  node index.js --prompt "Hello, world!"
+  node index.js --model claude-sonnet-4 --prompt "Explain async/await"
+      `);
+      process.exit(0);
+    }
+  }
+
+  return options;
 }
 
 // Main function
 async function main() {
   try {
+    const options = parseArgs();
+
     console.log('🚀 Minimal GitHub Copilot CLI\n');
 
     // Authenticate
     const tokens = await authenticate();
 
-    // Get user prompt
-    const userPrompt = await promptUser('\n💬 Enter your prompt for Copilot: ');
+    // Get user prompt (from CLI arg or interactive)
+    let userPrompt;
+    if (options.prompt) {
+      userPrompt = options.prompt;
+      console.log(`\n💬 Using prompt: "${userPrompt}"`);
+    } else {
+      userPrompt = await promptUser('\n💬 Enter your prompt for Copilot: ');
+    }
 
     if (!userPrompt.trim()) {
       console.log('❌ No prompt provided. Exiting.');
       return;
     }
 
+    console.log(`🎯 Using model: ${options.model}`);
+
     // Call Copilot
-    const response = await callCopilot(userPrompt, tokens);
+    const response = await callCopilot(userPrompt, tokens, options.model);
 
     // Print response
     console.log('━'.repeat(60));
