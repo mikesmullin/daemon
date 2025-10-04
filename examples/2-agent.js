@@ -1,16 +1,13 @@
-import OpenAI from 'openai';
-import { getSession, getOpenAIConfig } from '../lib/session.js';
-
 /**
- * Minimal Tool Calling Example - UPDATED
- * 
- * NOW WITH AUTO TOKEN RENEWAL! 🎉
+ * Minimal Tool Calling Example
  * 
  * This demonstrates native tool calling with Claude Sonnet 4.5
  * using terminal command execution.
  */
 
-// Define our tool
+import OpenAI from 'openai';
+import { getSession, getOpenAIConfig } from '../lib/session.js';
+
 const tools = {
   executeCommand: {
     definition: {
@@ -98,7 +95,10 @@ async function runConversationWithTools() {
         model: testCase.model,
         messages: messages,
         tools: toolDefinitions,
-        max_tokens: 1000,
+
+        // max_tokens: Control costs by setting maximum tokens per response (1 token ≈ 4 chars or 0.75 words)
+        // Range: 1 to (model_max - input_tokens). (ie. 100 = concise, 1000 = detailed, 4096 = verbose)
+        // max_tokens: 1000,
       });
 
       const choice = response.choices[0];
@@ -151,21 +151,22 @@ async function runConversationWithTools() {
         console.log(`   💬 Final answer: ${message.content}`);
       }
 
-      console.log('\n' + '━'.repeat(60) + '\n');
+      // console.log('\n' + '━'.repeat(60) + '\n');
       break;
 
     } catch (error) {
       console.log(`   ❌ Error with model ${testCase.model}:`, error.message);
-      console.log('\n' + '━'.repeat(60) + '\n');
+      // console.log('\n' + '━'.repeat(60) + '\n');
       break;
     }
   }
 
-  console.log('✅ Test completed!\n');
-  console.log('💡 Key insights:');
-  console.log('   • Claude Sonnet 4.5 supports tool calling via GitHub Copilot API');
-  console.log('   • Tools can execute terminal commands and return output');
-  console.log('   • Multi-turn conversation handles tool execution transparently');
+  // console.log('✅ Test completed!\n');
+
+  // console.log('💡 Key insights:');
+  // console.log('   • Claude Sonnet 4.5 supports tool calling via GitHub Copilot API');
+  // console.log('   • Tools can execute terminal commands and return output');
+  // console.log('   • Multi-turn conversation handles tool execution transparently');
 }
 
 runConversationWithTools().catch(console.error);

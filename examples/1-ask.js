@@ -1,24 +1,6 @@
 import OpenAI from 'openai';
 import { getSession, getOpenAIConfig } from '../lib/session.js';
 
-/**
- * Example 2: Message Roles - UPDATED
- * 
- * NOW WITH AUTO TOKEN RENEWAL! 🎉
- * NOW USING OPENAI SDK EXCLUSIVELY! 🚀
- * 
- * This demonstrates the different roles supported in conversations.
- * 
- * Standard Roles (OpenAI API):
- * - 'system': Sets the behavior/personality of the assistant
- * - 'user': Messages from the user
- * - 'assistant': Messages from the AI assistant
- * - 'tool': Results from tool/function calls (advanced)
- * 
- * You CANNOT use arbitrary roles - only these predefined ones work.
- * The 'system' role is particularly important for setting instructions.
- */
-
 async function testRoles() {
   console.log('\n👥 Testing Message Roles (with auto token renewal!)\n');
   console.log('━'.repeat(60));
@@ -67,7 +49,7 @@ async function testRoles() {
 
   try {
     const response = await client.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'claude-sonnet-4.5',
       messages: messages,
       max_tokens: 300,
     });
@@ -77,14 +59,14 @@ async function testRoles() {
     console.log('━'.repeat(60));
     console.log('✅ Response with role-based behavior:\n');
     console.log(result.content);
-    console.log('━'.repeat(60));
+    // console.log('━'.repeat(60));
 
-    console.log('\n💡 Key insights about roles:');
-    console.log('   • "system" - Sets instructions/personality (highest priority)');
-    console.log('   • "user" - Your messages to the AI');
-    console.log('   • "assistant" - AI\'s previous responses (for context)');
-    console.log('   • "tool" - Results from function/tool execution (advanced)');
-    console.log('   ⚠️  You cannot use custom roles - only these 4 are supported!');
+    // console.log('\n💡 Key insights about roles:');
+    // console.log('   • "system" - Sets instructions/personality (highest priority)');
+    // console.log('   • "user" - Your messages to the AI');
+    // console.log('   • "assistant" - AI\'s previous responses (for context)');
+    // console.log('   • "tool" - Results from function/tool execution (advanced)');
+    // console.log('   ⚠️  You cannot use custom roles - only these 4 are supported!');
 
   } catch (error) {
     console.error('❌ Error:', error.message);
