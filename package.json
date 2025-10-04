@@ -1,22 +1,27 @@
 {
   "name": "copilot-cli-minimal",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "Minimal CLI tool to authenticate and interact with GitHub Copilot API",
-  "main": "index.js",
+  "description": "File-based multi-agent orchestrator using GitHub Copilot API",
+  "main": "daemon.js",
   "scripts": {
-    "start": "node index.js",
-    "test": "node index.js"
+    "start": "node daemon.js",
+    "demo": "node demo-scenario.js",
+    "test": "node examples/1-ask.js"
   },
   "keywords": [
     "github",
     "copilot",
     "cli",
-    "ai"
+    "ai",
+    "multi-agent",
+    "orchestrator",
+    "file-based"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "chokidar": "^3.6.0",
     "js-yaml": "^4.1.0",
     "open": "^10.1.0",
     "openai": "^6.1.0"
