@@ -35,16 +35,11 @@ Demonstrates controlling AI behavior with system prompts.
 Shows how to use different message roles (system, user, assistant, tool).
 Demonstrates multi-turn conversations where the AI remembers previous messages.
 
-### 2. Tool Calling (`examples/2-agent.js`)
+### 2. Secure Tool Calling w/ Terminal Allowlist (`examples/2-secure-agent.js`)
 ```bash
-node examples/2-agent.js
+node examples/2-secure-agent.js
 ```
 Shows how to execute terminal commands via AI tool calling (function execution).
-
-### 3. Secure Agent with Allowlist (`examples/3-secure-agent.js`)
-```bash
-node examples/3-secure-agent.js
-```
 Demonstrates terminal command execution with security controls using the command allowlist.
 Shows how to automatically approve safe commands and block dangerous ones.
 
