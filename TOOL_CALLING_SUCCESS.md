@@ -120,7 +120,8 @@ Final answer: "You are running Node.js version v22.20.0"
 
 ### Model Support
 - ✅ **GPT-4o**: Full tool calling support
-- ❌ **Claude Sonnet 4**: Tool calling NOT working (returns `finish_reason: "tool_calls"` but no actual tool_calls array)
+- ✅ **Claude Sonnet 4.5**: Full tool calling support (NEW!)
+- ❌ **Claude Sonnet 4**: Tool calling NOT working (older version)
 
 ### Why It Now Works
 

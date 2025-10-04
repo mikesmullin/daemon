@@ -158,26 +158,37 @@ async function runConversationWithTools() {
   const testCases = [
     {
       name: 'Calculator Test',
+      model: 'gpt-4o',
       messages: [
         { role: 'user', content: 'What is 156 multiplied by 23, plus 47?' }
       ]
     },
     {
-      name: 'Weather Test',
+      name: 'Calculator Test (Claude Sonnet 4)',
+      model: 'claude-sonnet-4',
+      messages: [
+        { role: 'user', content: 'What is 50 + 25?' }
+      ]
+    },
+    {
+      name: 'Calculator Test (Claude Sonnet 4.5)',
+      model: 'claude-sonnet-4.5',
+      messages: [
+        { role: 'user', content: 'What is 100 - 30?' }
+      ]
+    },
+    {
+      name: 'Weather Test (GPT-4o)',
+      model: 'gpt-4o',
       messages: [
         { role: 'user', content: 'What\'s the weather like in San Francisco?' }
       ]
     },
-    {
-      name: 'Command Execution Test',
-      messages: [
-        { role: 'user', content: 'What version of Node.js am I running? Use the executeCommand tool with "node --version".' }
-      ]
-    }
   ];
 
   for (const testCase of testCases) {
     console.log(`🧪 ${testCase.name}\n`);
+    console.log(`   Model: ${testCase.model}`);
     
     const messages = [...testCase.messages];
     let iteration = 0;
@@ -191,65 +202,72 @@ async function runConversationWithTools() {
       console.log(`   Latest: "${messages[messages.length - 1].content?.substring(0, 60)}..."`);
 
       // Make API call
-      const response = await client.chat.completions.create({
-        model: 'gpt-4o',
-        messages: messages,
-        tools: toolDefinitions,
-        max_tokens: 1000,
-      });
+      try {
+        const response = await client.chat.completions.create({
+          model: testCase.model,
+          messages: messages,
+          tools: toolDefinitions,
+          max_tokens: 1000,
+        });
 
-      const choice = response.choices[0];
-      const message = choice.message;
+        const choice = response.choices[0];
+        const message = choice.message;
 
-      console.log(`📥 Response #${iteration}:`);
-      console.log(`   Finish reason: ${choice.finish_reason}`);
+        console.log(`📥 Response #${iteration}:`);
+        console.log(`   Finish reason: ${choice.finish_reason}`);
 
-      // Add assistant's response to messages
-      messages.push(message);
+        // Add assistant's response to messages
+        messages.push(message);
 
-      // Check if AI wants to call tools
-      if (choice.finish_reason === 'tool_calls' && message.tool_calls) {
-        console.log(`   🔧 Tool calls requested: ${message.tool_calls.length}`);
+        // Check if AI wants to call tools
+        if (choice.finish_reason === 'tool_calls' && message.tool_calls) {
+          console.log(`   🔧 Tool calls requested: ${message.tool_calls.length}`);
 
-        // Execute each tool call
-        for (const toolCall of message.tool_calls) {
-          const toolName = toolCall.function.name;
-          const toolArgs = JSON.parse(toolCall.function.arguments);
-          
-          console.log(`\n   Calling: ${toolName}(${JSON.stringify(toolArgs)})`);
-
-          // Find and execute the tool
-          const tool = tools[toolName];
-          if (tool) {
-            const result = await tool.execute(toolArgs);
+          // Execute each tool call
+          for (const toolCall of message.tool_calls) {
+            const toolName = toolCall.function.name;
+            const toolArgs = JSON.parse(toolCall.function.arguments);
             
-            // Add tool result to messages
-            messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: JSON.stringify(result)
-            });
-          } else {
-            console.log(`   ❌ Unknown tool: ${toolName}`);
-            messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: JSON.stringify({ error: 'Unknown tool' })
-            });
+            console.log(`\n   Calling: ${toolName}(${JSON.stringify(toolArgs)})`);
+
+            // Find and execute the tool
+            const tool = tools[toolName];
+            if (tool) {
+              const result = await tool.execute(toolArgs);
+              
+              // Add tool result to messages
+              messages.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify(result)
+              });
+            } else {
+              console.log(`   ❌ Unknown tool: ${toolName}`);
+              messages.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ error: 'Unknown tool' })
+              });
+            }
           }
+          console.log('');
+          // Continue loop to get final answer
+          continue;
         }
-        console.log('');
-        // Continue loop to get final answer
-        continue;
-      }
 
-      // AI has provided final answer
-      if (message.content) {
-        console.log(`   💬 Final answer: ${message.content}`);
-      }
+        // AI has provided final answer
+        if (message.content) {
+          console.log(`   💬 Final answer: ${message.content}`);
+        }
 
-      console.log('\n' + '━'.repeat(60) + '\n');
-      break;
+        console.log('\n' + '━'.repeat(60) + '\n');
+        break;
+        
+      } catch (error) {
+        console.log(`   ❌ Error with model ${testCase.model}:`, error.message);
+        console.log('\n' + '━'.repeat(60) + '\n');
+        break;
+      }
     }
   }
 
