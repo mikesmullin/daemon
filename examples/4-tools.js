@@ -1,20 +1,14 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import yaml from 'js-yaml';
 import OpenAI from 'openai';
+import { getSession, getOpenAIConfig } from '../lib/session.js';
 
 /**
- * Minimal Tool Calling Example
+ * Minimal Tool Calling Example - UPDATED
+ * 
+ * NOW WITH AUTO TOKEN RENEWAL! 🎉
  * 
  * This demonstrates native tool calling with Claude Sonnet 4.5
  * using terminal command execution.
  */
-
-function loadTokens() {
-  const TOKENS_FILE = join(process.cwd(), '.tokens.yaml');
-  const content = readFileSync(TOKENS_FILE, 'utf8');
-  return yaml.load(content) || {};
-}
 
 // Define our tool
 const tools = {
@@ -56,24 +50,15 @@ const tools = {
 };
 
 async function runConversationWithTools() {
-  console.log('\n🔧 Minimal Tool Calling Example\n');
+  console.log('\n🔧 Minimal Tool Calling Example (with auto token renewal!)\n');
   console.log('━'.repeat(60));
 
-  const tokens = loadTokens();
-  const baseURL = tokens.api_url || 'https://api.githubcopilot.com';
+  // Get session with automatic token renewal
+  const session = await getSession();
+  const config = getOpenAIConfig(session);
 
   // Create OpenAI client configured for GitHub Copilot
-  const client = new OpenAI({
-    apiKey: tokens.copilot_token,
-    baseURL: baseURL,
-    defaultHeaders: {
-      'Editor-Version': 'vscode/1.99.3',
-      'Editor-Plugin-Version': 'copilot-chat/0.26.7',
-      'User-Agent': 'GitHubCopilotChat/0.26.7',
-      'Copilot-Integration-Id': 'vscode-chat',
-      'OpenAI-Intent': 'conversation-panel',
-    }
-  });
+  const client = new OpenAI(config);
 
   // Prepare tool definitions for API
   const toolDefinitions = Object.values(tools).map(t => t.definition);

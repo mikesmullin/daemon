@@ -1,11 +1,11 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import yaml from 'js-yaml';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText } from 'ai';
+import { getSession, getProviderConfig } from '../lib/session.js';
 
 /**
- * Example 2: Message Roles
+ * Example 2: Message Roles - UPDATED
+ * 
+ * NOW WITH AUTO TOKEN RENEWAL! 🎉
  * 
  * This demonstrates the different roles supported in conversations.
  * 
@@ -19,28 +19,17 @@ import { generateText } from 'ai';
  * The 'system' role is particularly important for setting instructions.
  */
 
-function loadTokens() {
-  const TOKENS_FILE = join(process.cwd(), '.tokens.yaml');
-  const content = readFileSync(TOKENS_FILE, 'utf8');
-  return yaml.load(content) || {};
-}
-
 async function testRoles() {
-  console.log('\n👥 Testing Message Roles\n');
+  console.log('\n👥 Testing Message Roles (with auto token renewal!)\n');
   console.log('━'.repeat(60));
 
-  const tokens = loadTokens();
-  let baseURL = tokens.api_url || 'https://api.githubcopilot.com';
+  // Get session with automatic token renewal
+  const session = await getSession();
+  const config = getProviderConfig(session);
 
   const provider = createOpenAICompatible({
     name: 'github-copilot',
-    apiKey: tokens.copilot_token,
-    baseURL: baseURL,
-    headers: {
-      'Editor-Version': 'vscode/1.99.3',
-      'Editor-Plugin-Version': 'copilot-chat/0.26.7',
-      'User-Agent': 'GitHubCopilotChat/0.26.7',
-    },
+    ...config,
   });
 
   // Test conversation with explicit roles

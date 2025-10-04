@@ -1,11 +1,16 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import yaml from 'js-yaml';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText } from 'ai';
+import { getSession, getProviderConfig } from '../lib/session.js';
 
 /**
- * Example 1: Conversation Context (Multi-turn conversation)
+ * Example 1: Conversation Context (Multi-turn conversation) - UPDATED
+ * 
+ * NOW WITH AUTO TOKEN RENEWAL! 🎉
+ * 
+ * Changes from original:
+ * - Removed manual loadTokens() function
+ * - Uses lib/session.js for automatic token renewal
+ * - Cleaner code, more robust
  * 
  * This demonstrates how to maintain conversation context across multiple messages.
  * The AI SDK's generateText() supports a 'messages' parameter instead of 'prompt'.
@@ -14,31 +19,24 @@ import { generateText } from 'ai';
  * - Use 'messages' array instead of 'prompt' for multi-turn conversations
  * - Each message has a 'role' and 'content'
  * - The model can reference previous messages in the conversation
+ * - Token renewal happens automatically via getSession()
  */
 
-// Load tokens
-function loadTokens() {
-  const TOKENS_FILE = join(process.cwd(), '.tokens.yaml');
-  const content = readFileSync(TOKENS_FILE, 'utf8');
-  return yaml.load(content) || {};
-}
-
 async function testConversationContext() {
-  console.log('\n📚 Testing Conversation Context\n');
+  console.log('\n📚 Testing Conversation Context (with auto token renewal!)\n');
   console.log('━'.repeat(60));
 
-  const tokens = loadTokens();
-  let baseURL = tokens.api_url || 'https://api.githubcopilot.com';
+  // Get session with automatic token renewal
+  // This replaces the manual loadTokens() - it will:
+  // 1. Check if token is valid
+  // 2. Refresh if expired using GitHub OAuth token
+  // 3. Re-authenticate if needed
+  const session = await getSession();
+  const config = getProviderConfig(session);
 
   const provider = createOpenAICompatible({
     name: 'github-copilot',
-    apiKey: tokens.copilot_token,
-    baseURL: baseURL,
-    headers: {
-      'Editor-Version': 'vscode/1.99.3',
-      'Editor-Plugin-Version': 'copilot-chat/0.26.7',
-      'User-Agent': 'GitHubCopilotChat/0.26.7',
-    },
+    ...config,  // Includes apiKey, baseURL, headers
   });
 
   // Build a conversation with context
@@ -86,6 +84,11 @@ async function testConversationContext() {
 
     console.log('\n💡 The model remembered both pieces of information!');
     console.log('   This proves that conversation context is maintained.');
+
+    console.log('\n🔄 Token Info:');
+    console.log(`   API URL: ${session.tokens.api_url}`);
+    const expiresAt = new Date(session.tokens.expires_at * 1000);
+    console.log(`   Token expires: ${expiresAt.toLocaleString()}`);
 
   } catch (error) {
     console.error('❌ Error:', error.message);

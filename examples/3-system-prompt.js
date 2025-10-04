@@ -1,11 +1,11 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import yaml from 'js-yaml';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText } from 'ai';
+import { getSession, getProviderConfig } from '../lib/session.js';
 
 /**
- * Example 3: System Prompt Control
+ * Example 3: System Prompt Control - UPDATED
+ * 
+ * NOW WITH AUTO TOKEN RENEWAL! 🎉
  * 
  * This demonstrates how to use the 'system' role to control the AI's behavior.
  * The system prompt is like giving the AI a job description or personality.
@@ -15,28 +15,17 @@ import { generateText } from 'ai';
  * 2. Using 'messages' array with role: 'system' (more flexible)
  */
 
-function loadTokens() {
-  const TOKENS_FILE = join(process.cwd(), '.tokens.yaml');
-  const content = readFileSync(TOKENS_FILE, 'utf8');
-  return yaml.load(content) || {};
-}
-
 async function testSystemPrompt() {
-  console.log('\n⚙️  Testing System Prompt Control\n');
+  console.log('\n⚙️  Testing System Prompt Control (with auto token renewal!)\n');
   console.log('━'.repeat(60));
 
-  const tokens = loadTokens();
-  let baseURL = tokens.api_url || 'https://api.githubcopilot.com';
+  // Get session with automatic token renewal
+  const session = await getSession();
+  const config = getProviderConfig(session);
 
   const provider = createOpenAICompatible({
     name: 'github-copilot',
-    apiKey: tokens.copilot_token,
-    baseURL: baseURL,
-    headers: {
-      'Editor-Version': 'vscode/1.99.3',
-      'Editor-Plugin-Version': 'copilot-chat/0.26.7',
-      'User-Agent': 'GitHubCopilotChat/0.26.7',
-    },
+    ...config,
   });
 
   // Method 1: Using 'system' parameter (simpler)
