@@ -114,7 +114,7 @@ const tools = {
 
   try {
     const result1 = await generateText({
-      model: provider('gpt-4o'),
+      model: provider('claude-sonnet-4'),
       messages: [
         {
           role: 'user',
@@ -138,7 +138,7 @@ const tools = {
     console.log('\n🧪 Test 2: Math calculation\n');
 
     const result2 = await generateText({
-      model: provider('gpt-4o'),
+      model: provider('claude-sonnet-4'),
       messages: [
         {
           role: 'user',
@@ -160,7 +160,7 @@ const tools = {
     console.log('\n🧪 Test 3: Terminal command execution\n');
 
     const result3 = await generateText({
-      model: provider('gpt-4o'),
+      model: provider('claude-sonnet-4'),
       messages: [
         {
           role: 'user',

@@ -134,7 +134,9 @@ A language born for browsers to explore...
 **Question:** How do we give the AI access to tools/functions?
 
 **Answer:**
-The AI SDK supports tool calling, but GitHub Copilot API through `openai-compatible` provider has limitations. We demonstrated the **concept** using system prompts to simulate tool calling.
+The AI SDK supports tool calling, but GitHub Copilot API through `openai-compatible` provider has limitations. After analyzing the `opencode` project (written in Go), we found that **tool calling DOES work** with GitHub Copilot API when using the official OpenAI SDK directly, but NOT with the `@ai-sdk/openai-compatible` wrapper.
+
+**See TOOL_ANALYSIS.md for detailed comparison and solutions.**
 
 **Standard Tool Pattern (OpenAI API):**
 ```javascript
