@@ -96,6 +96,14 @@ api_url: https://api.githubcopilot.com
 
 **Note**: Add `.tokens.yaml` to `.gitignore` to keep tokens secure.
 
+### How to Refresh Tokens
+
+The index.js script knows how to do it automatically.
+
+```sh
+node index.js --prompt "test authentication"
+```
+
 ## Requirements
 
 - Node.js 18+ (ES6 modules support)
