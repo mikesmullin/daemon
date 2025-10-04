@@ -26,10 +26,13 @@ npm install
 ## Available Commands
 
 ```bash
-npm start        # Start the multi-agent daemon (file watcher)
-npm run demo     # Run the demo scenario (Slack → Redis check → response)
-npm test         # Run all tests (unit + integration)
-npm run clean    # Clean up temporary files from tests and demos
+npm start          # Start the multi-agent daemon (file watcher mode)
+npm run pump       # Run daemon in pump mode (one iteration, then exit)
+npm run demo       # Run the original demo scenario (Slack → Redis check → response)
+npm run demo:pump  # Run interactive demo using pump mode (step-by-step)
+npm test           # Run all tests (unit + integration)
+npm run test:pump  # Run automated pump mode tests
+npm run clean      # Clean up temporary files from tests and demos
 ```
 
 ## Examples
@@ -53,6 +56,28 @@ Demonstrates terminal command execution with security controls using the command
 Shows how to automatically approve safe commands and block dangerous ones.
 
 ## How It Works
+
+### Pump Mode (New!)
+
+The daemon now supports **pump mode** for testing and debugging:
+
+```bash
+node daemon.js --pump
+```
+
+In pump mode, the daemon:
+- Processes **exactly one iteration** of the event loop
+- Handles all pending agent messages
+- Processes all pending approvals
+- Exits immediately after completion
+
+This is useful for:
+- **Testing**: Deterministic, reproducible test scenarios
+- **Debugging**: Step through the workflow manually
+- **Learning**: Understand the processing flow
+- **CI/CD**: Automated testing without long-running processes
+
+See [TESTING.md](TESTING.md) for detailed testing documentation.
 
 ### Authentication Flow
 

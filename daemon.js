@@ -25,6 +25,10 @@ const AGENTS_DIR = 'agents';
 const APPROVALS_DIR = 'approvals/pending';
 const POLL_INTERVAL = 2000; // 2 seconds
 
+// Parse command line arguments
+const args = process.argv.slice(2);
+const PUMP_MODE = args.includes('--pump');
+
 /**
  * Daemon state
  */
@@ -41,6 +45,9 @@ const state = {
  */
 export async function initDaemon() {
   console.log('🚀 Multi-Agent Orchestrator Daemon Starting...\n');
+  if (PUMP_MODE) {
+    console.log('⚙️  PUMP MODE: Will run one iteration and exit\n');
+  }
   console.log('━'.repeat(60));
 
   // Ensure directories exist
@@ -58,7 +65,18 @@ export async function initDaemon() {
   state.client = new OpenAI(config);
   console.log('✓ Authentication successful\n');
 
-  // Start file watchers
+  if (PUMP_MODE) {
+    // Pump mode: process once and exit
+    console.log('🔍 Processing pending work (pump mode)...');
+    await scanAgents();
+    await scanApprovals();
+    console.log('✓ Pump iteration complete\n');
+    console.log('━'.repeat(60));
+    console.log('✅ Pump mode finished. Exiting.\n');
+    return; // Exit without keeping process alive
+  }
+
+  // Normal daemon mode: continuous watching
   console.log('👀 Starting file watchers...');
   startAgentWatcher();
   startApprovalWatcher();
@@ -325,6 +343,22 @@ async function scanAgents() {
       console.log(`   ⏳ ${file} is waiting for response`);
       await handleAgentFileChange(filePath);
     }
+  }
+}
+
+/**
+ * Scan all approvals for pending decisions (pump mode)
+ */
+async function scanApprovals() {
+  if (!existsSync(APPROVALS_DIR)) return;
+
+  const files = readdirSync(APPROVALS_DIR).filter(f => f.endsWith('.approval.md'));
+
+  console.log(`   Found ${files.length} pending approval(s)`);
+
+  for (const file of files) {
+    const filePath = join(APPROVALS_DIR, file);
+    await handleApprovalChange(filePath);
   }
 }
 

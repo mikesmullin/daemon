@@ -6,8 +6,11 @@
   "main": "daemon.js",
   "scripts": {
     "start": "node daemon.js",
+    "pump": "node daemon.js --pump",
     "demo": "node demo-scenario.js",
+    "demo:pump": "node demo-pump.js",
     "test": "node tests/runner.js",
+    "test:pump": "node test-pump.js",
     "clean": "node scripts/clean.js"
   },
   "keywords": [
