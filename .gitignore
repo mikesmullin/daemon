@@ -3,3 +3,4 @@ node_modules/
 /convo.md
 /.tokens.yaml
 /tmp/
+/storage/*

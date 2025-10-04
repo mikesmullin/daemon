@@ -11,6 +11,7 @@ A minimalist Node.js CLI tool that authenticates with GitHub Copilot API and all
 - ✅ Token refresh handling
 - ✅ Uses OpenAI SDK for maximum compatibility
 - ✅ Tool calling support (function execution)
+- ✅ **Security allowlist for terminal commands** 🔒
 - ✅ Multi-turn conversations
 - ✅ System prompt control
 - ✅ Clean ES6 module syntax
@@ -39,6 +40,13 @@ Demonstrates multi-turn conversations where the AI remembers previous messages.
 node examples/2-agent.js
 ```
 Shows how to execute terminal commands via AI tool calling (function execution).
+
+### 3. Secure Agent with Allowlist (`examples/3-secure-agent.js`)
+```bash
+node examples/3-secure-agent.js
+```
+Demonstrates terminal command execution with security controls using the command allowlist.
+Shows how to automatically approve safe commands and block dangerous ones.
 
 ## How It Works
 
