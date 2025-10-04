@@ -28,7 +28,7 @@ const itemsToClean = [
   { path: 'tasks', description: 'Task files', keepDir: true },
 
   // Agent files (keep directory structure, remove generated agents)
-  { path: 'agents', description: 'Agent chat logs', keepDir: true, cleanPattern: true },
+  // { path: 'agents', description: 'Agent chat logs', keepDir: true, cleanPattern: true },
 ];
 
 let cleaned = 0;
