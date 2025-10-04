@@ -1,15 +1,20 @@
 # Minimal GitHub Copilot CLI
 
-A minimalist Node.js CLI tool that authenticates with GitHub Copilot API and allows you to interact with Claude Sonnet 4 via the Copilot API.
+A minimalist Node.js CLI tool that authenticates with GitHub Copilot API and allows you to interact with AI models via the Copilot API.
+
+**🚀 Now using OpenAI SDK exclusively!** - Simpler, more reliable, better tool support.
 
 ## Features
 
 - ✅ GitHub OAuth device flow authentication
-- ✅ Automatic token caching in `.tokens.yaml`
+- ✅ Automatic token caching and renewal in `.tokens.yaml`
 - ✅ Token refresh handling
-- ✅ Interactive prompt for user input
-- ✅ Uses GPT-4o (or other models) via GitHub Copilot API
+- ✅ Uses OpenAI SDK for maximum compatibility
+- ✅ Tool calling support (function execution)
+- ✅ Multi-turn conversations
+- ✅ System prompt control
 - ✅ Clean ES6 module syntax
+- ✅ Multiple AI models supported (GPT-4o, Claude Sonnet 4.5, etc.)
 
 ## Installation
 
@@ -17,49 +22,23 @@ A minimalist Node.js CLI tool that authenticates with GitHub Copilot API and all
 npm install
 ```
 
-## Usage
+## Examples
 
-### Interactive Mode
+The `examples/` directory contains demonstrations of key features:
 
+### 1. System Prompt, Roles, Context (`examples/1-ask.js`)
 ```bash
-npm start
+node examples/1-ask.js
 ```
+Demonstrates controlling AI behavior with system prompts.
+Shows how to use different message roles (system, user, assistant, tool).
+Demonstrates multi-turn conversations where the AI remembers previous messages.
 
-The tool will:
-1. Check for cached tokens in `.tokens.yaml`
-2. If no valid token exists, open your browser for GitHub authentication
-3. Display a device code for you to authorize
-4. Wait for authorization and obtain Copilot API token
-5. Prompt you for an LLM prompt
-6. Send the prompt to the selected model via Copilot API
-7. Display the response
-
-### CLI Mode
-
-You can also pass prompts and model selection directly via command-line arguments:
-
+### 2. Tool Calling (`examples/2-agent.js`)
 ```bash
-# Use default model (gpt-4o)
-node index.js --prompt "Explain async/await"
-
-# Specify a model
-node index.js --model claude-sonnet-4 --prompt "Write a haiku about coding"
-
-# Show help
-node index.js --help
+node examples/2-agent.js
 ```
-
-**Available options:**
-- `--prompt <text>` - Send this prompt directly (skip interactive input)
-- `--model <name>` - Model to use (default: gpt-4o)
-- `--help, -h` - Show help message
-
-**Supported models:**
-- `gpt-4o` - GPT-4 Omni (default)
-- `claude-sonnet-4` - Claude Sonnet 4
-- `o1-preview` - OpenAI o1 Preview
-- `gpt-4` - GPT-4
-- And other models available through your GitHub Copilot subscription
+Shows how to execute terminal commands via AI tool calling (function execution).
 
 ## How It Works
 
@@ -70,18 +49,20 @@ node index.js --help
 3. **Token Exchange**: Exchanges device code for GitHub OAuth token
 4. **Copilot Token**: Uses OAuth token to get Copilot API token
 5. **Token Caching**: Saves tokens to `.tokens.yaml` for reuse
+6. **Auto Renewal**: Automatically refreshes tokens when expired
 
 ### API Integration
 
-Uses Vercel AI SDK's `@ai-sdk/openai-compatible` package with GitHub Copilot's API:
+Uses the official **OpenAI SDK** with GitHub Copilot's API:
 - Base URL: Dynamic (from token response, e.g., `https://api.individual.githubcopilot.com`)
-- Models: Multiple models supported (GPT-4o, Claude Sonnet 4, o1-preview, etc.)
+- Models: Multiple models supported (GPT-4o, Claude Sonnet 4.5, o1-preview, etc.)
 - Authentication: Bearer token from Copilot API
 - Required Headers:
   - `Editor-Version`: vscode/1.99.3
   - `Editor-Plugin-Version`: copilot-chat/0.26.7
   - `User-Agent`: GitHubCopilotChat/0.26.7
-- Uses `openai-compatible` provider for maximum compatibility across different model types
+  - `Copilot-Integration-Id`: vscode-chat
+  - `OpenAI-Intent`: conversation-panel
 
 ## Token Storage
 
@@ -95,80 +76,3 @@ api_url: https://api.githubcopilot.com
 ```
 
 **Note**: Add `.tokens.yaml` to `.gitignore` to keep tokens secure.
-
-### How to Refresh Tokens
-
-The index.js script knows how to do it automatically.
-
-```sh
-node index.js --prompt "test authentication"
-```
-
-## Requirements
-
-- Node.js 18+ (ES6 modules support)
-- Active GitHub Copilot subscription
-- Internet connection for authentication and API calls
-
-## Example Session
-
-### Interactive Mode
-
-```
-🚀 Minimal GitHub Copilot CLI
-
-🔐 Starting GitHub authentication...
-
-📋 Please visit: https://github.com/login/device
-🔑 Enter code: ABCD-1234
-
-⏳ Waiting for authorization.....
-✓ GitHub authenticated!
-✓ Copilot token obtained!
-✓ Tokens saved to /path/to/.tokens.yaml
-
-💬 Enter your prompt for Copilot: Write a haiku about coding
-🎯 Using model: gpt-4o
-
-🤖 Calling Copilot API...
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📝 Copilot Response:
-
-Code flows like water,
-Bugs dance in morning debug,
-Coffee saves the day.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-### CLI Mode
-
-```bash
-$ node index.js --model claude-sonnet-4 --prompt "Write a haiku about coding"
-
-🚀 Minimal GitHub Copilot CLI
-
-✓ Using cached Copilot token
-
-💬 Using prompt: "Write a haiku about coding"
-🎯 Using model: claude-sonnet-4
-
-🤖 Calling Copilot API...
-
-🔗 Using API endpoint: https://api.individual.githubcopilot.com
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📝 Copilot Response:
-
-Lines of logic flow,
-Debugging through endless nights—
-Code compiles at last.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-## Based On
-
-This implementation is inspired by the authentication mechanism used in [sst/opencode](https://github.com/sst/opencode), specifically their GitHub Copilot provider integration.
-
-## License
-
-MIT

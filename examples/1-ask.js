@@ -1,11 +1,11 @@
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { generateText } from 'ai';
-import { getSession, getProviderConfig } from '../lib/session.js';
+import OpenAI from 'openai';
+import { getSession, getOpenAIConfig } from '../lib/session.js';
 
 /**
  * Example 2: Message Roles - UPDATED
  * 
  * NOW WITH AUTO TOKEN RENEWAL! 🎉
+ * NOW USING OPENAI SDK EXCLUSIVELY! 🚀
  * 
  * This demonstrates the different roles supported in conversations.
  * 
@@ -25,12 +25,10 @@ async function testRoles() {
 
   // Get session with automatic token renewal
   const session = await getSession();
-  const config = getProviderConfig(session);
+  const config = getOpenAIConfig(session);
 
-  const provider = createOpenAICompatible({
-    name: 'github-copilot',
-    ...config,
-  });
+  // Create OpenAI client configured for GitHub Copilot
+  const client = new OpenAI(config);
 
   // Test conversation with explicit roles
   const messages = [
@@ -40,16 +38,24 @@ async function testRoles() {
     },
     {
       role: 'user',
-      content: 'What is the capital of France?'
+      content: 'My favorite color is blue.'
     },
     {
       role: 'assistant',
-      content: 'Arrr! The capital of France be Paris, matey! A fine port city on the River Seine!'
+      content: 'Arrr! Blue, ye say? That be the hue o’ the deep sea and the sky over the horizon! A fine choice for a pirate’s heart. Be ye wantin’ to deck out yer ship’s sails in that azure glory or somethin’ else? Speak, me matey! Arrr!'
     },
     {
       role: 'user',
-      content: 'Tell me about its famous landmark.'
-    }
+      content: 'My favorite number is 42.'
+    },
+    {
+      role: 'assistant',
+      content: 'Arrr! Forty-two, eh? That be a number with a mystical ring, like a cannon blast echoin’ across the seven seas! Be it yer lucky number for plunderin’ or just a whim, it’s a fine pick. What else be stirrin’ in yer pirate soul, matey? Arrr!'
+    },
+    {
+      role: 'user',
+      content: 'What were my favorite color and number? Answer in one sentence.'
+    },
   ];
 
   console.log('📝 Message roles in conversation:');
@@ -60,15 +66,17 @@ async function testRoles() {
   console.log('\n🤖 Calling Copilot with different roles...\n');
 
   try {
-    const result = await generateText({
-      model: provider('gpt-4o'),
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o',
       messages: messages,
-      maxTokens: 300,
+      max_tokens: 300,
     });
+
+    const result = response.choices[0].message;
 
     console.log('━'.repeat(60));
     console.log('✅ Response with role-based behavior:\n');
-    console.log(result.text);
+    console.log(result.content);
     console.log('━'.repeat(60));
 
     console.log('\n💡 Key insights about roles:');
