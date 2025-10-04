@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node daemon.js",
     "demo": "node demo-scenario.js",
-    "test": "node examples/1-ask.js"
+    "test": "node tests/runner.js",
+    "clean": "node scripts/clean.js"
   },
   "keywords": [
     "github",

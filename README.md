@@ -23,6 +23,15 @@ A minimalist Node.js CLI tool that authenticates with GitHub Copilot API and all
 npm install
 ```
 
+## Available Commands
+
+```bash
+npm start        # Start the multi-agent daemon (file watcher)
+npm run demo     # Run the demo scenario (Slack → Redis check → response)
+npm test         # Run all tests (unit + integration)
+npm run clean    # Clean up temporary files from tests and demos
+```
+
 ## Examples
 
 The `examples/` directory contains demonstrations of key features:
