@@ -4,7 +4,7 @@ All approval requests are tracked here using the todo task format.
 
 ## TODO
 
-- [_] A @human #approval `Approve command: docker ps --filter "name=redis" --format "{{.Names`
+- [x] A @human #approval `Approve command: docker ps --filter "name=redis" --format "{{.Names`
   id: approval-1759637150230-97a7bbf3
   type: approval_request
   approval_type: terminal_command
@@ -12,6 +12,8 @@ All approval requests are tracked here using the todo task format.
   created: 2025-10-05T04:05:50.230Z
   risk: MEDIUM
   status: pending
+  approved_by: human-operator
+  approved_at: 2025-10-05T04:06:00.000Z
   description: |
     Approval Request: terminal_command
     Risk Level: MEDIUM

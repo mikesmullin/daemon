@@ -25,8 +25,9 @@ import {
   requestToolApproval,
   ensureApprovalDirs
 } from './lib/approval-tasks.js';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
+import yaml from 'js-yaml';
 
 // Configuration
 const SESSIONS_DIR = 'sessions';
@@ -74,6 +75,7 @@ export async function initDaemon() {
     console.log('🔍 Processing pending work (pump mode)...');
     await scanTasks();
     await scanSessions();
+    await rebuildApprovalQueue();
     await handleApprovalFileChange(APPROVALS_TASK_FILE);
     console.log('✓ Pump iteration complete\n');
     console.log('━'.repeat(60));
@@ -282,7 +284,14 @@ async function handleToolCall(sessionId, sessionFile, toolCall) {
  */
 async function executeAndLog(sessionFile, toolCall) {
   const toolName = toolCall.function.name;
-  const toolArgs = JSON.parse(toolCall.function.arguments);
+  
+  // Handle arguments that may be already parsed (from YAML) or JSON string
+  let toolArgs;
+  if (typeof toolCall.function.arguments === 'string') {
+    toolArgs = JSON.parse(toolCall.function.arguments);
+  } else {
+    toolArgs = toolCall.function.arguments;
+  }
 
   try {
     const result = await executeTool(toolName, toolArgs);
@@ -360,6 +369,65 @@ async function handleApprovalFileChange(filePath) {
     // Archive approval and remove from queue
     archiveApproval(taskId, decision.approved);
     state.approvalQueue.delete(taskId);
+  }
+}
+
+/**
+ * Rebuild approval queue from approved tasks that need execution
+ */
+async function rebuildApprovalQueue() {
+  if (!existsSync(APPROVALS_TASK_FILE)) return;
+
+  try {
+    // Find approved but not yet executed approval requests
+    const { execSync } = await import('child_process');
+    const result = execSync(`todo query "SELECT * FROM ${APPROVALS_TASK_FILE} WHERE type = 'approval_request' AND completed = true" --format json`, { encoding: 'utf8' });
+    const approvedTasks = JSON.parse(result);
+
+    for (const task of approvedTasks) {
+      const agentId = task.agent;
+      const taskId = task.id;
+
+      // Find the matching session file
+      const sessionFile = join(SESSIONS_DIR, `${agentId}.session.yaml`);
+      
+      if (!existsSync(sessionFile)) {
+        console.log(`   ⚠️  Session file not found for approved task ${taskId}: ${sessionFile}`);
+        continue;
+      }
+
+      // Read the session to find the pending tool call
+      const sessionContent = readFileSync(sessionFile, 'utf8');
+      const session = yaml.load(sessionContent);
+
+      // Find the last assistant message with tool_calls
+      const lastMessage = session.messages[session.messages.length - 1];
+      if (lastMessage && lastMessage.role === 'assistant' && lastMessage.tool_calls) {
+        // Find a tool call that matches the approval
+        for (const toolCall of lastMessage.tool_calls) {
+          if (toolCall.function.name === 'execute_command') {
+            const command = toolCall.function.arguments.command;
+            
+            // Check if this command matches the approval description
+            if (task.description && task.description.includes(command)) {
+              console.log(`   🔄 Rebuilding approval queue for ${taskId}`);
+              
+              // Add to approval queue
+              state.approvalQueue.set(taskId, {
+                sessionFile,
+                toolCall,
+                taskId
+              });
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`   Found ${state.approvalQueue.size} approved tasks in queue`);
+  } catch (error) {
+    console.error('Error rebuilding approval queue:', error);
   }
 }
 
