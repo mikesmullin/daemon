@@ -123,6 +123,24 @@ async function parseCliArgs() {
     }
   }
 
+  if (subcommand === 'eval') {
+    if (args.length < 2) {
+      abort(
+        `Error: eval requires a session ID` +
+        `Usage: daemon.mjs eval <session_id>`);
+    }
+
+    const sessionId = args[1];
+
+    try {
+      const result = await Agent.eval(sessionId);
+      console.log(outputAs(format, result, { truncate }));
+      process.exit(0);
+    } catch (error) {
+      abort(error.message);
+    }
+  }
+
   if (['pump', 'watch'].includes(subcommand)) {
     _G.mode = subcommand;
     return;
@@ -143,6 +161,7 @@ Subcommands:
   new           Create a new agent session: new <agent> [prompt]
   push          Append message to session: push <session_id> <prompt>
   fork          Fork an existing agent session: fork <session_id> [prompt]
+  eval          Ask Copilot to evaluate a session: eval <session_id>
 
 Options:
   --format      Output format (table|json|yaml|csv) [default: table]

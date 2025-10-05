@@ -150,8 +150,8 @@ export class Agent {
       const sessionContent = await readYaml(sessionPath);
 
       // Initialize messages array if it doesn't exist
-      if (!sessionContent.messages) {
-        sessionContent.messages = [];
+      if (!sessionContent.spec.messages) {
+        sessionContent.spec.messages = [];
       }
 
       // Add new user message with timestamp
@@ -161,8 +161,8 @@ export class Agent {
         content: content
       };
 
-      sessionContent.messages.push(newMessage);
-      const messageId = sessionContent.messages.length - 1;
+      sessionContent.spec.messages.push(newMessage);
+      const messageId = sessionContent.spec.messages.length - 1;
 
       // Write back to file
       await writeYaml(sessionPath, sessionContent);
@@ -229,42 +229,45 @@ export class Agent {
     const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
     const sessionContent = await readYaml(sessionPath);
 
-    const messages = [
-      {
-        role: 'system',
-        content: 'You are a pirate. Always respond in pirate speak with "Arrr!" and nautical terms.'
-      },
-      {
-        role: 'user',
-        content: 'My favorite color is blue.'
-      },
-      {
-        role: 'assistant',
-        content: 'Arrr! Blue, ye say? That be the hue o’ the deep sea and the sky over the horizon! A fine choice for a pirate’s heart. Be ye wantin’ to deck out yer ship’s sails in that azure glory or somethin’ else? Speak, me matey! Arrr!'
-      },
-      {
-        role: 'user',
-        content: 'My favorite number is 42.'
-      },
-      {
-        role: 'assistant',
-        content: 'Arrr! Forty-two, eh? That be a number with a mystical ring, like a cannon blast echoin’ across the seven seas! Be it yer lucky number for plunderin’ or just a whim, it’s a fine pick. What else be stirrin’ in yer pirate soul, matey? Arrr!'
-      },
-      {
-        role: 'user',
-        content: 'What were my favorite color and number? Answer in one sentence.'
-      },
-    ];
+    const system_prompt = sessionContent.spec.system_prompt || 'You are a helpful assistant.';
+    const messages = (sessionContent.spec.messages || []).map(m => ({ role: m.role, content: m.content }));
+    messages.unshift({ role: 'system', content: system_prompt });
+
     try {
       await Copilot.init();
+      sessionContent.metadata.model = sessionContent.metadata.model || 'gpt-4o';
       const response = await Copilot.client.chat.completions.create({
-        model: 'claude-sonnet-4',
+        model: sessionContent.metadata.model,
         messages: messages,
-        max_tokens: 300,
+        // max_tokens: 300,
       });
-      return response;
+
+      sessionContent.metadata.usage = response.usage;
+      let last_message = '';
+      for (const choice of response.choices) {
+        if (!choice) continue;
+        sessionContent.metadata.finish_reason = choice.finish_reason || 'unknown';
+        const ts = new Date().toISOString();
+        if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
+        sessionContent.spec.messages.push({
+          ts,
+          role: choice.message.role,
+          content: choice.message.content
+        });
+        last_message = `${ts} ${choice.message.role}: ${choice.message.content}`;
+      }
+
+      await writeYaml(sessionPath, sessionContent);
+
+      return {
+        session_id,
+        agent: sessionContent.metadata.name,
+        model: sessionContent.metadata.model,
+        last_message,
+        used_tokens: sessionContent.metadata.usage.total_tokens,
+      };
     } catch (error) {
-      console.error('❌ Error:', error.message);
+      abort(error.message);
     }
   }
 

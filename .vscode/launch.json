@@ -10,9 +10,9 @@
         // "pump"
         //"fork", "executor", "Write a Python script that prints the numbers from 1 to 10."
         //"new", "planner", "Who are you?"
-        "new",
-        "planner",
-        "Who are you?"
+        //"eval", "0"
+        "eval",
+        "0"
       ],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal"
