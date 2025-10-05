@@ -94,25 +94,48 @@ export async function makeDirectories() {
   await mkdirp(_G.WORKSPACES_DIR);
 }
 
-export function outputAs(type, data) {
+export function outputAs(type, data, options = {}) {
   const kind = String(type || '').toLowerCase();
+  const { truncate = false, truncateLength = 50 } = options;
+
+  // Apply truncation to data if requested
+  const truncateValue = (value) => {
+    if (!truncate || typeof value !== 'string') return value;
+    return value.length > truncateLength ? value.substring(0, truncateLength - 3) + '...' : value;
+  };
+
+  const truncateData = (obj) => {
+    if (Array.isArray(obj)) {
+      return obj.map(truncateData);
+    } else if (obj && typeof obj === 'object') {
+      const truncated = {};
+      for (const [key, value] of Object.entries(obj)) {
+        truncated[key] = truncateData(value);
+      }
+      return truncated;
+    } else {
+      return truncateValue(obj);
+    }
+  };
+
+  const processedData = truncate ? truncateData(data) : data;
 
   if (kind === 'json') {
-    return JSON.stringify(data, null, 2);
+    return JSON.stringify(processedData, null, 2);
   }
 
   if (kind === 'yaml') {
-    return yaml.dump(data);
+    return yaml.dump(processedData);
   }
 
   // Normalize to array of row objects
   let rows;
-  if (Array.isArray(data)) {
-    rows = data;
-  } else if (data && typeof data === 'object') {
-    rows = [data];
+  if (Array.isArray(processedData)) {
+    rows = processedData;
+  } else if (processedData && typeof processedData === 'object') {
+    rows = [processedData];
   } else {
-    rows = [{ value: data }];
+    rows = [{ value: processedData }];
   }
 
   // Derive column keys

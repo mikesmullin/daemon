@@ -7,11 +7,8 @@
       "request": "launch",
       "program": "${workspaceFolder}/src/daemon.mjs",
       "args": [
-        // "pump"
+        "pump"
         //"fork", "executor", "Write a Python script that prints the numbers from 1 to 10."
-        "fork",
-        "executor",
-        "Write a Python script that prints the numbers from 1 to 10."
       ],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal"

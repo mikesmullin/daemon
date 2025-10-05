@@ -48,3 +48,12 @@ messages:
   - ts: "2025-10-05T21:42:59.366Z"
     role: user
     content: One more question please
+  - ts: "2025-10-05T21:49:01.288Z"
+    role: user
+    content: This is a very long message that should definitely be truncated because it exceeds the 50 character limit that we set up for the display in the table format
+  - ts: "2025-10-05T21:55:44.677Z"
+    role: user
+    content: Another very long message that should be truncated when the flag is used
+  - ts: "2025-10-05T21:55:49.879Z"
+    role: user
+    content: Short message

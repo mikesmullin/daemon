@@ -49,9 +49,17 @@ async function parseCliArgs() {
     args.splice(formatIndex, 2); // Remove --format and its value
   }
 
+  // Parse --truncate flag
+  let truncate = false;
+  const truncateIndex = args.indexOf('--truncate');
+  if (truncateIndex !== -1) {
+    truncate = true;
+    args.splice(truncateIndex, 1); // Remove --truncate flag
+  }
+
   if (subcommand === 'list') {
     const sessions = await Agent.list();
-    console.log(outputAs(format, sessions));
+    console.log(outputAs(format, sessions, { truncate }));
     process.exit(0);
   }
 
@@ -70,7 +78,7 @@ async function parseCliArgs() {
       const result = { session_id: sessionId, agent: agent };
       if (prompt) result.initial_prompt = prompt;
 
-      console.log(outputAs(format, result));
+      console.log(outputAs(format, result, { truncate }));
       process.exit(0);
     } catch (error) {
       abort(error.message);
@@ -89,7 +97,7 @@ async function parseCliArgs() {
 
     try {
       const result = await Agent.push(sessionId, prompt);
-      console.log(outputAs(format, result));
+      console.log(outputAs(format, result, { truncate }));
       process.exit(0);
     } catch (error) {
       abort(error.message);
@@ -118,6 +126,7 @@ Subcommands:
 
 Options:
   --format      Output format (table|json|yaml|csv) [default: table]
+  --truncate    Truncate long text fields in output
 `);
   process.exit(0);
 }

@@ -72,7 +72,42 @@ export class Agent {
         if ('_next' == session_id) continue;
         const bt_state = await Agent.state(session_id);
         if (bt_state) {
-          sessions.push({ session_id: session_id, bt_state });
+          // Read session file to get additional details
+          const sessionFileName = `${session_id}.yaml`;
+          const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
+
+          let agent = 'unknown';
+          let model = 'unknown';
+          let last_message = '';
+
+          try {
+            const sessionContent = await fs.readFile(sessionPath, 'utf-8');
+            const sessionData = yaml.load(sessionContent);
+
+            // Extract agent and model from metadata
+            if (sessionData.metadata) {
+              agent = sessionData.metadata.name || 'unknown';
+              model = sessionData.metadata.model || 'unknown';
+            }
+
+            // Extract last message
+            if (sessionData.messages && sessionData.messages.length > 0) {
+              const lastMsg = sessionData.messages[sessionData.messages.length - 1];
+              // Format as "timestamp role: content" (no truncation here - let outputAs handle it)
+              const content = lastMsg.content || '';
+              last_message = `${lastMsg.ts || ''} ${lastMsg.role || ''}: ${content}`;
+            }
+          } catch (fileError) {
+            log('debug', `Could not read session file ${sessionFileName}: ${fileError.message}`);
+          }
+
+          sessions.push({
+            session_id: session_id,
+            bt_state,
+            agent,
+            model,
+            last_message
+          });
         }
       }
 
