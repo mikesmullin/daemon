@@ -14,21 +14,27 @@ const itemsToClean = [
   // Test directories
   { path: 'tests/temp', description: 'Unit test temp directory' },
   { path: 'tests/integration-temp', description: 'Integration test temp directory' },
+  { path: 'tests/e2e-temp', description: 'E2E test temp directory' },
+  { path: 'tests/yaml-unit-temp', description: 'YAML unit test temp directory' },
 
-  // Approval directories (reset to empty state)
-  { path: 'approvals/pending', description: 'Pending approvals', keepDir: true },
-  { path: 'approvals/approved', description: 'Approved actions', keepDir: true },
-  { path: 'approvals/rejected', description: 'Rejected actions', keepDir: true },
+  // DEPRECATED: Old approval directories (will be removed completely)
+  { path: 'approvals', description: 'DEPRECATED approval directories (use tasks instead)' },
 
   // Inbox files (created by demo and tools)
   { path: 'inbox/slack-messages.jsonl', description: 'Slack inbox messages', file: true },
   { path: 'inbox/slack-outbox.jsonl', description: 'Slack outbox messages', file: true },
 
-  // Task files (created by demo)
-  { path: 'tasks', description: 'Task files', keepDir: true },
+  // Task files (keep directory, remove test files)
+  { path: 'tasks', description: 'Task files', keepDir: true, cleanPattern: /^(test-|demo-|approvals\.task\.md)/ },
 
-  // Agent files (keep directory structure, remove generated agents)
-  // { path: 'agents', description: 'Agent chat logs', keepDir: true, cleanPattern: true },
+  // YAML sessions (keep directory, remove test/demo sessions)
+  { path: 'sessions', description: 'YAML sessions', keepDir: true, cleanPattern: /^(test-|demo-)/ },
+
+  // Templates (keep directory, remove test templates)
+  { path: 'templates', description: 'Agent templates', keepDir: true, cleanPattern: /^test-/ },
+
+  // DEPRECATED: Old agent .md files (to be removed completely)
+  { path: 'agents', description: 'DEPRECATED agent .md files (migrated to YAML)', cleanPattern: /\.agent\.md$/ },
 ];
 
 let cleaned = 0;
@@ -45,37 +51,35 @@ for (const item of itemsToClean) {
       rmSync(item.path, { force: true });
       console.log(`✓ Removed ${item.description}: ${item.path}`);
       cleaned++;
-    } else if (item.keepDir) {
+    } else if (item.keepDir || item.cleanPattern) {
       // Clean contents but keep directory
-      if (item.cleanPattern) {
-        // For agents, remove files but keep the directory structure
-        const files = readdirSync(item.path);
-        let fileCount = 0;
-        for (const file of files) {
-          const filePath = join(item.path, file);
-          const stat = statSync(filePath);
-          if (stat.isFile() && file.endsWith('.agent.md')) {
+      if (!existsSync(item.path)) {
+        continue;
+      }
+
+      const files = readdirSync(item.path);
+      let fileCount = 0;
+
+      for (const file of files) {
+        const filePath = join(item.path, file);
+        const stat = statSync(filePath);
+
+        if (stat.isFile()) {
+          // Check if file matches clean pattern
+          const shouldClean = item.cleanPattern ?
+            (item.cleanPattern instanceof RegExp ? item.cleanPattern.test(file) : item.cleanPattern) :
+            true;  // Clean all if keepDir without pattern
+
+          if (shouldClean) {
             rmSync(filePath, { force: true });
             fileCount++;
           }
         }
-        if (fileCount > 0) {
-          console.log(`✓ Cleaned ${fileCount} agent file(s) from ${item.path}`);
-          cleaned += fileCount;
-        }
-      } else {
-        // Remove all contents
-        const files = readdirSync(item.path);
-        let fileCount = 0;
-        for (const file of files) {
-          const filePath = join(item.path, file);
-          rmSync(filePath, { recursive: true, force: true });
-          fileCount++;
-        }
-        if (fileCount > 0) {
-          console.log(`✓ Cleaned ${fileCount} item(s) from ${item.description}: ${item.path}`);
-          cleaned += fileCount;
-        }
+      }
+
+      if (fileCount > 0) {
+        console.log(`✓ Cleaned ${fileCount} file(s) from ${item.description}: ${item.path}`);
+        cleaned += fileCount;
       }
     } else {
       // Remove entire directory

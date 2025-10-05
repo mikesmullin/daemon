@@ -1,19 +1,21 @@
 // tests/unit/approval.test.js
 // Tests for approval workflow system
 
-import { existsSync, unlinkSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, unlinkSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import {
+  ensureApprovalDirs,
   createApprovalRequest,
   parseApprovalFile,
   checkApprovalDecision,
-  archiveApproval,
   assessRisk,
   requestToolApproval,
-  ensureApprovalDirs
-} from '../../lib/approval.js';
+  archiveApproval
+} from '../../lib/approval-tasks.js';
 
 const TEMP_DIR = 'tests/temp';
+const TASKS_DIR = 'tasks';
+const APPROVALS_TASK_FILE = join(TASKS_DIR, 'approvals.task.md');
 
 // Ensure temp directory exists
 if (!existsSync(TEMP_DIR)) {

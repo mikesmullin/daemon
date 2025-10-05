@@ -2,7 +2,7 @@
 
 A minimalist Node.js CLI tool that authenticates with GitHub Copilot API and allows you to interact with AI models via the Copilot API.
 
-**🚀 Now using OpenAI SDK exclusively!** - Simpler, more reliable, better tool support.
+**🚀 Now using YAML-based agent architecture!** - Clean, structured, and easy to parse.
 
 ## Features
 
@@ -13,9 +13,36 @@ A minimalist Node.js CLI tool that authenticates with GitHub Copilot API and all
 - ✅ Tool calling support (function execution)
 - ✅ **Security allowlist for terminal commands** 🔒
 - ✅ Multi-turn conversations
+- ✅ **YAML-based agent templates and sessions** 📄
+- ✅ **Separate agent templates from chat instances** 🔄
 - ✅ System prompt control
 - ✅ Clean ES6 module syntax
 - ✅ Multiple AI models supported (GPT-4o, Claude Sonnet 4.5, etc.)
+
+## Architecture
+
+The system uses a **two-tier YAML architecture** with **task-based approvals**:
+
+### Agent Templates (`templates/*.agent.yaml`)
+Base configurations for instantiating agents. Think of these as "classes" or "blueprints":
+- Define agent capabilities and system prompts
+- Reusable across multiple sessions
+- Version-controlled and easy to review
+
+### Chat Sessions (`sessions/*.session.yaml`)
+Active conversation instances. Think of these as "objects" or "instances":
+- Contain full conversation history
+- Track session state (active, sleeping, completed)
+- Can have multiple sessions per agent template
+- Support long-running tasks with state preservation
+
+### Approval System (`tasks/approvals.task.md`)
+Human approvals use the **todo CLI task format** (from tmp6-todo project):
+- All approval requests tracked as tasks in `tasks/approvals.task.md`
+- Approve by changing `[_]` to `[x]` and adding `approved_by: your-name`
+- Reject by changing `[_]` to `[-]` and adding `rejection_reason: ...`
+- Risk levels automatically assessed (HIGH, MEDIUM, LOW)
+- Clean, structured format that's easy to audit
 
 ## Installation
 
@@ -26,13 +53,15 @@ npm install
 ## Available Commands
 
 ```bash
-npm start          # Start the multi-agent daemon (file watcher mode)
-npm run pump       # Run daemon in pump mode (one iteration, then exit)
-npm run demo       # Run the original demo scenario (Slack → Redis check → response)
-npm run demo:pump  # Run interactive demo using pump mode (step-by-step)
-npm test           # Run all tests (unit + integration)
-npm run test:pump  # Run automated pump mode tests
-npm run clean      # Clean up temporary files from tests and demos
+npm start           # Start the multi-agent daemon (YAML mode)
+npm run start:legacy # Start daemon in legacy Markdown mode
+npm run pump        # Run daemon in pump mode (one iteration, then exit)
+npm run migrate     # Migrate old *.agent.md files to YAML format
+npm run demo        # Run the original demo scenario
+npm run demo:pump   # Run interactive demo using pump mode (step-by-step)
+npm test            # Run all tests (unit + integration)
+npm run test:pump   # Run automated pump mode tests
+npm run clean       # Clean up temporary files from tests and demos
 ```
 
 ## Examples

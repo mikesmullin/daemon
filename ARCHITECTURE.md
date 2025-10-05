@@ -34,84 +34,149 @@ This system implements **file-based autonomous agent orchestration** where:
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Filesystem (The "Database")                  │
 │                                                                  │
-│  agents/                                                        │
-│    planner-001.agent.md      ← Agent's full chat context       │
-│    retriever-001.agent.md    ← System prompt + history         │
-│    executor-001.agent.md                                        │
-│    evaluator-001.agent.md                                       │
+│  templates/                                                      │
+│    planner-001.agent.yaml    ← Agent template (blueprint)       │
+│    retriever-001.agent.yaml  ← System prompt + capabilities     │
+│    executor-001.agent.yaml                                       │
+│    evaluator-001.agent.yaml                                      │
 │                                                                  │
-│  tasks/                                                         │
-│    project-alpha.task.md     ← Task tracking (todo format)     │
-│    research.task.md                                             │
+│  sessions/                                                       │
+│    planner-001-abc123.session.yaml   ← Active chat instance     │
+│    executor-001-def456.session.yaml  ← Conversation + state     │
 │                                                                  │
-│  workspaces/                                                    │
-│    planner-001/              ← Isolated Git workspace           │
-│    executor-001/             ← Per-agent working directory      │
+│  tasks/                                                          │
+│    approvals.task.md         ← Approval requests (todo format)  │
+│    planner-001.task.md       ← Task tracking per agent          │
+│    research.task.md                                              │
 │                                                                  │
-│  approvals/                                                     │
-│    pending/                                                     │
-│      exec-20251004-001.approval.md  ← Awaiting human review    │
-│    approved/                                                    │
-│    rejected/                                                    │
+│  workspaces/                                                     │
+│    planner-001/              ← Isolated Git workspace            │
+│    executor-001/             ← Per-agent working directory       │
 │                                                                  │
-│  inbox/                                                         │
-│    slack-messages.jsonl      ← External input streams           │
-│    email-inbox.jsonl                                            │
+│  inbox/                                                          │
+│    slack-messages.jsonl      ← External input streams            │
+│    email-inbox.jsonl                                             │
 │                                                                  │
-│  memory/                                                        │
-│    system-config.md          ← Knowledge base                   │
-│    team-prefs.md                                                │
+│  memory/                                                         │
+│    system-config.md          ← Knowledge base                    │
+│    team-prefs.md                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Core Components
 
-### 1. Agent Chat Logs (*.agent.md)
+### 1. Agent Templates (*.agent.yaml)
 
-Each agent has **one append-only Markdown file** containing:
-- System prompt defining agent's role and capabilities
-- Full conversation history (all messages)
-- Tool calls and execution results
-- References to other agents and tasks
+Each agent template defines a reusable agent blueprint in YAML format:
+- ID and type classification
+- System prompt defining role and capabilities
+- Model selection (GPT-4o, Claude Sonnet, etc.)
+- Capability list
+- Metadata
+
+**Format:**
+```yaml
+id: planner-001
+type: planner
+model: claude-sonnet-4.5
+system_prompt: |
+  You are a task planning agent. Your role is to decompose high-level 
+  objectives into structured, actionable sub-tasks...
+capabilities:
+  - create_task
+  - query_tasks
+  - send_message
+  - read_file
+metadata:
+  version: '1.0'
+  created: '2025-10-04T10:00:00Z'
+```
+
+### 2. Chat Sessions (*.session.yaml)
+
+Active conversation instances with full state:
+- Session ID and agent reference
+- Complete message history
+- Session status (active, sleeping, completed, error)
+- Timestamps for creation and updates
+
+**Format:**
+```yaml
+session_id: planner-001-abc123
+agent_id: planner-001
+agent_type: planner
+model: claude-sonnet-4.5
+system_prompt: |
+  You are a task planning agent...
+created: '2025-10-04T10:00:00Z'
+updated: '2025-10-04T10:05:00Z'
+status: active
+messages:
+  - timestamp: '2025-10-04T10:05:23.000Z'
+    role: user
+    content: 'A message arrived from Slack: "Can you check if Redis is running?"'
+  - timestamp: '2025-10-04T10:05:45.000Z'
+    role: assistant
+    content: 'I will break this down into steps...'
+    tool_calls:
+      - id: call_123
+        type: function
+        function:
+          name: create_task
+          arguments: '{"file":"tasks/redis-check.task.md","content":"..."}'
+  - timestamp: '2025-10-04T10:05:47.000Z'
+    role: tool_result
+    content: '{"success": true, "task_ids": ["task-abc123"]}'
+    tool_call_id: call_123
+metadata: {}
+```
+
+### 3. Approval System (tasks/approvals.task.md)
+
+Approvals use the **todo CLI task format** from tmp6-todo project:
 
 **Format:**
 ```markdown
-# Agent: planner-001
-type: planner
-created: 2025-10-04T10:00:00Z
+## TODO
 
-## System Prompt
-You are a task planning agent. Your role is to decompose high-level 
-objectives into structured, actionable sub-tasks...
-
-## Conversation
-
-### 2025-10-04 10:05:23 | user
-A message arrived from Slack: "Can you check if Redis is running locally?"
-
-### 2025-10-04 10:05:45 | assistant
-I'll break this down into steps:
-1. Determine container runtime (Docker/Podman)
-2. Query container status
-3. Format response for Slack
-
-Creating sub-tasks now...
-
-### 2025-10-04 10:05:46 | tool_call
-name: create_task
-arguments:
-  file: tasks/redis-check.task.md
-  content: |
-    - [ ] A @retriever-001 "Check system for Docker/Podman"
-    - [ ] B @executor-001 "Run container status command" 
-      depends_on: task-abc123
-
-### 2025-10-04 10:05:47 | tool_result
-success: true
-task_ids: [task-abc123, task-def456]
+- [_] A @human #approval `Approve command: docker ps`
+  id: approval-1759622866331-8228eefd
+  type: approval_request
+  approval_type: terminal_command
+  agent: executor-001
+  created: 2025-10-05T00:07:46.331Z
+  risk: MEDIUM
+  status: pending
+  description: |
+    Approval Request: terminal_command
+    Risk Level: MEDIUM
+    Risk Factors:
+      - System-modifying command: docker
+    
+    Details:
+      Command: docker ps
+    
+    To approve: Update this task:
+      1. Change [_] to [x]
+      2. Add: approved_by: <your-name>
+      3. Add: approved_at: <timestamp>
+    
+    To reject: Update this task:
+      1. Change [_] to [-]
+      2. Add: rejected_by: <your-name>
+      3. Add: rejection_reason: <reason>
 ```
 
-### 2. Task Files (*.task.md)
+**Approval Workflow:**
+1. Agent requests dangerous operation (e.g., terminal command)
+2. System creates approval task in `tasks/approvals.task.md`
+3. Human reviews and edits the task file:
+   - **Approve:** Change `[_]` to `[x]`, add `approved_by: yourname`
+   - **Reject:** Change `[_]` to `[-]`, add `rejection_reason: ...`
+4. Daemon detects file change and executes/rejects accordingly
+5. Task remains in file for audit trail
+
+### 4. Task Files (*.task.md)
 
 Tasks use the **todo CLI format** (from tmp6-todo project):
 
