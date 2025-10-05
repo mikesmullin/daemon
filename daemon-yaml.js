@@ -284,7 +284,7 @@ async function handleToolCall(sessionId, sessionFile, toolCall) {
  */
 async function executeAndLog(sessionFile, toolCall) {
   const toolName = toolCall.function.name;
-  
+
   // Handle arguments that may be already parsed (from YAML) or JSON string
   let toolArgs;
   if (typeof toolCall.function.arguments === 'string') {
@@ -390,7 +390,7 @@ async function rebuildApprovalQueue() {
 
       // Find the matching session file
       const sessionFile = join(SESSIONS_DIR, `${agentId}.session.yaml`);
-      
+
       if (!existsSync(sessionFile)) {
         console.log(`   ⚠️  Session file not found for approved task ${taskId}: ${sessionFile}`);
         continue;
@@ -407,11 +407,11 @@ async function rebuildApprovalQueue() {
         for (const toolCall of lastMessage.tool_calls) {
           if (toolCall.function.name === 'execute_command') {
             const command = toolCall.function.arguments.command;
-            
+
             // Check if this command matches the approval description
             if (task.description && task.description.includes(command)) {
               console.log(`   🔄 Rebuilding approval queue for ${taskId}`);
-              
+
               // Add to approval queue
               state.approvalQueue.set(taskId, {
                 sessionFile,

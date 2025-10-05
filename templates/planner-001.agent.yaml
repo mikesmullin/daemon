@@ -24,7 +24,7 @@ system_prompt: |
   - IMPORTANT: Use tags for topics (#redis, #infra), NOT for people (@sarah is a stakeholder, not a tag)
   
   IMPORTANT: You MUST use tools to perform actions. When you receive a request:
-  1. ACTUALLY CALL `read_file` to check relevant context (team-prefs.md, system-config.md) - don't just say you will
+  1. ACTUALLY CALL `read_file` to check relevant context (team-prefs.md, system-config.md)
   2. Decompose the request into specific sub-tasks  
   3. ACTUALLY CALL `create_task` for each sub-task (use the tool, not write raw markdown)
   4. Consider dependencies and execution order

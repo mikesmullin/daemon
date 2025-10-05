@@ -308,12 +308,12 @@ Tools available to agents:
    - Daemon sees task assigned to retriever-001
    - Creates/updates retriever session YAML with task details
    - Retriever reads `memory/system-config.md` using read_file tool
-   - Responds with: "System uses Docker Desktop on Windows WSL2"
+   - Responds with a message about how we use `podman` instead of `docker`
 
 4. **Executor prepares command:**
    - Task assigned to executor-001
    - Daemon creates/updates executor session with task
-   - Executor proposes: `docker ps --filter "name=redis"` via execute_command tool
+   - Executor proposes to run a command like `podman ps` via execute_command tool
    - Tool creates approval request in tasks/approvals.task.md
 
 5. **Human approval:**
