@@ -5,6 +5,7 @@
   "description": "File-based multi-agent orchestrator using GitHub Copilot API",
   "main": "daemon-yaml.js",
   "scripts": {
+    "help": "node src/daemon.mjs help",
     "clean": "node src/daemon.mjs clean",
     "demo": "node demo-yaml.js",
     "pump": "node src/daemon.mjs pump",

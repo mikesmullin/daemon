@@ -24,6 +24,27 @@ export function abort(message) {
   process.exit(1);
 }
 
+// Assert with error message
+export function assert(cond, message = null) {
+  if (!cond) {
+    if (!message) {
+      const stack = new Error().stack;
+      const callerLine = stack.split('\n')[2];
+      const match = callerLine.match(/\((.+):(\d+):\d+\)/) || callerLine.match(/at (.+):(\d+):\d+/);
+      if (match) {
+        const file = path.basename(match[1]);
+        const line = match[2];
+        message = `${file}:${line}`;
+      } else {
+        message = 'unknown location';
+      }
+    }
+    log('error', `Assertion Failed: ${message}`);
+    process.exit(1);
+  }
+}
+
+
 // Logging function with timestamp and color support
 export function log(type, message) {
   const elapsed = Date.now() - _G.startedAt;
@@ -68,7 +89,12 @@ export async function readYaml(file) {
 export async function writeYaml(file, data) {
   try {
     log('debug', `📝 Writing ${file}`);
-    const yamlStr = yaml.dump(data);
+    const yamlStr = yaml.dump(data, {
+      lineWidth: -1,           // Disable line wrapping
+      noRefs: true,            // Disable anchors and aliases
+      quotingType: '"',        // Use double quotes for strings
+      forceQuotes: false       // Only quote strings when necessary
+    });
     await writeFile(file, yamlStr, 'utf8');
   } catch (error) {
     abort(`Failed to write ${file}: ${error.message}`);

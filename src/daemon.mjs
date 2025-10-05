@@ -63,19 +63,38 @@ async function parseCliArgs() {
     process.exit(0);
   }
 
-  if (subcommand === 'fork') {
+  if (subcommand === 'new') {
     if (args.length < 2) {
       abort(
-        'Error: fork requires an agent name' +
-        'Usage: daemon.mjs fork <agent> [prompt]');
+        'Error: new requires an agent name' +
+        'Usage: daemon.mjs new <agent> [prompt]');
     }
 
     const agent = args[1];
     const prompt = args.slice(2).join(' ') || null;
 
     try {
-      const sessionId = await Agent.fork(agent, prompt);
-      const result = { session_id: sessionId, agent: agent };
+      const result = await Agent.fork({ agent, prompt });
+
+      console.log(outputAs(format, result, { truncate }));
+      process.exit(0);
+    } catch (error) {
+      abort(error.message);
+    }
+  }
+
+  if (subcommand === 'fork') {
+    if (args.length < 2) {
+      abort(
+        'Error: fork requires a session id' +
+        'Usage: daemon.mjs fork <session_id> [prompt]');
+    }
+
+    const session_id = args[1];
+    const prompt = args.slice(2).join(' ') || null;
+
+    try {
+      const result = await Agent.fork({ session_id, prompt });
       if (prompt) result.initial_prompt = prompt;
 
       console.log(outputAs(format, result, { truncate }));
@@ -121,8 +140,9 @@ Subcommands:
   pump          Run one iteration and exit
   watch         Run continuously, checking-in at intervals
   list          List all agent sessions
-  fork          Fork a new agent session: fork <agent> [prompt]
+  new           Create a new agent session: new <agent> [prompt]
   push          Append message to session: push <session_id> <prompt>
+  fork          Fork an existing agent session: fork <session_id> [prompt]
 
 Options:
   --format      Output format (table|json|yaml|csv) [default: table]

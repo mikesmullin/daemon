@@ -2,7 +2,7 @@ const fs = await import('fs/promises');
 const path = await import('path');
 import yaml from 'js-yaml';
 import { _G } from './globals.mjs';
-import { log, abort, readYaml } from './utils.mjs';
+import { assert, log, abort, readYaml, writeYaml } from './utils.mjs';
 import { Copilot } from './copilot.mjs';
 
 export class Agent {
@@ -147,18 +147,11 @@ export class Agent {
     try {
       const sessionFileName = `${session_id}.yaml`;
       const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-
-      if (!await fs.access(sessionPath).then(() => true).catch(() => false)) {
-        abort(`Session ${session_id} not found`);
-      }
-
-      // Read the current session file
-      const sessionContent = await fs.readFile(sessionPath, 'utf-8');
-      const sessionData = yaml.load(sessionContent);
+      const sessionContent = await readYaml(sessionPath);
 
       // Initialize messages array if it doesn't exist
-      if (!sessionData.messages) {
-        sessionData.messages = [];
+      if (!sessionContent.messages) {
+        sessionContent.messages = [];
       }
 
       // Add new user message with timestamp
@@ -168,19 +161,11 @@ export class Agent {
         content: content
       };
 
-      sessionData.messages.push(newMessage);
-      const messageId = sessionData.messages.length - 1;
+      sessionContent.messages.push(newMessage);
+      const messageId = sessionContent.messages.length - 1;
 
       // Write back to file
-      const updatedContent = yaml.dump(sessionData, {
-        lineWidth: -1,
-        noRefs: true,
-        quotingType: '"',
-        forceQuotes: false
-      });
-      await fs.writeFile(sessionPath, updatedContent, 'utf-8');
-
-      log('debug', `Appended message to session ${session_id}`);
+      await writeYaml(sessionPath, sessionContent);
 
       // Return detailed information about the appended message
       return {
@@ -195,29 +180,44 @@ export class Agent {
     }
   }
 
-  // fork a new agent session from a template
-  static async fork(agent, prompt = null) {
+  // fork a new agent session from a template or an existing session
+  static async fork({ agent, session_id, prompt = null }) {
     try {
       // Generate new session ID
-      const session_id = await Agent.nextId();
+      const new_session_id = await Agent.nextId();
 
-      await Agent.state(session_id, 'idle');
+      await Agent.state(new_session_id, 'idle');
 
-      // Create session YAML file from agent template
-      const sessionFileName = `${session_id}.yaml`;
-      const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-      const templateFileName = `${agent}.yaml`;
-      const templatePath = path.join(_G.TEMPLATES_DIR, templateFileName);
+      let sessionContent = {};
+      if (session_id) {
+        const existingSessionFileName = `${session_id}.yaml`;
+        const existingSessionPath = path.join(_G.SESSIONS_DIR, existingSessionFileName);
+        sessionContent = await readYaml(existingSessionPath);
+        assert(sessionContent.apiVersion == 'daemon/v1');
+        assert(sessionContent.kind == 'Agent');
 
-      const templateContent = await fs.readFile(templatePath, 'utf-8');
-      await fs.writeFile(sessionPath, templateContent, 'utf-8');
-      log('debug', `Created session file ${sessionFileName} from template ${templateFileName}`);
+        if (null == agent) {
+          agent = sessionContent.name;
+        }
+      }
+      else {
+        const templateFileName = `${agent}.yaml`;
+        const templatePath = path.join(_G.TEMPLATES_DIR, templateFileName);
+        sessionContent = await readYaml(templatePath);
+      }
+      const newgSessionFileName = `${new_session_id}.yaml`;
+      const newgSessionPath = path.join(_G.SESSIONS_DIR, newgSessionFileName);
+      await writeYaml(newgSessionPath, sessionContent);
 
       if (prompt) {
-        Agent.push(session_id, prompt);
+        await Agent.push(new_session_id, prompt);
       }
 
-      return session_id;
+      return {
+        session_id: new_session_id,
+        agent,
+        prompt,
+      };
     } catch (error) {
       abort(`Failed to fork session for agent ${agent}: ${error.message}`);
     }
