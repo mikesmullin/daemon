@@ -175,16 +175,13 @@ async function handleSessionFileChange(filePath) {
     const tools = getToolDefinitions();
 
     // Determine tool_choice strategy:
-    // - If last message is from 'user': require tool use (agent must take action)
+    // - Default: 'auto' (let agent decide whether to use tools or not)
     // - If last message is 'tool_result': check if we should continue
     //   - For create_task results: don't auto-continue (task created, work done)
     //   - For other tool results: allow auto (agent can respond or use more tools)
     const lastMsg = session.messages[session.messages.length - 1];
     let toolChoice = 'auto';
-
-    if (lastMsg.role === 'user') {
-      toolChoice = 'required';
-    } else if (lastMsg.role === 'tool_result') {
+    if (lastMsg.role === 'tool_result') {
       // Check if this was a create_task result - if so, don't auto-continue
       const prevMsg = session.messages[session.messages.length - 2];
       if (prevMsg && prevMsg.toolCalls) {
@@ -195,7 +192,6 @@ async function handleSessionFileChange(filePath) {
           return;
         }
       }
-      toolChoice = 'auto';
     }
 
     // Call Copilot API
