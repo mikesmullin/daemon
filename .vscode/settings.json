@@ -1,5 +1,6 @@
 {
   "chat.tools.terminal.autoApprove": {
+    "npm run demo": true,
     "npm run pump": true,
     "npm run clean": true,
     "cd": true,
