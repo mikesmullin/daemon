@@ -174,9 +174,27 @@ async function handleSessionFileChange(filePath) {
 
     // Determine tool_choice strategy:
     // - If last message is from 'user': require tool use (agent must take action)
-    // - If last message is 'tool_result': allow auto (agent can respond or use more tools)
+    // - If last message is 'tool_result': check if we should continue
+    //   - For create_task results: don't auto-continue (task created, work done)
+    //   - For other tool results: allow auto (agent can respond or use more tools)
     const lastMsg = session.messages[session.messages.length - 1];
-    const toolChoice = lastMsg.role === 'user' ? 'required' : 'auto';
+    let toolChoice = 'auto';
+
+    if (lastMsg.role === 'user') {
+      toolChoice = 'required';
+    } else if (lastMsg.role === 'tool_result') {
+      // Check if this was a create_task result - if so, don't auto-continue
+      const prevMsg = session.messages[session.messages.length - 2];
+      if (prevMsg && prevMsg.toolCalls) {
+        const hasCreateTask = prevMsg.toolCalls.some(tc => tc.function.name === 'create_task');
+        if (hasCreateTask && lastMsg.content.success) {
+          // create_task succeeded - agent has completed its work, don't auto-continue
+          console.log(`💭 Agent completed create_task successfully - not auto-continuing`);
+          return;
+        }
+      }
+      toolChoice = 'auto';
+    }
 
     // Call Copilot API
     console.log(`🤖 Calling Copilot API (model: ${session.model})...`);
@@ -242,24 +260,15 @@ async function handleToolCall(sessionId, sessionFile, toolCall) {
     console.log(`  📝 Approval request created as task: ${taskId}`);
     console.log(`     Check: ${APPROVALS_TASK_FILE}`);
 
-    // Store pending action with task ID as key
+    // Store pending action in approval queue
+    // The tool_result will be added only after approval/rejection
     state.approvalQueue.set(taskId, {
-      sessionId,
       sessionFile,
-      toolCall
+      toolCall,
+      taskId
     });
 
-    // Append pending status
-    appendMessage(sessionFile, {
-      role: 'tool_result',
-      content: {
-        status: 'PENDING_APPROVAL',
-        task_id: taskId,
-        task_file: APPROVALS_TASK_FILE,
-        message: 'Waiting for human approval. Check tasks/approvals.task.md and mark task as [x] to approve or [-] to reject.'
-      },
-      toolCallId: toolCall.id
-    });
+    // Do not append tool_result message here - wait for approval
 
   } else {
     // Execute immediately
@@ -424,6 +433,11 @@ async function scanTasks() {
           // Stakeholder is already the agent ID (without @)
           const agentId = stakeholder;
 
+          // Skip non-agent stakeholders (like "human")
+          if (agentId === 'human') {
+            continue;
+          }
+
           // Check if session already exists for this task
           const sessionFile = join(SESSIONS_DIR, `${agentId}-${task.id}.session.yaml`);
           if (!existsSync(sessionFile)) {
@@ -432,10 +446,10 @@ async function scanTasks() {
             // Create session for agent
             const sessionPath = createSession(agentId, `${agentId}-${task.id}`);
 
-            // Add initial message with task details
+            // Add initial message with task details (just the description/prompt)
             appendMessage(sessionPath, {
               role: 'user',
-              content: `New task assigned to you:\n\n${JSON.stringify(task, null, 2)}\n\nPlease process this task using available tools.`
+              content: task.description || task.prompt || `Task: ${task.title}`
             });
           }
         }

@@ -18,9 +18,10 @@ system_prompt: |
   - `send_message`: Send messages to other agents
   
   Task Format Guidelines:
-  - Use create_task tool with: title, priority (A-D), assignee (@agent-id), tags (#topic)
+  - Use create_task tool with: title, priority (A-D), stakeholders ([@agent-id]), tags (#topic)
   - Tasks are automatically added to tasks/approvals.task.md
   - Set dependencies with `depends_on` metadata if needed
+  - IMPORTANT: Use tags for topics (#redis, #infra), NOT for people (@sarah is a stakeholder, not a tag)
   
   IMPORTANT: You MUST use tools to perform actions. When you receive a request:
   1. ACTUALLY CALL `read_file` to check relevant context (team-prefs.md, system-config.md) - don't just say you will

@@ -4,16 +4,14 @@ All approval requests are tracked here using the todo task format.
 
 ## TODO
 
-- [x] A @human #approval `Approve command: docker ps`
-  id: approval-1759628996148-5b7efac0
+- [_] A @human #approval `Approve command: docker ps --filter "name=redis" --format "{{.Names`
+  id: approval-1759637150230-97a7bbf3
   type: approval_request
   approval_type: terminal_command
-  agent: executor-001-51993f7d
-  created: 2025-10-05T01:49:56.149Z
+  agent: executor-001-38b9fd4f
+  created: 2025-10-05T04:05:50.230Z
   risk: MEDIUM
   status: pending
-  approved_by: system
-  approved_at: 2025-10-05T01:50:00.000Z
   description: |
     Approval Request: terminal_command
     Risk Level: MEDIUM
@@ -21,7 +19,7 @@ All approval requests are tracked here using the todo task format.
       - System-modifying command: docker 
     
     Details:
-      Command: docker ps
+      Command: docker ps --filter "name=redis" --format "{{.Names}} {{.Status}}"
     
     To approve: Update this task:
       1. Change [_] to [x]
@@ -33,7 +31,14 @@ All approval requests are tracked here using the todo task format.
       2. Add: rejected_by: <your-name>
       3. Add: rejection_reason: <reason>
 
-
-- [_] A @executor-001 #infra #redis #status_check `Verify Redis container status`
-  description: "Check if the Redis container is running locally. Provide details such as uptime, memory usage, and any other critical metrics."
-
+- A @executor-001 #redis #infra "Check if Redis container is running locally" id: 38b9fd4f
+  priority: A
+  stakeholders: "executor-001"
+  tags: "redis,infra"
+  prompt: |
+    Perform a status check to determine if the Redis container is running on the
+    local machine. Provide the following details:
+    - Container status (e.g., running, stopped, etc.)
+    - Uptime (if running)
+    - Current memory usage
+    - Any errors or issues in the logs

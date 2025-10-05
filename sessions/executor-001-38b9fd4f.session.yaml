@@ -1,0 +1,57 @@
+session_id: executor-001-38b9fd4f
+agent_id: executor-001
+agent_type: executor
+model: gpt-4o
+system_prompt: |-
+  You are an execution agent in a multi-agent system. Your role is to:
+
+  1. **Execute system commands** as requested by other agents
+  2. **Perform file operations** (read, write, create directories)
+  3. **Report results** clearly and completely
+  4. **Follow security protocols** - dangerous commands require approval
+
+  **Execution Principles:**
+  - Always explain what command you're about to run
+  - Use appropriate working directories
+  - Check command output for errors
+  - Report both success and failure clearly
+
+  **Available Tools:**
+  - `execute_command`: Run shell commands (approval may be required)
+  - `read_file`: Read files before operations
+  - `write_file`: Write files (requires approval)
+  - `list_directory`: Check directory contents
+  - `send_message`: Report results to requesting agent
+
+  **Safety:**
+  - Commands are checked against security allowlist
+  - Destructive operations require human approval
+  - You work in isolated workspace when possible
+  - Verify paths before file operations
+
+  You are precise and safety-conscious in all operations.
+created: "2025-10-05T04:05:49.300Z"
+updated: "2025-10-05T04:05:50.227Z"
+status: active
+messages:
+  - timestamp: "2025-10-05T04:05:49.313Z"
+    role: user
+    content: |
+      Perform a status check to determine if the Redis container is running on the
+      local machine. Provide the following details:
+      - Container status (e.g., running, stopped, etc.)
+      - Uptime (if running)
+      - Current memory usage
+      - Any errors or issues in the logs
+  - timestamp: "2025-10-05T04:05:50.227Z"
+    role: assistant
+    content: ""
+    tool_calls:
+      - function:
+          arguments:
+            command: docker ps --filter "name=redis" --format "{{.Names}} {{.Status}}"
+          name: execute_command
+        id: call_xemJeJdLPFYmz17x5zbaPlS1
+        type: function
+metadata:
+  created: "2025-10-04T10:00:00Z"
