@@ -145,38 +145,22 @@ Approvals use the **todo CLI task format** from tmp6-todo project:
 
 - [_] A @human #approval `Approve command: docker ps`
   id: approval-1759622866331-8228eefd
-  type: approval_request
   approval_type: terminal_command
   agent: executor-001
+  requesting_agent_session_id: executor-001-a37c0963
   created: 2025-10-05T00:07:46.331Z
-  risk: MEDIUM
   status: pending
   description: |
-    Approval Request: terminal_command
-    Risk Level: MEDIUM
-    Risk Factors:
-      - System-modifying command: docker
-    
     Details:
       Command: docker ps
-    
-    To approve: Update this task:
-      1. Change [_] to [x]
-      2. Add: approved_by: <your-name>
-      3. Add: approved_at: <timestamp>
-    
-    To reject: Update this task:
-      1. Change [_] to [-]
-      2. Add: rejected_by: <your-name>
-      3. Add: rejection_reason: <reason>
 ```
 
 **Approval Workflow:**
 1. Agent requests dangerous operation (e.g., terminal command)
 2. System creates approval task in `tasks/approvals.task.md`
 3. Human reviews and edits the task file:
-   - **Approve:** Change `[_]` to `[x]`, add `approved_by: yourname`
-   - **Reject:** Change `[_]` to `[-]`, add `rejection_reason: ...`
+   - **Approve:** Change `[_]` to `[x]`
+   - **Reject:** Change `[_]` to `[-]`
 4. Daemon detects file change and executes/rejects accordingly
 5. Task remains in file for audit trail
 
@@ -220,25 +204,20 @@ to indicate task approval, it executes the command.
 
 **Responsibilities:**
 1. **File watching** - Monitor all session YAML files and tasks/approvals.task.md
-2. **Message routing** - When agent A references agent B via send_message, append to B's session
-3. **Copilot API gateway** - Process agent messages through Copilot API with proper tool_choice
-4. **Tool execution** - Execute approved commands, file operations, task management
-5. **Session management** - Create sessions from templates, maintain conversation state
-6. **Event logging** - Maintain system-wide event log
-7. **Workspace management** - Maintain isolated Git workspaces per agent
-
+2. **Message routing** - When agent A references agent B via send_message, append to B's session (and include requesting agent's session_id in message metadata)
+3. **Task delegation** - When agent A references agent B via create_task, include requesting agent's session_id in task metadata
+4. **Copilot API gateway** - Process agent messages through Copilot API with proper tool_choice
+5. **Tool execution** - Execute approved commands, file operations, task management
+6. **Session management** - Create sessions from templates, maintain conversation state
+7. **Event logging** - Maintain system-wide event log
+8. **Workspace management** - Maintain isolated Git workspaces per agent
 
 **Key behaviors:**
 - Watches `sessions/*.session.yaml` for new user messages
-- When new user message appears → call Copilot API with tool_choice='required'
+- When new user message appears → call Copilot API
 - When API returns tool_calls → execute tools or create approval request
-- After tool execution → append tool result message → call API with tool_choice='auto'
 - When approval task status changes → execute or reject accordingly
 - Pump mode (--pump flag): Execute one iteration then exit for testing
-
-**Tool Choice Strategy:**
-- Last message is `user` → tool_choice='required' (force agent to use tools)
-- Last message is `tool` result → tool_choice='auto' (allow agent to continue or finish)
 
 ### 5. Tool System
 
@@ -253,8 +232,8 @@ Tools available to agents:
 
 #### Task Management
 - `query_tasks` - SQL-like query over task files (via todo CLI)
-- `update_task` - Modify task status/fields (via todo CLI)
 - `create_task` - Add new task to task file (via todo CLI, requires approval)
+- `update_task` - Modify task status/fields (via todo CLI)
 
 #### Terminal
 - `execute_command` - Run shell command (approval required, allowlist-checked)
@@ -278,13 +257,13 @@ Tools available to agents:
 - **Role:** Fetch contextual information from knowledge base
 - **Input:** Information requests from other agents
 - **Output:** Relevant facts, configuration details
-- **Tools:** read_file, search_files, list_directory
+- **Tools:** read_file, search_files, list_directory, send_message, update_task
 
 ### Executor Agent
 - **Role:** Perform system-level operations
 - **Input:** Approved action requests
 - **Output:** Command execution results
-- **Tools:** execute_command, read_file, write_file
+- **Tools:** execute_command, read_file, write_file, send_message, update_task
 
 ### Evaluator Agent
 - **Role:** Validate outputs and ensure quality
@@ -292,59 +271,137 @@ Tools available to agents:
 - **Output:** Validation reports, approval recommendations
 - **Tools:** read_file, send_message, update_task
 
-## DEMO: Workflow Example: Slack → Check → Response
+## DEMO
 
-1. **External event:** Message arrives in Slack
-   - Daemon appends to `inbox/slack-messages.jsonl`
-   - Daemon creates or updates planner session with user message
+I refer to myself as Human.
+I want my team of agents to help me with work.
+Basically I want it to digest my work inputs, and recommend my work outputs.
+
+Human-in-the-Loop:
+  Input --> Human --> Agent <--> Human --> Output
+
+Ultimately I will have to approve at important Junctions:
+
+Examples of Input Junctions:
+- Coworker sends me a Slack message
+   - I need to verify message content is safe for AI to read (legal governance)
+
+Examples of Output Junctions:
+- Agent wants to reply to Coworker via Slack message
+   - I need to verify message content is appropriate for work (quality, ethics, legal governance)
+
+Daemon is the CLI tool that powers the Multi-Agent Workflows.
+It has two modes:
+- Watch: runs in a loop, reacts to changes on filesystem
+  - This will be used during daily operation
+- Pump: runs one iteration of the loop, reacts to latest state of files on filesystem, and then exits
+  - This will be used during testing, to analyze each step independently
+
+### Slack Workflow Example
+
+0. **Reset:** We run `npm run clean` to setup a clean test environment; we re-run this between demos.
+
+1. **External event:** Message arrives in Slack (this is mocked via `npm run demo`) from my boss Sarah
+   - Daemon creates or updates planner session as `user` role with a copy of Sarah's message and additional metadata about how it was received
+
+PUMP
 
 2. **Planner processes:**
-   - Daemon calls Copilot API with planner's full context (tool_choice='required')
-   - Planner responds with task breakdown using create_task tool
-   - Daemon appends assistant response to planner's session YAML
-   - Planner's tool_calls create tasks in tasks/approvals.task.md
+   - Daemon calls Copilot API with planner's full context, since its last message is from `user` and there is no `assistant` reply
+     - Copilot as Planner Agent: responds with task breakdown, using create_task tool to assign a task to Executor agent
+       - Task assigned to executor-001 is appended to `tasks\approvals.task.md` (using task.md syntax documented under `todo help` cli cmd)
 
-3. **Retriever investigates:**
-   - Daemon sees task assigned to retriever-001
-   - Creates/updates retriever session YAML with task details
-   - Retriever reads `memory/system-config.md` using read_file tool
-   - Responds with a message about how we use `podman` instead of `docker`
+PUMP
 
-4. **Executor prepares command:**
-   - Task assigned to executor-001
-   - Daemon creates/updates executor session with task
+3. **Executor prepares command:**
+   - Daemon sees task assigned to executor-001
+   - Daemon creates/updates executor session YAML with task details
+   - Executor Agent reads `memory/system-config.md` using read_file tool (as per its system prompt) and learns it must use `podman` to answer Sarah's question.
    - Executor proposes to run a command like `podman ps` via execute_command tool
-   - Tool creates approval request in tasks/approvals.task.md
+   - Daemon creates approval request in `tasks/approvals.task.md` awaiting Human input
 
-5. **Human approval:**
-   - Operator edits tasks/approvals.task.md, changes [_] to [x], adds approved_by
-   - Daemon detects file change via chokidar watcher
+PUMP
 
-6. **Executor runs command:**
+4. **Human approval on Input:**
+   - Daemon uses `todo` cli query SELECT to check for approval, but finding the task not approved, exits with nothing to do. (this may repeat over an indefinite number of pumps, until approval is found)
+   - (sometime later) Human edits `tasks/approvals.task.md`, changes `[_]` to `[x]`
+
+PUMP
+
+5. **Daemon runs approved commands:**
+   - (if in Watch mode) Daemon detects `tasks/approvals.task.md` file change via chokidar watcher
+   - Daemon uses `todo` cli query SELECT to check which tasks have specific approval, and finds at least one new command task approved since last run
    - Daemon executes command in safe environment
-   - Appends tool result to executor's session YAML
-   - Updates task status as completed via update_task
+   - Daemon Appends tool_result to Executor's session YAML
 
-7. **Evaluator validates:**
-   - Daemon notifies evaluator by updating its session
-   - Evaluator reads execution result from executor's session
-   - Confirms output format is valid
-   - Marks validation task complete
+PUMP
 
-8. **Planner drafts response:**
-   - Receives completion notification via updated session
-   - Drafts Slack reply: "Redis container is running (Up 2 hours)"
-   - Creates approval request for slack_send in tasks/approvals.task.md
+6. **Executor concludes execution:**
+   - Daemon calls Copilot API with Executor's full context, since its last message is not from `assistant`
+   - Copilot as Executor Agent reads execution tool_result from Executor's session YAML
+   - Executor Agent determines the answer to boss Sarah's question (ie. redis container is not found to be running via `podman`)
+   - Executor Agent uses `update_task` tool (which calls `todo` cli query `UPDATE` statement on the original task id) to marks its task (the one that was assigned to it by Planner Agent) as complete
 
-9. **Human approves outbound message:**
-   - Reviews response quality in tasks/approvals.task.md
-   - Approves: changes [_] to [x], adds approved_by
+PUMP
 
-10. **Message sent:**
-    - Daemon posts to Slack
-    - Logs to `inbox/slack-messages.jsonl`
-    - Updates all related tasks as completed
-    - Closes task tree
+7. **Planner delegates Slack reply composition:**
+   - Daemon notices that the task Planner requested is now completed, and updates Planner session.yaml, including the relevant reply (conclusion) from Executor Agent's session.yaml
+   - Copilot as Planner Agent interprets the Executor Agent's output to conclude the answer to Sarah's question (ie. podman redis container is not running)
+   - Copilot as Planner Agent decides to invoke `create_task` tool (task: draft reply to Slack) and assign it to the Evaluator Agent
+   - Daemon creates/updates Evaluator session YAML with task details
+
+PUMP
+
+8. **Evaluator designs outbound Slack message draft:**
+   - Evaluator Agent reads `memory/team-prefs.md` using read_file tool (as per its system prompt) and learn's how Sarah prefers to be responded to (tone, etc.)
+   - Copilot as Evaluator Agent crafts a beautiful response customized for Sarah and the Slack medium, on behalf of Human.
+   - Evaluator Agent uses `update_task` tool (which calls `todo` cli query `UPDATE` statement on the original task id) to marks its task (the one that was assigned to it by Planner Agent) as complete
+
+PUMP
+
+9. **Planner delegates Slack delivery:**
+   - Daemon notices that the task Planner requested is now completed, and updates Planner session.yaml, including the relevant reply (conclusion) from Evaluator Agent's session.yaml
+   - Copilot as Planner Agent interprets the Evaluator Agent's output to be a valid Slack message
+   - Copilot as Planner Agent decides to invoke `create_task` tool (task: send reply via Slack) and assign it to the Executor Agent
+   - Daemon creates/updates Executor session YAML with task details
+
+PUMP
+
+10. **Executor prepares command:**
+   - Daemon sees task assigned to executor-001
+   - Daemon creates a new executor session YAML with task details
+   - Executor Agent reads `memory/system-config.md` using read_file tool (as per its system prompt) and learns about `plugins/slack/actions/*.mjs` commands, picking one it can use to send a Slack reply to Sarah
+   - Executor proposes to run a command like `plugins/slack/actions/reply.mjs <recipient> <message>` via execute_command tool
+   - Daemon creates approval request in `tasks/approvals.task.md` awaiting Human input
+
+PUMP
+
+11. **Human approval on Output:**
+   - Daemon uses `todo` cli query SELECT to check for approval, but finding the task not approved, exits with nothing to do. (this may repeat over an indefinite number of pumps, until approval is found)
+   - (sometime later) Human edits `tasks/approvals.task.md`, changes `[_]` to `[x]`
+
+PUMP
+
+12. **Daemon runs approved commands:**
+   - (if in Watch mode) Daemon detects `tasks/approvals.task.md` file change via chokidar watcher
+   - Daemon uses `todo` cli query SELECT to check which tasks have specific approval, and finds at least one new command task approved since last run
+   - Daemon executes command in safe environment
+   - Daemon Appends tool_result to Executor's session YAML
+
+PUMP
+
+13. **Executor concludes execution:**
+   - Daemon calls Copilot API with Executor's full context, since its last message is not from `assistant`
+   - Copilot as Executor Agent reads execution tool_result from Executor's session YAML
+   - Executor Agent determines the slack message sent successfully.
+   - Executor Agent uses `update_task` tool (which calls `todo` cli query `UPDATE` statement on the original task id) to marks its task (the one that was assigned to it by Planner Agent) as complete
+
+PUMP
+
+14. **Planner determines all tasks completed successfully:**
+   - Daemon notices that the task Planner requested is now completed, and updates Planner session.yaml, including the relevant reply (conclusion) from Executor Agent's session.yaml
+   - Copilot as Planner Agent interprets the Executor Agent's output to be that the Slack message sent successfully, and there are no remaining requests to satisfy.
+   - (If in Pump mode) Daemon exits with nothing else to do
 
 ## Key Design Principles
 
