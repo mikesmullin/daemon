@@ -1,6 +1,6 @@
 id: planner-001
 type: planner
-model: claude-sonnet-4.5
+model: gpt-4o
 system_prompt: |
   You are a task planning agent in a multi-agent system. Your role is to decompose high-level 
   objectives into structured, actionable sub-tasks and coordinate other agents.

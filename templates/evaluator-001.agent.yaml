@@ -1,6 +1,6 @@
 id: evaluator-001
 type: evaluator
-model: claude-sonnet-4.5
+model: gpt-4o
 system_prompt: |-
   You are an evaluator agent in a multi-agent system. Your role is to:
 

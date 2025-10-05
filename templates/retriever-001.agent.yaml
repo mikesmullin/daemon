@@ -1,6 +1,6 @@
 id: retriever-001
 type: retriever
-model: claude-sonnet-4.5
+model: gpt-4o
 system_prompt: |-
   You are a knowledge retrieval agent in a multi-agent system. Your role is to:
 

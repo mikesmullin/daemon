@@ -15,7 +15,8 @@ import {
   isWaitingForResponse,
   updateSessionStatus,
   saveSession,
-  ensureAgentDirs
+  ensureAgentDirs,
+  createSession
 } from './lib/agent-parser-yaml.js';
 import { getToolDefinitions, executeTool, requiresApproval } from './lib/tools.js';
 import {
@@ -71,8 +72,9 @@ export async function initDaemon() {
   if (PUMP_MODE) {
     // Pump mode: process once and exit
     console.log('🔍 Processing pending work (pump mode)...');
+    await scanTasks();
     await scanSessions();
-    await scanApprovals();
+    await handleApprovalFileChange(APPROVALS_TASK_FILE);
     console.log('✓ Pump iteration complete\n');
     console.log('━'.repeat(60));
     console.log('✅ Pump mode finished. Exiting.\n');
@@ -373,15 +375,130 @@ async function scanSessions() {
 }
 
 /**
- * Scan all approvals for pending decisions (pump mode)
+ * Scan tasks for agent assignments and create sessions
  */
-async function scanApprovals() {
+async function scanTasks() {
   if (!existsSync(APPROVALS_TASK_FILE)) return;
 
-  console.log(`   Checking approval task file for decisions...`);
+  console.log(`   Checking task file for agent assignments...`);
 
-  // Check all pending approvals in the queue
-  await handleApprovalFileChange(APPROVALS_TASK_FILE);
+  try {
+    // Use todo CLI to query tasks
+    const { spawn } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(spawn);
+
+    const child = spawn('npx', ['todo', 'query', `SELECT * FROM ${APPROVALS_TASK_FILE}`, '-o', 'json'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      cwd: process.cwd()
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    await new Promise((resolve, reject) => {
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Command failed: ${stderr}`));
+        }
+      });
+      child.on('error', reject);
+    });
+
+    // Parse JSON output
+    const tasks = JSON.parse(stdout);
+
+    for (const task of tasks) {
+      if (task.stakeholders && task.stakeholders.length > 0) {
+        for (const stakeholder of task.stakeholders) {
+          // Stakeholder is already the agent ID (without @)
+          const agentId = stakeholder;
+
+          // Check if session already exists for this task
+          const sessionFile = join(SESSIONS_DIR, `${agentId}-${task.id}.session.yaml`);
+          if (!existsSync(sessionFile)) {
+            console.log(`   📝 Creating session for ${agentId} on task ${task.id}`);
+
+            // Create session for agent
+            const sessionPath = createSession(agentId, `${agentId}-${task.id}`);
+
+            // Add initial message with task details
+            appendMessage(sessionPath, {
+              role: 'user',
+              content: `New task assigned to you:\n\n${JSON.stringify(task, null, 2)}\n\nPlease process this task using available tools.`
+            });
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.log(`   ⚠️  Error scanning tasks: ${error.message}`);
+  }
+}
+
+/**
+ * Scan for pending approvals and populate the queue
+ */
+async function scanPendingApprovals() {
+  if (!existsSync(APPROVALS_TASK_FILE)) return;
+
+  console.log(`   Checking for pending approvals...`);
+
+  try {
+    // Use todo CLI to query pending approvals
+    const { spawn } = await import('child_process');
+    const { promisify } = await import('util');
+
+    const child = spawn('npx', ['todo', 'query', `SELECT * FROM ${APPROVALS_TASK_FILE} WHERE completed = false`, '-o', 'json'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      cwd: process.cwd()
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    await new Promise((resolve, reject) => {
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Command failed: ${stderr}`));
+        }
+      });
+      child.on('error', reject);
+    });
+
+    // Parse JSON output
+    const tasks = JSON.parse(stdout);
+
+    for (const task of tasks) {
+      if (task.type === 'approval_request' && task.status === 'pending') {
+        // This is a pending approval, but we don't have the original pending action
+        // For now, skip - the queue needs to be persisted
+        console.log(`   ⏳ Found pending approval: ${task.id}`);
+      }
+    }
+  } catch (error) {
+    console.log(`   ⚠️  Error scanning approvals: ${error.message}`);
+  }
 }
 
 /**

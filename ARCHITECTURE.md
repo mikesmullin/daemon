@@ -16,7 +16,7 @@ This system implements **file-based autonomous agent orchestration** where:
 │                         Human Operator                          │
 │              (edits files, approves/rejects commands)           │
 └──────────────────────┬──────────────────────────────────────────┘
-                       │ edits *.task.md, *.agent.md, *.approval.md
+                       │ edits *.task.md
                        ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                       CLI Daemon (Orchestrator)                  │
@@ -32,71 +32,70 @@ This system implements **file-based autonomous agent orchestration** where:
                        │ reads/writes
                        ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Filesystem (The "Database")                  │
-│                                                                  │
-│  templates/                                                      │
+│                     Filesystem (The "Database")                 │
+│                                                                 │
+│  templates/                                                     │
 │    planner-001.agent.yaml    ← Agent template (blueprint)       │
 │    retriever-001.agent.yaml  ← System prompt + capabilities     │
-│    executor-001.agent.yaml                                       │
-│    evaluator-001.agent.yaml                                      │
-│                                                                  │
-│  sessions/                                                       │
+│    executor-001.agent.yaml                                      │
+│    evaluator-001.agent.yaml                                     │
+│                                                                 │
+│  sessions/                                                      │
 │    planner-001-abc123.session.yaml   ← Active chat instance     │
 │    executor-001-def456.session.yaml  ← Conversation + state     │
-│                                                                  │
-│  tasks/                                                          │
+│                                                                 │
+│  tasks/                                                         │
 │    approvals.task.md         ← Approval requests (todo format)  │
-│    planner-001.task.md       ← Task tracking per agent          │
-│    research.task.md                                              │
-│                                                                  │
-│  workspaces/                                                     │
-│    planner-001/              ← Isolated Git workspace            │
-│    executor-001/             ← Per-agent working directory       │
-│                                                                  │
-│  inbox/                                                          │
-│    slack-messages.jsonl      ← External input streams            │
-│    email-inbox.jsonl                                             │
-│                                                                  │
-│  memory/                                                         │
-│    system-config.md          ← Knowledge base                    │
-│    team-prefs.md                                                 │
+│                                                                 │
+│  inbox/                                                         │
+│    slack-messages.jsonl      ← External input streams           │
+│    email-inbox.jsonl                                            │
+│                                                                 │
+│  memory/                                                        │
+│    system-config.md          ← Knowledge base                   │
+│    team-prefs.md                                                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Core Components
 
-### 1. Agent Templates (*.agent.yaml)
+### 1. Agent Templates (templates/*.agent.yaml)
 
 Each agent template defines a reusable agent blueprint in YAML format:
-- ID and type classification
+- agent_id and agent_type classification
 - System prompt defining role and capabilities
 - Model selection (GPT-4o, Claude Sonnet, etc.)
-- Capability list
+- Tools list (available tool names)
 - Metadata
 
 **Format:**
 ```yaml
-id: planner-001
-type: planner
+agent_id: planner-001
+agent_type: planner
 model: claude-sonnet-4.5
 system_prompt: |
   You are a task planning agent. Your role is to decompose high-level 
   objectives into structured, actionable sub-tasks...
-capabilities:
+  
+  You MUST use tools to accomplish your goals. Do not just describe what you would do.
+  
+  When using create_task, tasks will be written to tasks/approvals.task.md for human review.
+tools:
   - create_task
   - query_tasks
   - send_message
   - read_file
 metadata:
-  version: '1.0'
-  created: '2025-10-04T10:00:00Z'
+  description: Breaks down high-level goals into actionable tasks
+  version: '0.0.1'
 ```
 
-### 2. Chat Sessions (*.session.yaml)
+### 2. Chat Sessions (sessions/*.session.yaml)
 
 Active conversation instances with full state:
-- Session ID and agent reference
-- Complete message history
+- session_id and agent_id reference
+- System prompt (copied from template)
+- Complete message history with timestamps
 - Session status (active, sleeping, completed, error)
 - Timestamps for creation and updates
 
@@ -117,16 +116,21 @@ messages:
     content: 'A message arrived from Slack: "Can you check if Redis is running?"'
   - timestamp: '2025-10-04T10:05:45.000Z'
     role: assistant
-    content: 'I will break this down into steps...'
+    content: |
+      I will break this down into steps...
     tool_calls:
       - id: call_123
         type: function
         function:
           name: create_task
-          arguments: '{"file":"tasks/redis-check.task.md","content":"..."}'
+          arguments:
+            file: tasks/redis-check.task.md
+            content: '...'
   - timestamp: '2025-10-04T10:05:47.000Z'
-    role: tool_result
-    content: '{"success": true, "task_ids": ["task-abc123"]}'
+    role: tool
+    name: create_task
+    content: |
+      {"success": true, "task_ids": ["task-abc123"]}
     tool_call_id: call_123
 metadata: {}
 ```
@@ -204,87 +208,59 @@ Tasks use the **todo CLI format** (from tmp6-todo project):
   depends_on: task-003
 ```
 
-### 3. Approval Workflow (*.approval.md)
+### 3. Approval Workflow
 
-When an agent proposes a **high-risk action** (terminal command, file modification), 
+When an agent proposes a terminal command,
 it creates an approval request:
 
-```markdown
-# Approval Request: exec-20251004-001
-agent: executor-001
-task: task-003
-created: 2025-10-04T10:10:00Z
-status: pending
+The daemon watches the `tasks\approvals.task.md` file  When a file is modified 
+to indicate task approval, it executes the command.
 
-## Proposed Action
-
-**Type:** terminal_command
-
-**Command:**
-`docker ps --filter "name=redis" --format "{{.Status}}"`
-
-**Context:**
-Checking if Redis container is running as requested by user in Slack.
-
-**Risk Level:** LOW
-- Read-only operation
-- No side effects
-- Command matches allowlist pattern
-
-## Review
-
-<!-- Human: Edit this section to approve or reject -->
-
-**Decision:** <!-- APPROVED | REJECTED -->
-
-**Notes:**
-<!-- Add any notes here -->
-
-**Reviewed by:**
-**Reviewed at:**
-```
-
-The daemon watches the `approvals/pending/` directory. When a file is modified 
-with `Decision: APPROVED`, it moves to `approvals/approved/` and executes the command.
-
-### 4. CLI Daemon
+### 4. CLI Daemon (daemon-yaml.js)
 
 **Responsibilities:**
-1. **File watching** - Monitor all agent, task, and approval files
-2. **Message routing** - When agent A references agent B, append to B's chat
-3. **Copilot API gateway** - Process agent messages through Copilot API
-4. **Tool execution** - Execute approved commands, file operations
-5. **Workspace management** - Maintain isolated Git workspaces per agent
+1. **File watching** - Monitor all session YAML files and tasks/approvals.task.md
+2. **Message routing** - When agent A references agent B via send_message, append to B's session
+3. **Copilot API gateway** - Process agent messages through Copilot API with proper tool_choice
+4. **Tool execution** - Execute approved commands, file operations, task management
+5. **Session management** - Create sessions from templates, maintain conversation state
 6. **Event logging** - Maintain system-wide event log
+7. **Workspace management** - Maintain isolated Git workspaces per agent
+
 
 **Key behaviors:**
-- Watches `agents/*.agent.md` for new messages
-- When new `### user` message appears → call Copilot API → append `### assistant` response
-- When `### tool_call` appears → execute or create approval request
-- When approval approved → execute → append `### tool_result`
-- When task created/updated → notify assigned agent
+- Watches `sessions/*.session.yaml` for new user messages
+- When new user message appears → call Copilot API with tool_choice='required'
+- When API returns tool_calls → execute tools or create approval request
+- After tool execution → append tool result message → call API with tool_choice='auto'
+- When approval task status changes → execute or reject accordingly
+- Pump mode (--pump flag): Execute one iteration then exit for testing
+
+**Tool Choice Strategy:**
+- Last message is `user` → tool_choice='required' (force agent to use tools)
+- Last message is `tool` result → tool_choice='auto' (allow agent to continue or finish)
 
 ### 5. Tool System
 
-Tools available to agents (translated from opencode Go implementation):
+Tools available to agents:
 
 #### File Operations
-- `read_file` - Read file contents
+- `read_file` - Read file contents (with line ending normalization)
 - `write_file` - Write/overwrite file (requires approval)
 - `list_directory` - List files and folders
 - `search_files` - Semantic search across files
 - `create_directory` - Create directory structure
 
 #### Task Management
-- `query_tasks` - SQL-like query over task files (uses todo CLI)
-- `update_task` - Modify task status/fields
-- `create_task` - Add new task to file
+- `query_tasks` - SQL-like query over task files (via todo CLI)
+- `update_task` - Modify task status/fields (via todo CLI)
+- `create_task` - Add new task to task file (via todo CLI, requires approval)
 
 #### Terminal
 - `execute_command` - Run shell command (approval required, allowlist-checked)
 
 #### Agent Communication
-- `send_message` - Append message to another agent's chat log
+- `send_message` - Append message to another agent's session file
 
 #### External Integration
 - `slack_send` - Post message to Slack (requires approval)
@@ -316,63 +292,58 @@ Tools available to agents (translated from opencode Go implementation):
 - **Output:** Validation reports, approval recommendations
 - **Tools:** read_file, send_message, update_task
 
-## Workflow Example: Slack → Redis Check → Response
+## DEMO: Workflow Example: Slack → Check → Response
 
 1. **External event:** Message arrives in Slack
    - Daemon appends to `inbox/slack-messages.jsonl`
-   - Daemon appends to `agents/planner-001.agent.md`:
-     ```
-     ### 2025-10-04 10:00:00 | user
-     New Slack message from @boss: "Can you check if Redis is running?"
-     ```
+   - Daemon creates or updates planner session with user message
 
 2. **Planner processes:**
-   - Daemon calls Copilot API with planner's full context
-   - Planner responds with task breakdown
-   - Daemon appends response to planner's chat
-   - Planner uses `create_task` tool → creates `tasks/redis-check.task.md`
+   - Daemon calls Copilot API with planner's full context (tool_choice='required')
+   - Planner responds with task breakdown using create_task tool
+   - Daemon appends assistant response to planner's session YAML
+   - Planner's tool_calls create tasks in tasks/approvals.task.md
 
 3. **Retriever investigates:**
    - Daemon sees task assigned to retriever-001
-   - Appends to `agents/retriever-001.agent.md`:
-     ```
-     ### 2025-10-04 10:05:00 | user
-     Task assigned: Determine if Docker or Podman is being used.
-     ```
-   - Retriever reads `memory/system-config.md`
+   - Creates/updates retriever session YAML with task details
+   - Retriever reads `memory/system-config.md` using read_file tool
    - Responds with: "System uses Docker Desktop on Windows WSL2"
 
 4. **Executor prepares command:**
    - Task assigned to executor-001
-   - Executor proposes: `docker ps --filter "name=redis"`
-   - Creates `approvals/pending/exec-20251004-001.approval.md`
+   - Daemon creates/updates executor session with task
+   - Executor proposes: `docker ps --filter "name=redis"` via execute_command tool
+   - Tool creates approval request in tasks/approvals.task.md
 
 5. **Human approval:**
-   - Operator edits approval file: `Decision: APPROVED`
-   - Daemon detects change, moves to `approved/`
+   - Operator edits tasks/approvals.task.md, changes [_] to [x], adds approved_by
+   - Daemon detects file change via chokidar watcher
 
 6. **Executor runs command:**
-   - Daemon executes command in executor's workspace
-   - Appends result to executor's chat log
-   - Updates task status: `completed: true`
+   - Daemon executes command in safe environment
+   - Appends tool result to executor's session YAML
+   - Updates task status as completed via update_task
 
 7. **Evaluator validates:**
-   - Reads execution result
+   - Daemon notifies evaluator by updating its session
+   - Evaluator reads execution result from executor's session
    - Confirms output format is valid
    - Marks validation task complete
 
 8. **Planner drafts response:**
-   - Receives completion notification
+   - Receives completion notification via updated session
    - Drafts Slack reply: "Redis container is running (Up 2 hours)"
-   - Creates approval request for slack_send
+   - Creates approval request for slack_send in tasks/approvals.task.md
 
 9. **Human approves outbound message:**
-   - Reviews response quality
-   - Approves: `Decision: APPROVED`
+   - Reviews response quality in tasks/approvals.task.md
+   - Approves: changes [_] to [x], adds approved_by
 
 10. **Message sent:**
     - Daemon posts to Slack
     - Logs to `inbox/slack-messages.jsonl`
+    - Updates all related tasks as completed
     - Closes task tree
 
 ## Key Design Principles
@@ -396,10 +367,10 @@ High-risk actions require explicit human approval via file edits.
 Daemon can restart anytime—all state is on disk.
 
 ### 7. Composability
-Agents can be added/removed by creating/deleting `.agent.md` files.
+Agents can be added/removed by creating/deleting template YAML files and sessions.
 
 ### 8. Isolation
-Each agent has isolated workspace (Git repo) for safe experimentation.
+Each agent operates independently with its own session state for safe experimentation.
 
 ## Security Model
 
@@ -421,54 +392,12 @@ Each agent's workspace is a separate Git repository:
 - Allows experimental commands without affecting system
 - Provides rollback capability per agent
 
-## Implementation Phases
-
-### Phase 1: Core Infrastructure
-- [x] Copilot API integration (already have in examples/)
-- [ ] Agent file format and parser
-- [ ] File watcher daemon
-- [ ] Basic tool system (read_file, execute_command)
-
-### Phase 2: Task Integration
-- [ ] Integrate todo CLI for task management
-- [ ] Task-to-agent routing
-- [ ] Task dependency resolution
-
-### Phase 3: Approval Workflow
-- [ ] Approval file format and watcher
-- [ ] Risk assessment system
-- [ ] Command allowlist integration
-
-### Phase 4: Multi-Agent
-- [ ] Agent-to-agent messaging
-- [ ] Planner agent implementation
-- [ ] Retriever agent implementation
-- [ ] Executor agent implementation
-- [ ] Evaluator agent implementation
-
-### Phase 5: External Integration
-- [ ] Slack integration (read from JSONL)
-- [ ] Slack posting (with approval)
-- [ ] Email monitoring
-- [ ] Generic webhook receiver
-
 ## Technology Stack
 
-- **Runtime:** Node.js (already using for Copilot API)
-- **File watching:** chokidar
-- **Task management:** tmp6-todo CLI (already built)
-- **API client:** OpenAI SDK (already integrated)
-- **Security:** terminal-allowlist.js (already built)
-- **File format:** Markdown (human-readable)
-- **Version control:** Git (per-agent workspaces)
-
-## Next Steps
-
-1. Implement agent file parser
-2. Build daemon file watcher
-3. Create tool execution framework
-4. Build first demo: single planner agent
-5. Extend to multi-agent with retriever
-6. Add approval workflow
-7. Integrate Slack monitoring
-8. Run full end-to-end scenario
+- **Runtime:** Node.js ES6 modules
+- **File watching:** chokidar (watches sessions/*.yaml and tasks/*.md)
+- **Task management:** tmp6-todo CLI (task format for approvals and work tracking)
+- **API client:** OpenAI SDK (GitHub Copilot API)
+- **Security:** `lib/terminal-allowlist.js` (command allowlist checking)
+- **File format:** YAML for agents/sessions, Markdown for tasks (human-readable)
+- **YAML library:** js-yaml with custom serialization (literal block scalars, lineWidth: 120)

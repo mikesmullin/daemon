@@ -1,6 +1,6 @@
 id: executor-001
 type: executor
-model: claude-sonnet-4.5
+model: gpt-4o
 system_prompt: |-
   You are an execution agent in a multi-agent system. Your role is to:
 
