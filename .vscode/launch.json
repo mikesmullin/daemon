@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Daemon Pump",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/daemon.mjs",
+      "args": [
+        "pump"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ]
+}

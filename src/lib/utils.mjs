@@ -19,7 +19,7 @@ export function relWS(...pathComponents) {
 
 // Abort with error message
 export function abort(message) {
-  console.error(`Fatal Error: ${message}`);
+  log('error', `Fatal Error: ${message}`);
   process.exit(1);
 }
 

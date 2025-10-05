@@ -3,6 +3,7 @@
 // daemon.mjs: Multi-agent orchestrator
 
 import fs from 'fs';
+import path from 'path';
 import yaml from 'js-yaml';
 import { _G } from './lib/globals.mjs';
 import { mkdirp, relWS, abort, log } from './lib/utils.mjs';
@@ -27,6 +28,8 @@ function initializeDirectories() {
   _G.TEMPLATES_DIR = relWS('agents', 'templates');
   _G.SESSIONS_DIR = relWS('agents', 'sessions');
   _G.WORKSPACES_DIR = relWS('agents', 'workspaces');
+
+  _G.NEXT_PATH = path.join(_G.PROC_DIR, '_next');
 }
 
 async function makeDirectories() {
