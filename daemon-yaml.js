@@ -176,7 +176,7 @@ async function handleSessionFileChange(filePath) {
       model: session.model,
       messages: messages,
       tools: tools,
-      tool_choice: 'auto'
+      tool_choice: 'required'  // Force the model to use a tool
     });
 
     const assistantMessage = response.choices[0].message;
