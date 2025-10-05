@@ -107,24 +107,25 @@ export class Agent {
 
   // fork a new agent session from a template
   static async fork(agent) {
-    // try {
-    // Generate new session ID
-    const session_id = await Agent.nextId();
+    try {
+      // Generate new session ID
+      const session_id = await Agent.nextId();
 
-    await Agent.state(session_id, 'idle');
+      await Agent.state(session_id, 'idle');
 
-    // Create session YAML file from agent template
-    const sessionFileName = `${session_id}-${agent}.session.yaml`;
-    const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-    const templatePath = path.join(_G.TEMPLATES_DIR, `${agent}.agent.yaml`);
+      // Create session YAML file from agent template
+      const sessionFileName = `${session_id}-${agent}.yaml`;
+      const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
+      const templateFileName = `${agent}.yaml`;
+      const templatePath = path.join(_G.TEMPLATES_DIR, templateFileName);
 
-    const templateContent = await fs.readFile(templatePath, 'utf-8');
-    await fs.writeFile(sessionPath, templateContent, 'utf-8');
-    log('debug', `Created session file ${sessionFileName} from template ${agent}.agent.yaml`);
+      const templateContent = await fs.readFile(templatePath, 'utf-8');
+      await fs.writeFile(sessionPath, templateContent, 'utf-8');
+      log('debug', `Created session file ${sessionFileName} from template ${templateFileName}`);
 
-    return session_id;
-    // } catch (error) {
-    //   abort(`Failed to fork session for agent ${agent}: ${error.message}`);
-    // }
+      return session_id;
+    } catch (error) {
+      abort(`Failed to fork session for agent ${agent}: ${error.message}`);
+    }
   }
 }
