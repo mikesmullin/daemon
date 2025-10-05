@@ -3,15 +3,12 @@
 // daemon.mjs: Multi-agent orchestrator
 
 import fs from 'fs';
-import path from 'path';
-import yaml from 'js-yaml';
 import { _G } from './lib/globals.mjs';
 import {
   relWS, log, readYaml, initializeDirectories, makeDirectories, outputAs, abort
 } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
 import color from './lib/colors.mjs';
-import { Copilot } from './lib/copilot.mjs';
 
 // clean up transient files in directories
 async function clean() {
