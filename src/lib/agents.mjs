@@ -134,6 +134,7 @@ export class Agent {
       };
 
       sessionData.messages.push(newMessage);
+      const messageId = sessionData.messages.length - 1;
 
       // Write back to file
       const updatedContent = yaml.dump(sessionData, {
@@ -145,7 +146,15 @@ export class Agent {
       await fs.writeFile(sessionPath, updatedContent, 'utf-8');
 
       log('debug', `Appended message to session ${session_id}`);
-      return true;
+
+      // Return detailed information about the appended message
+      return {
+        session_id: session_id,
+        message_id: messageId,
+        ts: newMessage.ts,
+        role: newMessage.role,
+        message: newMessage.content
+      };
     } catch (error) {
       abort(`Failed to push message to session ${session_id}: ${error.message}`);
     }

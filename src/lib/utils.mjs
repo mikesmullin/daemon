@@ -150,7 +150,7 @@ export function outputAs(type, data) {
     const header = keys.map((k, i) => k.padEnd(colWidths[i])).join(' | ');
 
     // Format separator
-    const separator = colWidths.map(w => '-'.repeat(w + 1)).join('|');
+    const separator = colWidths.map(w => '-'.repeat(w)).join('-|-');
 
     // Format body
     const body = rows

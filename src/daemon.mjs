@@ -7,7 +7,7 @@ import path from 'path';
 import yaml from 'js-yaml';
 import { _G } from './lib/globals.mjs';
 import {
-  relWS, log, readYaml, initializeDirectories, makeDirectories, outputAs
+  relWS, log, readYaml, initializeDirectories, makeDirectories, outputAs, abort
 } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
 import color from './lib/colors.mjs';
@@ -88,8 +88,7 @@ async function parseCliArgs() {
     const prompt = args.slice(2).join(' ');
 
     try {
-      await Agent.push(sessionId, prompt);
-      const result = { session_id: sessionId, message: 'Prompt appended successfully' };
+      const result = await Agent.push(sessionId, prompt);
       console.log(outputAs(format, result));
       process.exit(0);
     } catch (error) {
