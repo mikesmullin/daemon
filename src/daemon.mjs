@@ -6,38 +6,12 @@ import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
 import { _G } from './lib/globals.mjs';
-import { mkdirp, relWS, abort, log } from './lib/utils.mjs';
+import {
+  relWS, log, readYaml, initializeDirectories, makeDirectories
+} from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
 import color from './lib/colors.mjs';
-
-// read configuration from YAML file
-async function readConfig() {
-  try {
-    const configPath = relWS('config.yaml');
-    log('debug', `⚙️  Reading configuration from ${configPath}`);
-    const config = yaml.load(fs.readFileSync(configPath, 'utf8'));
-    return config;
-  } catch (error) {
-    abort(`Failed to read config.yaml: ${error.message}`);
-  }
-}
-
-// initialize directory skeleton on first run
-function initializeDirectories() {
-  _G.PROC_DIR = relWS('agents', 'proc');
-  _G.TEMPLATES_DIR = relWS('agents', 'templates');
-  _G.SESSIONS_DIR = relWS('agents', 'sessions');
-  _G.WORKSPACES_DIR = relWS('agents', 'workspaces');
-
-  _G.NEXT_PATH = path.join(_G.PROC_DIR, '_next');
-}
-
-async function makeDirectories() {
-  await mkdirp(_G.PROC_DIR);
-  await mkdirp(_G.TEMPLATES_DIR);
-  await mkdirp(_G.SESSIONS_DIR);
-  await mkdirp(_G.WORKSPACES_DIR);
-}
+import { Copilot } from './lib/copilot.mjs';
 
 // clean up transient files in directories
 async function clean() {
@@ -94,7 +68,7 @@ Subcommands:
   await parseCliArgs();
 
   log('info', `👺🚀 ${color.bold('Multi-Agent Orchestrator Daemon')} starting`);
-  const config = await readConfig();
+  _G.CONFIG = await readYaml(_G.CONFIG_PATH);
   await makeDirectories();
 
   if ('pump' == _G.mode) {
@@ -105,21 +79,62 @@ Subcommands:
   const sessions = await Agent.list();
   console.debug(`Found ${sessions.length} active session(s)`, sessions);
 
-  const a1 = await Agent.fork('planner');
-  console.debug(`Forked new agent session: ${a1}`);
-  const as1 = await Agent.state(a1);
-  console.debug(`Session ${a1} state: ${as1}`);
+  // const a1 = await Agent.fork('planner');
+  // console.debug(`Forked new agent session: ${a1}`);
+  // const as1 = await Agent.state(a1);
+  // console.debug(`Session ${a1} state: ${as1}`);
 
-  const a2 = await Agent.fork('executor');
-  console.debug(`Forked new agent session: ${a2}`);
-  const as2 = await Agent.state(a2);
-  console.debug(`Session ${a2} state: ${as2}`);
+  // const a2 = await Agent.fork('executor');
+  // console.debug(`Forked new agent session: ${a2}`);
+  // const as2 = await Agent.state(a2);
+  // console.debug(`Session ${a2} state: ${as2}`);
+
+  {
+    // Test Copilot
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are a pirate. Always respond in pirate speak with "Arrr!" and nautical terms.'
+      },
+      {
+        role: 'user',
+        content: 'My favorite color is blue.'
+      },
+      {
+        role: 'assistant',
+        content: 'Arrr! Blue, ye say? That be the hue o’ the deep sea and the sky over the horizon! A fine choice for a pirate’s heart. Be ye wantin’ to deck out yer ship’s sails in that azure glory or somethin’ else? Speak, me matey! Arrr!'
+      },
+      {
+        role: 'user',
+        content: 'My favorite number is 42.'
+      },
+      {
+        role: 'assistant',
+        content: 'Arrr! Forty-two, eh? That be a number with a mystical ring, like a cannon blast echoin’ across the seven seas! Be it yer lucky number for plunderin’ or just a whim, it’s a fine pick. What else be stirrin’ in yer pirate soul, matey? Arrr!'
+      },
+      {
+        role: 'user',
+        content: 'What were my favorite color and number? Answer in one sentence.'
+      },
+    ];
+    try {
+      await Copilot.init();
+      const response = await Copilot.client.chat.completions.create({
+        model: 'claude-sonnet-4.5',
+        messages: messages,
+        max_tokens: 300,
+      });
+      console.debug('Full response:' + JSON.stringify(response, null, 2));
+    } catch (error) {
+      console.error('❌ Error:', error.message);
+    }
+  }
 
   if ('watch' == _G.mode) {
-    log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and check in at ${config.daemon.checkin_interval} second interval`);
+    log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and check in at ${_G.CONFIG.daemon.checkin_interval} second interval`);
     setInterval(() => {
       console.log(`Daemon checking-in...`);
-    }, config.daemon.checkin_interval * 1000);
+    }, _G.CONFIG.daemon.checkin_interval * 1000);
   }
 
   if ('pump' == _G.mode) {

@@ -1,9 +1,10 @@
 import path from 'path';
-import { mkdir } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import color from './colors.mjs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { _G } from './globals.mjs';
+import yaml from 'js-yaml';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -52,4 +53,43 @@ export function log(type, message) {
   }
 
   output.write(colorFn(`${timestamp} ${message}\n`));
+}
+
+// read configuration from YAML file
+export async function readYaml(file) {
+  try {
+    log('debug', `📄 Reading ${file}`);
+    return yaml.load(await readFile(file, 'utf8'));
+  } catch (error) {
+    abort(`Failed to read ${file}: ${error.message}`);
+  }
+}
+
+export async function writeYaml(file, data) {
+  try {
+    log('debug', `📝 Writing ${file}`);
+    const yamlStr = yaml.dump(data);
+    await writeFile(file, yamlStr, 'utf8');
+  } catch (error) {
+    abort(`Failed to write ${file}: ${error.message}`);
+  }
+}
+
+// initialize directory skeleton on first run
+export function initializeDirectories() {
+  _G.PROC_DIR = relWS('agents', 'proc');
+  _G.TEMPLATES_DIR = relWS('agents', 'templates');
+  _G.SESSIONS_DIR = relWS('agents', 'sessions');
+  _G.WORKSPACES_DIR = relWS('agents', 'workspaces');
+
+  _G.CONFIG_PATH = relWS('config.yaml');
+  _G.TOKENS_PATH = relWS('.tokens.yaml');
+  _G.NEXT_PATH = path.join(_G.PROC_DIR, '_next');
+}
+
+export async function makeDirectories() {
+  await mkdirp(_G.PROC_DIR);
+  await mkdirp(_G.TEMPLATES_DIR);
+  await mkdirp(_G.SESSIONS_DIR);
+  await mkdirp(_G.WORKSPACES_DIR);
 }
