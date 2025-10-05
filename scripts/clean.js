@@ -30,6 +30,9 @@ const itemsToClean = [
   // YAML sessions (keep directory, remove all sessions - they should be ephemeral)
   { path: 'sessions', description: 'YAML sessions', keepDir: true, cleanPattern: /.+\.session\.yaml$/ },
 
+  // Storage files (planner check-in state, etc.)
+  { path: 'storage/planner-checkin.yaml', description: 'Planner check-in state', file: true },
+
   // Templates (keep directory, remove test templates)
   { path: 'templates', description: 'Agent templates', keepDir: true, cleanPattern: /^test-/ },
 

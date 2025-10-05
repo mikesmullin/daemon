@@ -25,14 +25,19 @@ import {
   requestToolApproval,
   ensureApprovalDirs
 } from './lib/approval-tasks.js';
-import { existsSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
 
 // Configuration
 const SESSIONS_DIR = 'sessions';
 const TASKS_DIR = 'tasks';
+const STORAGE_DIR = 'storage';
 const APPROVALS_TASK_FILE = join(TASKS_DIR, 'approvals.task.md');
+const PLANNER_CHECKIN_FILE = join(STORAGE_DIR, 'planner-checkin.yaml');
+
+// Default check-in interval (60 seconds, configurable)
+const DEFAULT_CHECKIN_INTERVAL = 60;
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -48,6 +53,123 @@ const state = {
   processing: new Set(), // Track files currently being processed
   approvalQueue: new Map() // Map approval file to pending action
 };
+
+/**
+ * Check if planner needs a check-in and trigger it if necessary
+ */
+async function checkPlannerCheckin() {
+  try {
+    // Load check-in configuration
+    let checkinConfig = {
+      last_checkin: null,
+      interval_seconds: DEFAULT_CHECKIN_INTERVAL,
+      planner_session: null,
+      checkin_count: 0
+    };
+
+    if (existsSync(PLANNER_CHECKIN_FILE)) {
+      const content = readFileSync(PLANNER_CHECKIN_FILE, 'utf8');
+      const loadedConfig = yaml.load(content);
+      // Only update interval_seconds if it wasn't set in the file, preserve existing value if present
+      checkinConfig = {
+        ...checkinConfig,
+        ...loadedConfig,
+        interval_seconds: loadedConfig.interval_seconds || DEFAULT_CHECKIN_INTERVAL
+      };
+    }
+
+    const now = new Date();
+    const lastCheckin = checkinConfig.last_checkin ? new Date(checkinConfig.last_checkin) : null;
+    const intervalMs = checkinConfig.interval_seconds * 1000;
+
+    // If no last check-in timestamp exists, this is the first run - set baseline but don't trigger check-in
+    if (!lastCheckin) {
+      console.log('⏰ First run detected - establishing check-in baseline (no check-in triggered)');
+
+      // Set the baseline timestamp
+      checkinConfig.last_checkin = now.toISOString();
+      checkinConfig.last_reason = 'Baseline timestamp established on first run';
+      checkinConfig.checkin_count = 0;
+
+      // Ensure storage directory exists
+      if (!existsSync(STORAGE_DIR)) {
+        mkdirSync(STORAGE_DIR, { recursive: true });
+      }
+
+      // Save updated config
+      writeFileSync(PLANNER_CHECKIN_FILE, yaml.dump(checkinConfig, {
+        lineWidth: 120,
+        noRefs: true,
+        quotingType: '"',
+        forceQuotes: false
+      }));
+
+      console.log(`✓ Check-in baseline established\n`);
+      return; // Exit without triggering check-in
+    }
+
+    // Check if it's time for a check-in (interval has passed)
+    if ((now - lastCheckin) >= intervalMs) {
+      const timeSinceLastCheckin = Math.floor((now - lastCheckin) / 1000);
+      const reason = `${timeSinceLastCheckin}s since last check-in (threshold: ${checkinConfig.interval_seconds}s)`;
+
+      console.log(`⏰ Planner check-in triggered: ${reason}`);
+
+      // Find or create planner session
+      let plannerSessionFile = null;
+
+      // First, try to find any existing planner-001 session in the sessions directory
+      if (existsSync(SESSIONS_DIR)) {
+        const sessionFiles = readdirSync(SESSIONS_DIR)
+          .filter(f => f.startsWith('planner-001-') && f.endsWith('.session.yaml'))
+          .sort(); // Use the earliest (lexicographically first) session
+
+        if (sessionFiles.length > 0) {
+          plannerSessionFile = join(SESSIONS_DIR, sessionFiles[0]);
+          console.log(`📋 Using existing planner session: ${sessionFiles[0]}`);
+        }
+      }
+
+      // If no existing session found, create a new one
+      if (!plannerSessionFile) {
+        console.log('📝 Creating new planner session for check-in...');
+        plannerSessionFile = createSession('planner-001');
+        checkinConfig.planner_session = plannerSessionFile.split('/').pop(); // Get just the filename
+      } else {
+        // Update config to track the session we're using
+        checkinConfig.planner_session = plannerSessionFile.split('/').pop();
+      }
+
+      // Add check-in message to planner session
+      appendMessage(plannerSessionFile, {
+        role: 'user',
+        content: 'Check-in with running agents to ensure progress'
+      });
+
+      // Update check-in config
+      checkinConfig.last_checkin = now.toISOString();
+      checkinConfig.last_reason = reason;
+      checkinConfig.checkin_count = (checkinConfig.checkin_count || 0) + 1;
+
+      // Ensure storage directory exists
+      if (!existsSync(STORAGE_DIR)) {
+        mkdirSync(STORAGE_DIR, { recursive: true });
+      }
+
+      // Save updated config
+      writeFileSync(PLANNER_CHECKIN_FILE, yaml.dump(checkinConfig, {
+        lineWidth: 120,
+        noRefs: true,
+        quotingType: '"',
+        forceQuotes: false
+      }));
+
+      console.log(`✓ Planner check-in scheduled (count: ${checkinConfig.checkin_count})\n`);
+    }
+  } catch (error) {
+    console.error('❌ Error in planner check-in:', error.message);
+  }
+}
 
 /**
  * Initialize the daemon
@@ -73,6 +195,7 @@ export async function initDaemon() {
   if (PUMP_MODE) {
     // Pump mode: process once and exit
     console.log('🔍 Processing pending work (pump mode)...');
+    await checkPlannerCheckin();
     await scanTasks();
     await scanSessions();
     await rebuildApprovalQueue();
@@ -91,16 +214,21 @@ export async function initDaemon() {
 
   // Initial scan
   console.log('🔍 Scanning for pending work...');
+  await checkPlannerCheckin();
   await scanSessions();
   console.log('✓ Initial scan complete\n');
 
   console.log('━'.repeat(60));
   console.log('✅ Daemon is running. Press Ctrl+C to stop.\n');
 
-  // Keep process alive
-  setInterval(() => {
-    // Periodic health check
-  }, 60000);
+  // Keep process alive with periodic health check and planner check-in
+  setInterval(async () => {
+    try {
+      await checkPlannerCheckin();
+    } catch (error) {
+      console.error('❌ Error during periodic planner check-in:', error.message);
+    }
+  }, 5000); // Check every 5 seconds
 }
 
 /**

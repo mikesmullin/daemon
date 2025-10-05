@@ -47,6 +47,10 @@ This system implements **file-based autonomous agent orchestration** where:
 │  tasks/                                                         │
 │    approvals.task.md         ← Approval requests (todo format)  │
 │                                                                 │
+│  storage/                                                       │
+│    planner-checkin.yaml      ← Planner check-in configuration   │
+│    terminal-cmd-allowlist.yaml ← Command security allowlist     │
+│                                                                 │
 │  inbox/                                                         │
 │    slack-messages.jsonl      ← External input streams           │
 │    email-inbox.jsonl                                            │
@@ -192,7 +196,32 @@ Tasks use the **todo CLI format** (from tmp6-todo project):
   depends_on: task-003
 ```
 
-### 3. Approval Workflow
+### 5. Planner Check-in Configuration (storage/planner-checkin.yaml)
+
+The planner check-in system uses a YAML configuration file to track timing and state:
+
+**Format:**
+```yaml
+last_checkin: "2025-10-05T08:02:04.076Z"
+interval_seconds: 60
+planner_session: planner-001-abc123.session.yaml
+checkin_count: 3
+last_reason: "65s since last check-in (threshold: 60s)"
+```
+
+**Fields:**
+- `last_checkin`: ISO timestamp of last check-in trigger
+- `interval_seconds`: Configurable check-in frequency (default: 60)
+- `planner_session`: Current active planner session filename
+- `checkin_count`: Total number of check-ins triggered
+- `last_reason`: Human-readable reason for last check-in
+
+**Lifecycle:**
+- File is removed by `npm run clean` for fresh testing
+- First pump establishes baseline without triggering check-in
+- Subsequent pumps trigger check-ins when interval has passed
+
+### 6. Approval Workflow
 
 When an agent proposes a terminal command,
 it creates an approval request:
@@ -200,7 +229,7 @@ it creates an approval request:
 The daemon watches the `tasks\approvals.task.md` file  When a file is modified 
 to indicate task approval, it executes the command.
 
-### 4. CLI Daemon (daemon-yaml.js)
+### 7. CLI Daemon (daemon-yaml.js)
 
 **Responsibilities:**
 1. **File watching** - Monitor all session YAML files and tasks/approvals.task.md
@@ -209,8 +238,17 @@ to indicate task approval, it executes the command.
 4. **Copilot API gateway** - Process agent messages through Copilot API with proper tool_choice
 5. **Tool execution** - Execute approved commands, file operations, task management
 6. **Session management** - Create sessions from templates, maintain conversation state
-7. **Event logging** - Maintain system-wide event log
-8. **Workspace management** - Maintain isolated Git workspaces per agent
+7. **Planner check-ins** - Periodically trigger planner check-ins to monitor agent progress
+8. **Event logging** - Maintain system-wide event log
+9. **Workspace management** - Maintain isolated Git workspaces per agent
+
+**Planner Check-in System:**
+- Monitors `storage/planner-checkin.yaml` for timing configuration
+- First run establishes baseline timestamp without triggering check-in
+- Subsequent runs trigger check-ins when interval (default 60s) has passed
+- Appends "Check-in with running agents to ensure progress" message to planner session
+- Planner uses session management tools to coordinate and guide other agents
+- Configurable interval allows balancing oversight with agent autonomy
 
 **Key behaviors:**
 - Watches `sessions/*.session.yaml` for new user messages
@@ -219,7 +257,7 @@ to indicate task approval, it executes the command.
 - When approval task status changes → execute or reject accordingly
 - Pump mode (--pump flag): Execute one iteration then exit for testing
 
-### 5. Tool System
+### 8. Tool System
 
 Tools available to agents:
 
@@ -241,6 +279,11 @@ Tools available to agents:
 #### Agent Communication
 - `send_message` - Append message to another agent's session file
 
+#### Session Management (Planner Agent Only)
+- `list_active_sessions` - List all active agent session files with metadata
+- `read_session` - Read another agent's complete session file to understand progress
+- `edit_session` - Replace entire session file content (requires approval, advanced intervention)
+
 #### External Integration
 - `slack_send` - Post message to Slack (requires approval)
 - `slack_read` - Read from inbox/slack-messages.jsonl
@@ -248,10 +291,23 @@ Tools available to agents:
 ## Agent Types
 
 ### Planner Agent
-- **Role:** Decompose high-level goals into structured sub-tasks
-- **Input:** User requests, system events
-- **Output:** Task files with hierarchical breakdowns
-- **Tools:** query_tasks, create_task, update_task, send_message
+- **Role:** Decompose high-level goals into structured sub-tasks and coordinate other agents
+- **Input:** User requests, system events, periodic check-ins
+- **Output:** Task files with hierarchical breakdowns, agent coordination messages
+- **Tools:** query_tasks, create_task, update_task, send_message, list_active_sessions, read_session, edit_session
+
+**Enhanced Capabilities:**
+- **Progress Monitoring:** Periodically checks in with running agents to ensure progress
+- **Agent Management:** Can send guidance to stuck agents or modify their sessions
+- **Session Oversight:** Lists and reads other agents' sessions to understand system state
+- **Auto Check-ins:** Daemon triggers check-in messages every 60 seconds (configurable)
+
+**Check-in Process:**
+1. Daemon monitors `storage/planner-checkin.yaml` for timing
+2. When interval passes, appends "Check-in with running agents to ensure progress" to planner session
+3. Planner uses `list_active_sessions` and `read_session` to assess progress
+4. Uses `send_message` to guide agents that need help ("Continue", "Change approach", etc.)
+5. Can use `edit_session` to replace entire session files for advanced intervention
 
 ### Retriever Agent
 - **Role:** Fetch contextual information from knowledge base
