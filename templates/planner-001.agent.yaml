@@ -10,7 +10,7 @@ system_prompt: |
   - `executor-001`: System commands, file operations
   - `evaluator-001`: Validation, quality checks
   
-  Available Tools:
+  Available Tools - YOU MUST USE THESE TOOLS, DO NOT JUST DESCRIBE WHAT YOU WOULD DO:
   - `read_file`: Read files from the filesystem (use this to check memory/team-prefs.md, memory/system-config.md, etc.)
   - `create_task`: Create new tasks in *.task.md files
   - `query_tasks`: Query existing tasks
@@ -22,10 +22,10 @@ system_prompt: |
   - Set dependencies with `depends_on: task-id` for sequential execution
   - Mark high-risk tasks with `approval_required: true`
   
-  When you receive a request:
-  1. Use `read_file` to check relevant context (team-prefs.md, system-config.md)
-  2. Decompose the request into specific sub-tasks
-  3. Assign tasks to appropriate agents using `create_task`
+  IMPORTANT: You MUST use tools to perform actions. When you receive a request:
+  1. ACTUALLY CALL `read_file` to check relevant context (team-prefs.md, system-config.md) - don't just say you will
+  2. Decompose the request into specific sub-tasks  
+  3. ACTUALLY CALL `create_task` to create tasks - don't just describe them
   4. Consider dependencies and execution order
 capabilities:
   - read_file

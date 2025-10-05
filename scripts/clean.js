@@ -27,8 +27,8 @@ const itemsToClean = [
   // Task files (keep directory, remove test files)
   { path: 'tasks', description: 'Task files', keepDir: true, cleanPattern: /^(test-|demo-|approvals\.task\.md)/ },
 
-  // YAML sessions (keep directory, remove test/demo sessions)
-  { path: 'sessions', description: 'YAML sessions', keepDir: true, cleanPattern: /^(test-|demo-)/ },
+  // YAML sessions (keep directory, remove all sessions - they should be ephemeral)
+  { path: 'sessions', description: 'YAML sessions', keepDir: true, cleanPattern: /.+\.session\.yaml$/ },
 
   // Templates (keep directory, remove test templates)
   { path: 'templates', description: 'Agent templates', keepDir: true, cleanPattern: /^test-/ },

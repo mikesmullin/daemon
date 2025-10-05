@@ -244,12 +244,12 @@ async function handleToolCall(sessionId, sessionFile, toolCall) {
     // Append pending status
     appendMessage(sessionFile, {
       role: 'tool_result',
-      content: JSON.stringify({
+      content: {
         status: 'PENDING_APPROVAL',
         task_id: taskId,
         task_file: APPROVALS_TASK_FILE,
         message: 'Waiting for human approval. Check tasks/approvals.task.md and mark task as [x] to approve or [-] to reject.'
-      }),
+      },
       toolCallId: toolCall.id
     });
 
@@ -289,7 +289,7 @@ async function executeAndLog(sessionFile, toolCall) {
     // Log tool result
     appendMessage(sessionFile, {
       role: 'tool_result',
-      content: JSON.stringify(result, null, 2),
+      content: result,
       toolCallId: toolCall.id
     });
 
@@ -298,10 +298,10 @@ async function executeAndLog(sessionFile, toolCall) {
 
     appendMessage(sessionFile, {
       role: 'tool_result',
-      content: JSON.stringify({
+      content: {
         success: false,
         error: error.message
-      }),
+      },
       toolCallId: toolCall.id
     });
   }

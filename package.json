@@ -3,16 +3,12 @@
   "version": "2.0.0",
   "type": "module",
   "description": "File-based multi-agent orchestrator using GitHub Copilot API",
-  "main": "daemon.js",
+  "main": "daemon-yaml.js",
   "scripts": {
     "start": "node daemon-yaml.js",
-    "start:legacy": "node daemon.js",
     "pump": "node daemon-yaml.js --pump",
-    "demo": "node demo-scenario.js",
-    "demo:pump": "node demo-pump.js",
-    "migrate": "node migrate-to-yaml.js",
+    "demo": "node demo-yaml.js",
     "test": "node tests/runner.js",
-    "test:pump": "node test-pump.js",
     "clean": "node scripts/clean.js"
   },
   "keywords": [
