@@ -170,13 +170,19 @@ async function handleSessionFileChange(filePath) {
     // Get tool definitions
     const tools = getToolDefinitions();
 
+    // Determine tool_choice strategy:
+    // - If last message is from 'user': require tool use (agent must take action)
+    // - If last message is 'tool_result': allow auto (agent can respond or use more tools)
+    const lastMsg = session.messages[session.messages.length - 1];
+    const toolChoice = lastMsg.role === 'user' ? 'required' : 'auto';
+
     // Call Copilot API
     console.log(`🤖 Calling Copilot API (model: ${session.model})...`);
     const response = await state.client.chat.completions.create({
       model: session.model,
       messages: messages,
       tools: tools,
-      tool_choice: 'required'  // Force the model to use a tool
+      tool_choice: toolChoice
     });
 
     const assistantMessage = response.choices[0].message;

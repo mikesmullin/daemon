@@ -24,8 +24,8 @@ const itemsToClean = [
   { path: 'inbox/slack-messages.jsonl', description: 'Slack inbox messages', file: true },
   { path: 'inbox/slack-outbox.jsonl', description: 'Slack outbox messages', file: true },
 
-  // Task files (keep directory, remove test files)
-  { path: 'tasks', description: 'Task files', keepDir: true, cleanPattern: /^(test-|demo-|approvals\.task\.md)/ },
+  // Task files (keep directory, remove all task files)
+  { path: 'tasks', description: 'Task files', keepDir: true, cleanPattern: /.+\.task\.md$/ },
 
   // YAML sessions (keep directory, remove all sessions - they should be ephemeral)
   { path: 'sessions', description: 'YAML sessions', keepDir: true, cleanPattern: /.+\.session\.yaml$/ },
