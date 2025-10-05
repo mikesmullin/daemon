@@ -4,6 +4,8 @@ import yaml from 'js-yaml';
 import { _G } from './globals.mjs';
 import { assert, log, abort, readYaml, writeYaml } from './utils.mjs';
 import { Copilot } from './copilot.mjs';
+import { tools } from './tools.mjs';
+import { loadAllowlist } from './terminal-allowlist.js';
 
 export class Agent {
   // Agents follow BehaviorTree (BT) patterns
@@ -91,8 +93,8 @@ export class Agent {
             }
 
             // Extract last message
-            if (sessionData.messages && sessionData.messages.length > 0) {
-              const lastMsg = sessionData.messages[sessionData.messages.length - 1];
+            if (sessionData.spec.messages && sessionData.spec.messages.length > 0) {
+              const lastMsg = sessionData.spec.messages[sessionData.spec.messages.length - 1];
               // Format as "timestamp role: content" (no truncation here - let outputAs handle it)
               const content = lastMsg.content || '';
               last_message = `${lastMsg.ts || ''} ${lastMsg.role || ''}: ${content}`;
@@ -230,8 +232,26 @@ export class Agent {
     const sessionContent = await readYaml(sessionPath);
 
     const system_prompt = sessionContent.spec.system_prompt || 'You are a helpful assistant.';
-    const messages = (sessionContent.spec.messages || []).map(m => ({ role: m.role, content: m.content }));
-    messages.unshift({ role: 'system', content: system_prompt });
+    const messages = [{ role: 'system', content: system_prompt }];
+    let last_role = 'system';
+    for (const message of (sessionContent.spec.messages || [])) {
+      messages.push({
+        role: (last_role = message.role),
+        content: message.content
+      });
+    }
+
+    if (last_role != 'user') {
+      abort(`Last message in session ${session_id} is not from user.`);
+    }
+
+    const toolDefinitions = [];
+    const capabilities = sessionContent.metadata.tools || [];
+    for (const name in tools) {
+      if (capabilities.includes(name)) {
+        toolDefinitions.push(tools[name].definition);
+      }
+    }
 
     try {
       await Copilot.init();
@@ -239,6 +259,7 @@ export class Agent {
       const response = await Copilot.client.chat.completions.create({
         model: sessionContent.metadata.model,
         messages: messages,
+        tools: toolDefinitions,
         // max_tokens: 300,
       });
 

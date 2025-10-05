@@ -21,13 +21,8 @@
  *   }
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import yaml from 'js-yaml';
-
-// Configuration
-const STORAGE_DIR = join(process.cwd(), 'storage');
-const ALLOWLIST_FILE = join(STORAGE_DIR, 'terminal-cmd-allowlist.yaml');
+import { _G } from './globals.mjs';
+import { log, readYaml } from './utils.mjs';
 
 /**
  * Default allowlist configuration
@@ -138,41 +133,17 @@ const DEFAULT_ALLOWLIST = {
  * Creates default allowlist if file doesn't exist
  * @returns {Object} Allowlist configuration
  */
-export function loadAllowlist() {
-  if (!existsSync(ALLOWLIST_FILE)) {
-    // Create storage directory if needed
-    if (!existsSync(STORAGE_DIR)) {
-      mkdirSync(STORAGE_DIR, { recursive: true });
-    }
-    // Create default allowlist file
-    saveAllowlist(DEFAULT_ALLOWLIST);
-    console.log(`✓ Created default allowlist at ${ALLOWLIST_FILE}`);
-    return DEFAULT_ALLOWLIST;
+export async function loadAllowlist() {
+  if (null != _G.ALLOWLIST) {
+    return _G.ALLOWLIST; // utilize cache
   }
 
-  try {
-    const content = readFileSync(ALLOWLIST_FILE, 'utf8');
-    return yaml.load(content) || {};
-  } catch (error) {
-    console.error(`⚠️  Error loading allowlist: ${error.message}`);
-    return DEFAULT_ALLOWLIST;
+  if (!existsSync(_G.ALLOWLIST_PATH)) {
+    await writeYaml(_G.ALLOWLIST_PATH, DEFAULT_ALLOWLIST);
+    return _G.ALLOWLIST = DEFAULT_ALLOWLIST;
   }
-}
 
-/**
- * Save allowlist to YAML file
- * @param {Object} allowlist - Allowlist configuration to save
- */
-export function saveAllowlist(allowlist) {
-  if (!existsSync(STORAGE_DIR)) {
-    mkdirSync(STORAGE_DIR, { recursive: true });
-  }
-  const yamlStr = yaml.dump(allowlist, {
-    indent: 2,
-    lineWidth: 120,
-    noRefs: true
-  });
-  writeFileSync(ALLOWLIST_FILE, yamlStr, 'utf8');
+  return _G.ALLOWLIST = await readYaml(_G.ALLOWLIST_PATH);
 }
 
 /**
@@ -188,7 +159,7 @@ function parseRegexPattern(str) {
   try {
     return new RegExp(match[1], match[2]);
   } catch (error) {
-    console.error(`⚠️  Invalid regex pattern: ${str}`);
+    log('warn', `⚠️  Invalid regex pattern: ${str}`);
     return null;
   }
 }
@@ -411,24 +382,6 @@ export async function checkCommand(commandLine, options = {}) {
       subCommandChecks
     }
   };
-}
-
-/**
- * Interactive prompt for user approval
- * @param {string} commandLine - Command to approve
- * @param {string} reason - Reason for requiring approval
- * @returns {Promise<boolean>} True if approved
- */
-export async function promptForApproval(commandLine, reason) {
-  console.log('\n⚠️  Command requires approval:');
-  console.log(`   Command: ${commandLine}`);
-  console.log(`   Reason: ${reason}`);
-  console.log('');
-
-  // In a real implementation, this would use readline or a similar library
-  // For now, we'll auto-deny for safety
-  console.log('❌ Auto-denied (interactive approval not implemented)');
-  return false;
 }
 
 /**

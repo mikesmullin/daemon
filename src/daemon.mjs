@@ -73,6 +73,8 @@ async function parseCliArgs() {
     const agent = args[1];
     const prompt = args.slice(2).join(' ') || null;
 
+    console.log('prompt is', process.argv);
+
     try {
       const result = await Agent.fork({ agent, prompt });
 

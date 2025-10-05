@@ -3,7 +3,8 @@
 set -x
 
 node src/daemon.mjs clean
-node src/daemon.mjs new planner <<EOF
+
+input=$(cat <<EOF
 New Slack message from @sarah: "Can you check if the Redis container is running locally?"
 
 Context:
@@ -13,6 +14,9 @@ Context:
 
 Please decompose this into tasks for our multi-agent system.
 EOF
+)
+
+node src/daemon.mjs new planner "$input"
 
 node src/daemon.mjs list
 node src/daemon.mjs eval 0
