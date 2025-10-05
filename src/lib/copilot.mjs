@@ -8,6 +8,10 @@ export class Copilot {
   static client = null;
 
   static async init() {
+    if (Copilot.client) {
+      return false; // already initialized
+    }
+
     _G.TOKENS = await readYaml(_G.TOKENS_PATH);
 
     // Get authenticated session

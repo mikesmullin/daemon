@@ -1,7 +1,9 @@
 const fs = await import('fs/promises');
 const path = await import('path');
+import yaml from 'js-yaml';
 import { _G } from './globals.mjs';
-import { log, abort } from './utils.mjs';
+import { log, abort, readYaml } from './utils.mjs';
+import { Copilot } from './copilot.mjs';
 
 export class Agent {
   // Agents follow BehaviorTree (BT) patterns
@@ -105,8 +107,52 @@ export class Agent {
     await Agent.state(session_id, bt_state);
   }
 
+  // append a new user message to an agent session
+  static async push(session_id, content) {
+    try {
+      const sessionFileName = `${session_id}.yaml`;
+      const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
+
+      if (!await fs.access(sessionPath).then(() => true).catch(() => false)) {
+        abort(`Session ${session_id} not found`);
+      }
+
+      // Read the current session file
+      const sessionContent = await fs.readFile(sessionPath, 'utf-8');
+      const sessionData = yaml.load(sessionContent);
+
+      // Initialize messages array if it doesn't exist
+      if (!sessionData.messages) {
+        sessionData.messages = [];
+      }
+
+      // Add new user message with timestamp
+      const newMessage = {
+        ts: new Date().toISOString(),
+        role: 'user',
+        content: content
+      };
+
+      sessionData.messages.push(newMessage);
+
+      // Write back to file
+      const updatedContent = yaml.dump(sessionData, {
+        lineWidth: -1,
+        noRefs: true,
+        quotingType: '"',
+        forceQuotes: false
+      });
+      await fs.writeFile(sessionPath, updatedContent, 'utf-8');
+
+      log('debug', `Appended message to session ${session_id}`);
+      return true;
+    } catch (error) {
+      abort(`Failed to push message to session ${session_id}: ${error.message}`);
+    }
+  }
+
   // fork a new agent session from a template
-  static async fork(agent) {
+  static async fork(agent, prompt = null) {
     try {
       // Generate new session ID
       const session_id = await Agent.nextId();
@@ -114,7 +160,7 @@ export class Agent {
       await Agent.state(session_id, 'idle');
 
       // Create session YAML file from agent template
-      const sessionFileName = `${session_id}-${agent}.yaml`;
+      const sessionFileName = `${session_id}.yaml`;
       const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
       const templateFileName = `${agent}.yaml`;
       const templatePath = path.join(_G.TEMPLATES_DIR, templateFileName);
@@ -123,12 +169,77 @@ export class Agent {
       await fs.writeFile(sessionPath, templateContent, 'utf-8');
       log('debug', `Created session file ${sessionFileName} from template ${templateFileName}`);
 
+      if (prompt) {
+        Agent.push(session_id, prompt);
+      }
+
       return session_id;
     } catch (error) {
       abort(`Failed to fork session for agent ${agent}: ${error.message}`);
     }
   }
 
+  // evaluate an agent session by sending its context to the LLM as a prompt
+  static async eval(session_id) {
+    const sessionFileName = `${session_id}.yaml`;
+    const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
+    const sessionContent = await readYaml(sessionPath);
 
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are a pirate. Always respond in pirate speak with "Arrr!" and nautical terms.'
+      },
+      {
+        role: 'user',
+        content: 'My favorite color is blue.'
+      },
+      {
+        role: 'assistant',
+        content: 'Arrr! Blue, ye say? That be the hue o’ the deep sea and the sky over the horizon! A fine choice for a pirate’s heart. Be ye wantin’ to deck out yer ship’s sails in that azure glory or somethin’ else? Speak, me matey! Arrr!'
+      },
+      {
+        role: 'user',
+        content: 'My favorite number is 42.'
+      },
+      {
+        role: 'assistant',
+        content: 'Arrr! Forty-two, eh? That be a number with a mystical ring, like a cannon blast echoin’ across the seven seas! Be it yer lucky number for plunderin’ or just a whim, it’s a fine pick. What else be stirrin’ in yer pirate soul, matey? Arrr!'
+      },
+      {
+        role: 'user',
+        content: 'What were my favorite color and number? Answer in one sentence.'
+      },
+    ];
+    try {
+      await Copilot.init();
+      const response = await Copilot.client.chat.completions.create({
+        model: 'claude-sonnet-4',
+        messages: messages,
+        max_tokens: 300,
+      });
+      return response;
+    } catch (error) {
+      console.error('❌ Error:', error.message);
+    }
+  }
 
+  // perform a single step of the agent orchestrator loop
+  static async step() {
+    // find all sessions
+    const sessions = await Agent.list();
+
+    const a1 = await Agent.fork('planner');
+    console.debug(`Forked new agent session: ${a1}`);
+    const as1 = await Agent.state(a1);
+    console.debug(`Session ${a1} state: ${as1}`);
+
+    const a2 = await Agent.fork('executor');
+    console.debug(`Forked new agent session: ${a2}`);
+    const as2 = await Agent.state(a2);
+    console.debug(`Session ${a2} state: ${as2}`);
+
+    // const response = await Agent.eval(a1);
+    // console.debug(`Session ${a1} evaluation response:`, response);    
+  }
 }

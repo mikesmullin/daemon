@@ -7,7 +7,7 @@ import path from 'path';
 import yaml from 'js-yaml';
 import { _G } from './lib/globals.mjs';
 import {
-  relWS, log, readYaml, initializeDirectories, makeDirectories
+  relWS, log, readYaml, initializeDirectories, makeDirectories, outputAs
 } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
 import color from './lib/colors.mjs';
@@ -41,11 +41,66 @@ async function parseCliArgs() {
     process.exit(0);
   }
 
+  // Parse --format flag
+  let format = 'table';
+  const formatIndex = args.indexOf('--format');
+  if (formatIndex !== -1 && formatIndex + 1 < args.length) {
+    format = args[formatIndex + 1];
+    args.splice(formatIndex, 2); // Remove --format and its value
+  }
+
+  if (subcommand === 'list') {
+    const sessions = await Agent.list();
+    console.log(outputAs(format, sessions));
+    process.exit(0);
+  }
+
+  if (subcommand === 'fork') {
+    if (args.length < 2) {
+      abort(
+        'Error: fork requires an agent name' +
+        'Usage: daemon.mjs fork <agent> [prompt]');
+    }
+
+    const agent = args[1];
+    const prompt = args.slice(2).join(' ') || null;
+
+    try {
+      const sessionId = await Agent.fork(agent, prompt);
+      const result = { session_id: sessionId, agent: agent };
+      if (prompt) result.initial_prompt = prompt;
+
+      console.log(outputAs(format, result));
+      process.exit(0);
+    } catch (error) {
+      abort(error.message);
+    }
+  }
+
+  if (subcommand === 'push') {
+    if (args.length < 3) {
+      abort(
+        `Error: push requires a session ID and prompt` +
+        `Usage: daemon.mjs push <session_id> <prompt>`);
+    }
+
+    const sessionId = args[1];
+    const prompt = args.slice(2).join(' ');
+
+    try {
+      await Agent.push(sessionId, prompt);
+      const result = { session_id: sessionId, message: 'Prompt appended successfully' };
+      console.log(outputAs(format, result));
+      process.exit(0);
+    } catch (error) {
+      abort(error.message);
+    }
+  }
+
   if (['pump', 'watch'].includes(subcommand)) {
     _G.mode = subcommand;
     return;
   }
-
 
   console.log('👺 Multi-Agent Orchestrator Daemon\n')
   if (subcommand != 'help') {
@@ -54,10 +109,16 @@ async function parseCliArgs() {
   console.log(`Usage: daemon.mjs <subcommand> [options]
 
 Subcommands:
+  help          Show this help message (default)
+  clean         Remove transient state (proc, sessions, workspaces)
   pump          Run one iteration and exit
   watch         Run continuously, checking-in at intervals
-  clean         Remove transient state (proc, sessions, workspaces)
-  help          Show this help message (default)
+  list          List all agent sessions
+  fork          Fork a new agent session: fork <agent> [prompt]
+  push          Append message to session: push <session_id> <prompt>
+
+Options:
+  --format      Output format (table|json|yaml|csv) [default: table]
 `);
   process.exit(0);
 }
@@ -65,11 +126,11 @@ Subcommands:
 // main
 (async () => {
   initializeDirectories();
+  _G.CONFIG = await readYaml(_G.CONFIG_PATH);
+  await makeDirectories();
   await parseCliArgs();
 
   log('info', `👺🚀 ${color.bold('Multi-Agent Orchestrator Daemon')} starting`);
-  _G.CONFIG = await readYaml(_G.CONFIG_PATH);
-  await makeDirectories();
 
   if ('pump' == _G.mode) {
     log('debug', `⛽ ${color.bold('PUMP MODE:')} Will run one iteration and exit`);
@@ -79,56 +140,18 @@ Subcommands:
   const sessions = await Agent.list();
   console.debug(`Found ${sessions.length} active session(s)`, sessions);
 
-  // const a1 = await Agent.fork('planner');
-  // console.debug(`Forked new agent session: ${a1}`);
-  // const as1 = await Agent.state(a1);
-  // console.debug(`Session ${a1} state: ${as1}`);
+  const a1 = await Agent.fork('planner');
+  console.debug(`Forked new agent session: ${a1}`);
+  const as1 = await Agent.state(a1);
+  console.debug(`Session ${a1} state: ${as1}`);
 
-  // const a2 = await Agent.fork('executor');
-  // console.debug(`Forked new agent session: ${a2}`);
-  // const as2 = await Agent.state(a2);
-  // console.debug(`Session ${a2} state: ${as2}`);
+  const a2 = await Agent.fork('executor');
+  console.debug(`Forked new agent session: ${a2}`);
+  const as2 = await Agent.state(a2);
+  console.debug(`Session ${a2} state: ${as2}`);
 
-  {
-    // Test Copilot
-    const messages = [
-      {
-        role: 'system',
-        content: 'You are a pirate. Always respond in pirate speak with "Arrr!" and nautical terms.'
-      },
-      {
-        role: 'user',
-        content: 'My favorite color is blue.'
-      },
-      {
-        role: 'assistant',
-        content: 'Arrr! Blue, ye say? That be the hue o’ the deep sea and the sky over the horizon! A fine choice for a pirate’s heart. Be ye wantin’ to deck out yer ship’s sails in that azure glory or somethin’ else? Speak, me matey! Arrr!'
-      },
-      {
-        role: 'user',
-        content: 'My favorite number is 42.'
-      },
-      {
-        role: 'assistant',
-        content: 'Arrr! Forty-two, eh? That be a number with a mystical ring, like a cannon blast echoin’ across the seven seas! Be it yer lucky number for plunderin’ or just a whim, it’s a fine pick. What else be stirrin’ in yer pirate soul, matey? Arrr!'
-      },
-      {
-        role: 'user',
-        content: 'What were my favorite color and number? Answer in one sentence.'
-      },
-    ];
-    try {
-      await Copilot.init();
-      const response = await Copilot.client.chat.completions.create({
-        model: 'claude-sonnet-4.5',
-        messages: messages,
-        max_tokens: 300,
-      });
-      console.debug('Full response:' + JSON.stringify(response, null, 2));
-    } catch (error) {
-      console.error('❌ Error:', error.message);
-    }
-  }
+  // const response = await Agent.eval(a1);
+  // console.debug(`Session ${a1} evaluation response:`, response);
 
   if ('watch' == _G.mode) {
     log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and check in at ${_G.CONFIG.daemon.checkin_interval} second interval`);
