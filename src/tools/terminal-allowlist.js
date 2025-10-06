@@ -365,12 +365,12 @@ export async function checkCommand(commandLine, options = {}) {
     reason = `Command denied: ${deniedCheck.reason}`;
   } else if (approved) {
     if (fullLineApproved) {
-      reason = `Full command line approved: ${fullLineCheck.matchedRule}`;
+      reason = `👍🏻 Full command line approved: ${fullLineCheck.matchedRule}`;
     } else {
-      reason = 'All sub-commands approved';
+      reason = '👍🏻 All sub-commands approved';
     }
   } else {
-    reason = 'No matching approval rule found - requires explicit approval';
+    reason = '👎🏻 No matching approval rule found - requires explicit approval';
   }
 
   return {
@@ -421,8 +421,8 @@ export async function executeCommandWithCheck(commandLine, options = {}) {
   if (!autoApprove) {
     const check = await checkCommand(commandLine, { allowlist });
 
-    console.log(`   🔒 Security check: ${check.approved ? '✅ Approved' : '⚠️  Requires approval'}`);
-    console.log(`      ${check.reason}`);
+    // log('warn', `🔒 Security check: ${check.approved ? '✅ Approved' : '⚠️  Requires approval'}`);
+    // log('info', `  ${check.reason}`);
 
     if (!check.approved) {
       const userApproved = await promptForApproval(commandLine, check.reason);
@@ -439,7 +439,7 @@ export async function executeCommandWithCheck(commandLine, options = {}) {
   }
 
   // Execute the command
-  console.log(`   🔧 Executing: ${commandLine}`);
+  log('debug', `⚙️  Executing: ${commandLine}`);
   const { exec } = await import('child_process');
   const { promisify } = await import('util');
   const execAsync = promisify(exec);
@@ -447,14 +447,14 @@ export async function executeCommandWithCheck(commandLine, options = {}) {
   try {
     const { stdout, stderr } = await execAsync(commandLine);
     const output = stdout || stderr;
-    console.log(`   ✅ Output:`, output.trim());
+    //console.log(`✅  Output:`, output.trim());
     return {
       success: true,
       approvedBy,
       output,
     };
   } catch (error) {
-    console.log(`   ❌ Error:`, error.message);
+    log('error', `❌  Error:`, error.message);
     return {
       success: false,
       approvedBy,
