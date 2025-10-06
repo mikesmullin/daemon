@@ -263,9 +263,9 @@ export class Agent {
 
     const toolDefinitions = [];
     const capabilities = sessionContent.metadata.tools || [];
-    for (const name in tools) {
+    for (const name in _G.tools) {
       if (capabilities.includes(name)) {
-        toolDefinitions.push(tools[name].definition);
+        toolDefinitions.push(_G.tools[name].definition);
       }
     }
 

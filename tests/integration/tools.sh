@@ -39,3 +39,12 @@ node src/daemon.mjs tool append_prompt '{"session_id":0,"prompt":"What is 3+3?"}
 node src/daemon.mjs tool fork_session '{"session_id":0,"prompt":"What is 4+4?"}'
 
 node src/daemon.mjs tool kill_session '{"session_id":0}'
+
+
+# special
+
+node src/daemon.mjs clean
+
+node src/daemon.mjs tool new_session '{"agent":"solo","prompt":"run the terminal command `whoami`"}'
+
+node src/daemon.mjs eval 0
