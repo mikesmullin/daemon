@@ -54,6 +54,11 @@ async function parseCliArgs() {
     args.splice(truncateIndex, 1); // Remove --truncate flag
   }
 
+  if (['pump', 'watch'].includes(subcommand)) {
+    _G.mode = subcommand;
+    return;
+  }
+
   if (subcommand === 'list') {
     const sessions = await Agent.list();
     console.log(outputAs(format, sessions, { truncate }));
@@ -69,8 +74,6 @@ async function parseCliArgs() {
 
     const agent = args[1];
     const prompt = args.slice(2).join(' ') || null;
-
-    console.log('prompt is', process.argv);
 
     try {
       const result = await Agent.fork({ agent, prompt });
@@ -140,9 +143,39 @@ async function parseCliArgs() {
     }
   }
 
-  if (['pump', 'watch'].includes(subcommand)) {
-    _G.mode = subcommand;
-    return;
+  if (subcommand === 'tool') {
+    if (args.length < 2) {
+      abort(
+        `Error: tool requires a tool name\n` +
+        `Usage: daemon.mjs tool <name> <json-args>`);
+    }
+
+    const toolName = args[1];
+    if ('list' == toolName) {
+      const tools = Object.keys(_G.tools).map(name => {
+        return {
+          name,
+          description: _G.tools[name].definition.function.description || '',
+          params:
+            ['json', 'yaml'].includes(format) ?
+              _G.tools[name].definition.function.parameters.properties :
+              Object.keys(_G.tools[name].definition.function.parameters.properties).join(', '),
+        };
+      });
+      console.log(outputAs(format, tools, { truncate }));
+      process.exit(0);
+    }
+
+    const jsonArgs = args.slice(2).join(' ');
+
+    try {
+      const toolArgs = JSON.parse(jsonArgs);
+      const result = await Agent.tool(toolName, toolArgs);
+      console.log(outputAs(format, result, { truncate }));
+      process.exit(0);
+    } catch (error) {
+      abort(error.message);
+    }
   }
 
   console.log('👺 Multi-Agent Orchestrator Daemon\n')
@@ -161,6 +194,7 @@ Subcommands:
   push          Append message to session: push <session_id> <prompt>
   fork          Fork an existing agent session: fork <session_id> [prompt]
   eval          Ask Copilot to evaluate a session: eval <session_id>
+  tool          Execute an agent tool: tool <name> <json-args>
 
 Options:
   --format      Output format (table|json|yaml|csv) [default: table]

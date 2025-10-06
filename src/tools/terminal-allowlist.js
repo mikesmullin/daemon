@@ -21,8 +21,8 @@
  *   }
  */
 
-import { _G } from './globals.mjs';
-import { log, readYaml } from './utils.mjs';
+import { _G } from '../lib/globals.mjs';
+import { log, readYaml } from '../lib/utils.mjs';
 
 /**
  * Default allowlist configuration

@@ -4,8 +4,21 @@ import yaml from 'js-yaml';
 import { _G } from './globals.mjs';
 import { assert, log, abort, readYaml, writeYaml } from './utils.mjs';
 import { Copilot } from './copilot.mjs';
-import { tools } from './tools.mjs';
-import { loadAllowlist } from './terminal-allowlist.js';
+
+// agent tools
+import { read_file, write_file, list_directory, create_directory } from '../tools/fs.mjs';
+import { execute_shell } from '../tools/shell.mjs';
+import { send_message } from '../tools/agent.mjs';
+import { query_tasks, create_task, update_task } from '../tools/tasks.mjs';
+// registry of available tools
+_G.tools.read_file = read_file;
+_G.tools.write_file = write_file;
+_G.tools.create_directory = create_directory;
+_G.tools.execute_shell = execute_shell;
+_G.tools.send_message = send_message;
+_G.tools.query_tasks = query_tasks;
+_G.tools.create_task = create_task;
+_G.tools.update_task = update_task;
 
 export class Agent {
   // Agents follow BehaviorTree (BT) patterns
@@ -280,6 +293,8 @@ export class Agent {
 
       await writeYaml(sessionPath, sessionContent);
 
+      console.debug('🤖 Copilot API Response: ' + JSON.stringify(response, null, 2));
+
       return {
         session_id,
         agent: sessionContent.metadata.name,
@@ -292,22 +307,35 @@ export class Agent {
     }
   }
 
-  // perform a single step of the agent orchestrator loop
-  static async step() {
-    // find all sessions
-    const sessions = await Agent.list();
+  // execute an agent tool
+  static async tool(name, args, options = {}) {
+    const tool = _G.tools[name];
+    assert(tool, `Unknown tool: ${name}`);
 
-    const a1 = await Agent.fork('planner');
-    console.debug(`Forked new agent session: ${a1}`);
-    const as1 = await Agent.state(a1);
-    console.debug(`Session ${a1} state: ${as1}`);
-
-    const a2 = await Agent.fork('executor');
-    console.debug(`Forked new agent session: ${a2}`);
-    const as2 = await Agent.state(a2);
-    console.debug(`Session ${a2} state: ${as2}`);
-
-    // const response = await Agent.eval(a1);
-    // console.debug(`Session ${a1} evaluation response:`, response);    
+    try {
+      const result = await tool.execute(args, options);
+      return result;
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   }
+
+  // // perform a single step of the agent orchestrator loop
+  // static async step() {
+  //   // find all sessions
+  //   const sessions = await Agent.list();
+
+  //   const a1 = await Agent.fork('planner');
+  //   console.debug(`Forked new agent session: ${a1}`);
+  //   const as1 = await Agent.state(a1);
+  //   console.debug(`Session ${a1} state: ${as1}`);
+
+  //   const a2 = await Agent.fork('executor');
+  //   console.debug(`Forked new agent session: ${a2}`);
+  //   const as2 = await Agent.state(a2);
+  //   console.debug(`Session ${a2} state: ${as2}`);
+
+  //   // const response = await Agent.eval(a1);
+  //   // console.debug(`Session ${a1} evaluation response:`, response);    
+  // }
 }

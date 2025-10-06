@@ -1,6 +1,6 @@
 // global state
 export let _G = {
-  // when the daemon process started 
+  // when the daemon process started
   // (used to calculate elapsed run time)
   startedAt: Date.now(),
 
@@ -9,5 +9,6 @@ export let _G = {
   // - watch: run continuously, checking in at intervals
   mode: 'pump',
 
-
+  // agent tool registry
+  tools: {},
 };
