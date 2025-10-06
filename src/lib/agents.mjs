@@ -243,6 +243,8 @@ export class Agent {
 
   // evaluate an agent session by sending its context to the LLM as a prompt
   static async eval(session_id) {
+    await Agent.state(session_id, 'running');
+
     const sessionFileName = `${session_id}.yaml`;
     const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
     const sessionContent = await readYaml(sessionPath);
@@ -258,6 +260,7 @@ export class Agent {
     }
 
     if (last_role != 'user') {
+      await Agent.state(session_id, 'idle');
       abort(`Last message in session ${session_id} is not from user.`);
     }
 
@@ -289,7 +292,8 @@ export class Agent {
         sessionContent.spec.messages.push({
           ts,
           role: choice.message.role,
-          content: choice.message.content
+          content: choice.message.content,
+          tool_calls: choice.message.tool_calls,
         });
         last_message = `${ts} ${choice.message.role}: ${choice.message.content}`;
       }
@@ -298,6 +302,7 @@ export class Agent {
 
       console.debug('🤖 Copilot API Response: ' + JSON.stringify(response, null, 2));
 
+      await Agent.state(session_id, 'idle');
       return {
         session_id,
         agent: sessionContent.metadata.name,
@@ -306,6 +311,7 @@ export class Agent {
         used_tokens: sessionContent.metadata.usage.total_tokens,
       };
     } catch (error) {
+      await Agent.state(session_id, 'fail');
       abort(error.message);
     }
   }

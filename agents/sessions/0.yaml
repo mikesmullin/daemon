@@ -13,7 +13,7 @@ metadata:
     completion_tokens: 70
     prompt_tokens: 2241
     prompt_tokens_details:
-      cached_tokens: 0
+      cached_tokens: 2093
     total_tokens: 2311
   finish_reason: tool_calls
 spec:
@@ -98,8 +98,14 @@ spec:
     - ts: "2025-10-06T03:14:11.517Z"
       role: user
       content: run the terminal command `whoami`
-    - ts: "2025-10-06T03:23:55.440Z"
+    - ts: "2025-10-06T03:28:31.190Z"
       role: assistant
       content: I'll run the `whoami` command in the terminal for you.
-    - ts: "2025-10-06T03:23:55.440Z"
+    - ts: "2025-10-06T03:28:31.190Z"
       role: assistant
+      tool_calls:
+        - function:
+            arguments: "{\"command\":\"whoami\"}"
+            name: execute_shell
+          id: toolu_vrtx_01KMHH9dcvTg7AhgLgMJDpHP
+          type: function
