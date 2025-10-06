@@ -15,8 +15,8 @@
         "--format",
         "yaml",
         "tool",
-        "execute_shell",
-        "{\"command\":\"ls\"}",
+        "create_task",
+        "{\"title\":\"Check Redis status\",\"priority\":\"B\",\"stakeholders\":[\"@sarah\"],\"tags\":[\"#redis\"]}"
       ],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal"

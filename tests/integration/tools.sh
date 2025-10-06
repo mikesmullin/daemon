@@ -23,6 +23,7 @@ node src/daemon.mjs tool query_tasks '{"status":"open"}'
 
 node src/daemon.mjs tool update_task '{"id":"task_id","status":"completed"}'
 
+
 # tools/shell.mjs
 
 node src/daemon.mjs tool execute_shell '{"command":"ls"}'

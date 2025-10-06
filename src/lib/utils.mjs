@@ -108,6 +108,7 @@ export function initializeDirectories() {
   _G.SESSIONS_DIR = relWS('agents', 'sessions');
   _G.WORKSPACES_DIR = relWS('agents', 'workspaces');
   _G.STORAGE_DIR = relWS('storage');
+  _G.TASKS_DIR = relWS('tasks');
 
   _G.CONFIG_PATH = relWS('config.yaml');
   _G.TOKENS_PATH = relWS('.tokens.yaml');
@@ -121,6 +122,7 @@ export async function makeDirectories() {
   await mkdirp(_G.SESSIONS_DIR);
   await mkdirp(_G.WORKSPACES_DIR);
   await mkdirp(_G.STORAGE_DIR);
+  await mkdirp(_G.TASKS_DIR);
 }
 
 export function outputAs(type, data, options = {}) {

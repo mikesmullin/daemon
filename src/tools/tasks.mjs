@@ -6,38 +6,37 @@
 //
 
 import { _G } from '../lib/globals.mjs';
+import { spawn } from 'child_process';
 
-export const query_tasks = {
-  definition: {
-    type: 'function',
-    function: {
-      name: 'query_tasks',
-      description: 'Query tasks using SQL-like syntax (uses todo CLI)',
-      parameters: {
-        type: 'object',
-        properties: {
-          query: {
-            type: 'string',
-            description: 'SQL-like query string (e.g. "SELECT * FROM tasks.md WHERE priority = \'A\'")'
-          }
-        },
-        required: ['query']
-      }
-    }
-  },
-  requiresApproval: false,
-  execute: async (args) => {
-    try {
-      const { stdout, stderr } = await execAsync(`todo query "${args.query}"`);
-      if (stderr) {
-        return { success: false, error: stderr };
-      }
-      return { success: true, output: stdout };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
+// Helper function to run commands with spawn and capture exit code
+const spawnAsync = (command, args = []) => {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args);
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (exitCode) => {
+      resolve({
+        stdout: stdout.trim(),
+        stderr: stderr.trim(),
+        exitCode
+      });
+    });
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+  });
 };
+
 
 export const create_task = {
   definition: {
@@ -106,20 +105,28 @@ export const create_task = {
       const query = `INSERT INTO ${taskFile} SET ${setClause}`;
 
       // Execute via todo CLI
-      const { stdout, stderr } = await execAsync(`todo query "${query}"`);
-      if (stderr) {
-        return { success: false, error: stderr };
+      const cmd = 'todo';
+      const cmdArgs = ['query', query];
+      const result = await spawnAsync(cmd, cmdArgs);
+      if (result.exitCode !== 0) {
+        return {
+          success: false,
+          error: result.stderr || `Command failed with exit code ${result.exitCode}`,
+          exitCode: result.exitCode,
+          cmd: `${cmd} ${cmdArgs.join(' ')}`,
+        };
       }
 
       // Parse the task ID from output (e.g., "Inserted task dd629895 into tasks/approvals.task.md")
-      const match = stdout.match(/Inserted task (\w+) into/);
+      const match = result.stdout.match(/Inserted task (\w+) into/);
       const taskId = match ? match[1] : 'unknown';
 
       return {
         success: true,
         file: taskFile,
         task_id: taskId,
-        output: stdout.trim()
+        output: result.stdout,
+        exitCode: result.exitCode
       };
     } catch (error) {
       return { success: false, error: error.message };
@@ -148,11 +155,59 @@ export const update_task = {
   requiresApproval: false,
   execute: async (args) => {
     try {
-      const { stdout, stderr } = await execAsync(`todo query "${args.query}"`);
-      if (stderr) {
-        return { success: false, error: stderr };
+      const result = await spawnAsync('todo', ['query', args.query]);
+      if (result.exitCode !== 0) {
+        return {
+          success: false,
+          error: result.stderr || `Command failed with exit code ${result.exitCode}`,
+          exitCode: result.exitCode
+        };
       }
-      return { success: true, output: stdout };
+      return {
+        success: true,
+        output: result.stdout,
+        exitCode: result.exitCode
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+};
+
+export const query_tasks = {
+  definition: {
+    type: 'function',
+    function: {
+      name: 'query_tasks',
+      description: 'Query tasks using SQL-like syntax (uses todo CLI)',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'SQL-like query string (e.g. "SELECT * FROM tasks.md WHERE priority = \'A\'")'
+          }
+        },
+        required: ['query']
+      }
+    }
+  },
+  requiresApproval: false,
+  execute: async (args) => {
+    try {
+      const result = await spawnAsync('todo', ['query', args.query]);
+      if (result.exitCode !== 0) {
+        return {
+          success: false,
+          error: result.stderr || `Command failed with exit code ${result.exitCode}`,
+          exitCode: result.exitCode
+        };
+      }
+      return {
+        success: true,
+        output: result.stdout,
+        exitCode: result.exitCode
+      };
     } catch (error) {
       return { success: false, error: error.message };
     }

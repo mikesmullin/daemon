@@ -12,7 +12,7 @@ import color from './lib/colors.mjs';
 
 // clean up transient files in directories
 async function clean() {
-  for (let dir of [_G.PROC_DIR, _G.SESSIONS_DIR, _G.WORKSPACES_DIR]) {
+  for (let dir of [_G.PROC_DIR, _G.SESSIONS_DIR, _G.WORKSPACES_DIR, _G.TASKS_DIR]) {
     dir = relWS(dir);
     if (dir && fs.existsSync(dir)) {
       await fs.promises.rm(dir, { recursive: true, force: true });
