@@ -25,19 +25,6 @@ async function clean() {
 async function parseCliArgs() {
   const args = process.argv.slice(2);
 
-  // Determine subcommand (first non-option arg) - default is 'help'
-  let subcommand = 'help';
-  if (args[0] && !args[0].startsWith('-')) {
-    subcommand = args[0];
-  }
-
-  if (subcommand === 'clean') {
-    await clean();
-    await makeDirectories();
-    log('info', '🧹 Clean completed. Exiting.');
-    process.exit(0);
-  }
-
   // Parse --format flag
   let format = 'table';
   const formatIndex = args.indexOf('--format');
@@ -54,6 +41,27 @@ async function parseCliArgs() {
     args.splice(truncateIndex, 1); // Remove --truncate flag
   }
 
+  // Parse --flatten flag
+  let flatten = false;
+  const flattenIndex = args.indexOf('--flatten');
+  if (flattenIndex !== -1) {
+    flatten = true;
+    args.splice(flattenIndex, 1); // Remove --flatten flag
+  }
+
+  // Determine subcommand (first non-option arg after flags are removed) - default is 'help'
+  let subcommand = 'help';
+  if (args[0] && !args[0].startsWith('-')) {
+    subcommand = args[0];
+  }
+
+  if (subcommand === 'clean') {
+    await clean();
+    await makeDirectories();
+    log('info', '🧹 Clean completed. Exiting.');
+    process.exit(0);
+  }
+
   if (['pump', 'watch'].includes(subcommand)) {
     _G.mode = subcommand;
     return;
@@ -61,7 +69,7 @@ async function parseCliArgs() {
 
   if (subcommand === 'list') {
     const sessions = await Agent.list();
-    console.log(outputAs(format, sessions, { truncate }));
+    console.log(outputAs(format, sessions, { truncate, flatten }));
     process.exit(0);
   }
 
@@ -78,7 +86,7 @@ async function parseCliArgs() {
     try {
       const result = await Agent.fork({ agent, prompt });
 
-      console.log(outputAs(format, result, { truncate }));
+      console.log(outputAs(format, result, { truncate, flatten }));
       process.exit(0);
     } catch (error) {
       abort(error.message);
@@ -99,7 +107,7 @@ async function parseCliArgs() {
       const result = await Agent.fork({ session_id, prompt });
       if (prompt) result.initial_prompt = prompt;
 
-      console.log(outputAs(format, result, { truncate }));
+      console.log(outputAs(format, result, { truncate, flatten }));
       process.exit(0);
     } catch (error) {
       abort(error.message);
@@ -118,7 +126,7 @@ async function parseCliArgs() {
 
     try {
       const result = await Agent.push(sessionId, prompt);
-      console.log(outputAs(format, result, { truncate }));
+      console.log(outputAs(format, result, { truncate, flatten }));
       process.exit(0);
     } catch (error) {
       abort(error.message);
@@ -136,7 +144,7 @@ async function parseCliArgs() {
 
     try {
       const result = await Agent.eval(sessionId);
-      console.log(outputAs(format, result, { truncate }));
+      console.log(outputAs(format, result, { truncate, flatten }));
       process.exit(0);
     } catch (error) {
       abort(error.message);
@@ -155,7 +163,7 @@ async function parseCliArgs() {
               Object.keys(_G.tools[name].definition.function.parameters.properties).join(', '),
         };
       });
-      console.log(outputAs(format, tools, { truncate }));
+      console.log(outputAs(format, tools, { truncate, flatten }));
       process.exit(0);
     }
 
@@ -170,7 +178,7 @@ async function parseCliArgs() {
       const jsonArgs = args.slice(2).join(' ');
       const toolArgs = JSON.parse(jsonArgs);
       const result = await Agent.tool(toolName, toolArgs);
-      console.log(outputAs(format, result, { truncate }));
+      console.log(outputAs(format, result, { truncate, flatten }));
       process.exit(0);
     } catch (error) {
       abort(error.message);
@@ -198,6 +206,7 @@ Subcommands:
 Options:
   --format      Output format (table|json|yaml|csv) [default: table]
   --truncate    Truncate long text fields in output
+  --flatten     Flatten nested object hierarchies in output
 `);
   process.exit(0);
 }

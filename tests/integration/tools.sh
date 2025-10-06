@@ -8,5 +8,5 @@ node src/daemon.mjs tool read_file '{"path":"memory/system-config.md"}'
 
 node src/daemon.mjs tool write_file '{"path":"memory/system-config2.md", "content": "whats up?"}'
 
-node src/daemon.mjs tool --format yaml list_directory '{"path":"memory/"}'
+node src/daemon.mjs --flatten tool list_directory '{"path":"memory/"}'
 

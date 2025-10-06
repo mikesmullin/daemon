@@ -125,7 +125,7 @@ export async function makeDirectories() {
 
 export function outputAs(type, data, options = {}) {
   const kind = String(type || '').toLowerCase();
-  const { truncate = false, truncateLength = 50 } = options;
+  const { truncate = false, truncateLength = 50, flatten = false } = options;
 
   // Apply truncation to data if requested
   const truncateValue = (value) => {
@@ -147,7 +147,50 @@ export function outputAs(type, data, options = {}) {
     }
   };
 
-  const processedData = truncate ? truncateData(data) : data;
+  // Apply flattening to data if requested
+  const flattenObject = (obj, prefix = '', separator = '.') => {
+    const flattened = {};
+
+    for (const [key, value] of Object.entries(obj)) {
+      const newKey = prefix ? `${prefix}${separator}${key}` : key;
+
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        Object.assign(flattened, flattenObject(value, newKey, separator));
+      } else if (Array.isArray(value)) {
+        // Handle arrays by creating indexed keys
+        value.forEach((item, index) => {
+          if (item && typeof item === 'object' && !Array.isArray(item)) {
+            Object.assign(flattened, flattenObject(item, `${newKey}[${index}]`, separator));
+          } else {
+            flattened[`${newKey}[${index}]`] = item;
+          }
+        });
+      } else {
+        flattened[newKey] = value;
+      }
+    }
+
+    return flattened;
+  };
+
+  const flattenData = (obj) => {
+    if (Array.isArray(obj)) {
+      return obj.map(item => {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          return flattenObject(item);
+        }
+        return item;
+      });
+    } else if (obj && typeof obj === 'object') {
+      return flattenObject(obj);
+    } else {
+      return obj;
+    }
+  };
+
+  let processedData = data;
+  if (truncate) processedData = truncateData(processedData);
+  if (flatten) processedData = flattenData(processedData);
 
   if (kind === 'json') {
     return JSON.stringify(processedData, null, 2);
