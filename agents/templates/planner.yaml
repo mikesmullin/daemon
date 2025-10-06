@@ -7,11 +7,11 @@ metadata:
   tools:
   - create_task
   - query_tasks
-  - update_task
-  - send_message
-  - list_active_sessions
-  - read_session
-  - edit_session
+  - list_sessions
+  - new_session
+  - append_prompt
+  - fork_session
+  - kill_session
 spec:
   system_prompt: |
     You are a task planning agent in a multi-agent system. Your role is to decompose high-level 

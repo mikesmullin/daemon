@@ -12,11 +12,9 @@
         //"new", "planner", "Who are you?"
         //"eval", "0"
         //"tool", "--format", "yaml", "read_file", "{\"path\": \"memory/system-config.md\"}"
-        "--format",
-        "yaml",
         "tool",
-        "create_task",
-        "{\"title\":\"Check Redis status\",\"priority\":\"B\",\"stakeholders\":[\"@sarah\"],\"tags\":[\"#redis\"]}"
+        "kill_session",
+        "{\"session_id\":0}"
       ],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal"

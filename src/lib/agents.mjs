@@ -8,17 +8,21 @@ import { Copilot } from './copilot.mjs';
 // agent tools
 import { read_file, write_file, list_directory, create_directory } from '../tools/fs.mjs';
 import { execute_shell } from '../tools/shell.mjs';
-import { send_message } from '../tools/agent.mjs';
-import { query_tasks, create_task } from '../tools/tasks.mjs';
+import { create_task, query_tasks } from '../tools/tasks.mjs';
+import { list_sessions, append_prompt, new_session, fork_session, kill_session } from '../tools/agent.mjs';
 // registry of available tools
 _G.tools.read_file = read_file;
 _G.tools.write_file = write_file;
 _G.tools.list_directory = list_directory;
 _G.tools.create_directory = create_directory;
 _G.tools.execute_shell = execute_shell;
-_G.tools.send_message = send_message;
-_G.tools.query_tasks = query_tasks;
 _G.tools.create_task = create_task;
+_G.tools.query_tasks = query_tasks;
+_G.tools.list_sessions = list_sessions;
+_G.tools.new_session = new_session;
+_G.tools.append_prompt = append_prompt;
+_G.tools.fork_session = fork_session;
+_G.tools.kill_session = kill_session;
 
 export class Agent {
   // Agents follow BehaviorTree (BT) patterns
@@ -38,15 +42,14 @@ export class Agent {
   // aborts if the state file does not exist, is invalid, or any error occurs
   static async state(session_id, bt_state) {
     if (bt_state) { // write
-      const procPath = path.join(_G.PROC_DIR, session_id);
+      const procPath = path.join(_G.PROC_DIR, `${session_id}`);
       if (!Agent._isValidBtState(bt_state)) {
         abort(`Refuse to write ${procPath}. session: ${session_id}, invalid_state: ${bt_state}`);
-        return false;
       }
       try {
         await fs.writeFile(procPath, bt_state, 'utf-8');
         log('debug', `Wrote ${procPath}. session: ${session_id}, state: ${bt_state}`);
-        return true;
+        return bt_state;
       } catch (err) {
         abort(`Failed to write ${procPath}. session: ${session_id}, state: ${err.message}`);
       }
@@ -154,11 +157,11 @@ export class Agent {
 
   // mark an agent session with a new BT state
   static async kill(session_id, bt_state = 'fail') {
-    await Agent.state(session_id, bt_state);
+    return await Agent.state(session_id, bt_state);
   }
 
   // append a new user message to an agent session
-  static async push(session_id, content) {
+  static async push(session_id, prompt) {
     try {
       const sessionFileName = `${session_id}.yaml`;
       const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
@@ -173,7 +176,7 @@ export class Agent {
       const newMessage = {
         ts: new Date().toISOString(),
         role: 'user',
-        content: content
+        content: prompt
       };
 
       sessionContent.spec.messages.push(newMessage);
@@ -204,7 +207,7 @@ export class Agent {
       await Agent.state(new_session_id, 'idle');
 
       let sessionContent = {};
-      if (session_id) {
+      if (null != session_id) {
         const existingSessionFileName = `${session_id}.yaml`;
         const existingSessionPath = path.join(_G.SESSIONS_DIR, existingSessionFileName);
         sessionContent = await readYaml(existingSessionPath);

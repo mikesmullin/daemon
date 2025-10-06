@@ -159,8 +159,8 @@ async function parseCliArgs() {
           description: _G.tools[name].definition.function.description || '',
           params:
             ['json', 'yaml'].includes(format) ?
-              _G.tools[name].definition.function.parameters.properties :
-              Object.keys(_G.tools[name].definition.function.parameters.properties).join(', '),
+              _G.tools[name]?.definition?.function?.parameters?.properties :
+              Object.keys(_G.tools[name]?.definition?.function?.parameters?.properties || {}).join(', '),
         };
       });
       console.log(outputAs(format, tools, { truncate, flatten }));
