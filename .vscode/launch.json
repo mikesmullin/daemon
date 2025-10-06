@@ -12,9 +12,11 @@
         //"new", "planner", "Who are you?"
         //"eval", "0"
         //"tool", "--format", "yaml", "read_file", "{\"path\": \"memory/system-config.md\"}"
+        "--format",
+        "yaml",
         "tool",
-        "read_file",
-        "{\"path\": \"memory/system-config.md\"}"
+        "execute_shell",
+        "{\"command\":\"ls\"}",
       ],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal"

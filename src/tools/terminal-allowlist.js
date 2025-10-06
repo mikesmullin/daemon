@@ -22,7 +22,8 @@
  */
 
 import { _G } from '../lib/globals.mjs';
-import { log, readYaml } from '../lib/utils.mjs';
+import { existsSync } from 'fs';
+import { log, readYaml, writeYaml } from '../lib/utils.mjs';
 
 /**
  * Default allowlist configuration
@@ -334,7 +335,7 @@ function checkSingleCommand(command, allowlist, checkFullCommand = false) {
  * @returns {Promise<Object>} { approved: boolean, reason: string, details: Array }
  */
 export async function checkCommand(commandLine, options = {}) {
-  const allowlist = options.allowlist || loadAllowlist();
+  const allowlist = options.allowlist || await loadAllowlist();
 
   // Parse command line into sub-commands
   const subCommands = parseCommandLine(commandLine);
@@ -385,6 +386,24 @@ export async function checkCommand(commandLine, options = {}) {
 }
 
 /**
+ * Interactive prompt for user approval
+ * @param {string} commandLine - Command to approve
+ * @param {string} reason - Reason for requiring approval
+ * @returns {Promise<boolean>} True if approved
+ */
+export async function promptForApproval(commandLine, reason) {
+  console.log('\n⚠️  Command requires approval:');
+  console.log(`   Command: ${commandLine}`);
+  console.log(`   Reason: ${reason}`);
+  console.log('');
+
+  // In a real implementation, this would use readline or a similar library
+  // For now, we'll auto-deny for safety
+  console.log('❌ Auto-denied (interactive approval not implemented)');
+  return false;
+}
+
+/**
  * Execute a command with allowlist checking
  * Integrates with the existing tool execution pattern
  * 
@@ -392,10 +411,11 @@ export async function checkCommand(commandLine, options = {}) {
  * @param {Object} options - Options
  * @param {boolean} options.autoApprove - If true, skip allowlist check
  * @param {Object} options.allowlist - Custom allowlist
- * @returns {Promise<Object>} { success: boolean, output: string, approved: boolean }
+ * @returns {Promise<Object>} { success: boolean, output: string, approved: boolean, approvedBy: string }
  */
 export async function executeCommandWithCheck(commandLine, options = {}) {
   const { autoApprove = false, allowlist } = options;
+  let approvedBy = 'allowlist';
 
   // Check allowlist
   if (!autoApprove) {
@@ -410,10 +430,11 @@ export async function executeCommandWithCheck(commandLine, options = {}) {
         return {
           success: false,
           error: 'Command denied by security policy',
-          approved: false,
+          approvedBy: null,
           securityCheck: check
         };
       }
+      approvedBy = 'human';
     }
   }
 
@@ -429,15 +450,15 @@ export async function executeCommandWithCheck(commandLine, options = {}) {
     console.log(`   ✅ Output:`, output.trim());
     return {
       success: true,
+      approvedBy,
       output,
-      approved: true
     };
   } catch (error) {
     console.log(`   ❌ Error:`, error.message);
     return {
       success: false,
+      approvedBy,
       error: error.message,
-      approved: true
     };
   }
 }

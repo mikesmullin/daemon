@@ -4,7 +4,7 @@
 //
 
 import { _G } from '../lib/globals.mjs';
-import { loadAllowlist, executeCommandWithCheck } from './terminal-allowlist.js';
+import { executeCommandWithCheck } from './terminal-allowlist.js';
 
 export const execute_shell = {
   definition: {
