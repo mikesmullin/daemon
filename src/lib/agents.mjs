@@ -9,7 +9,7 @@ import { Copilot } from './copilot.mjs';
 import { read_file, write_file, list_directory, create_directory } from '../tools/fs.mjs';
 import { execute_shell } from '../tools/shell.mjs';
 import { send_message } from '../tools/agent.mjs';
-import { query_tasks, create_task, update_task } from '../tools/tasks.mjs';
+import { query_tasks, create_task } from '../tools/tasks.mjs';
 // registry of available tools
 _G.tools.read_file = read_file;
 _G.tools.write_file = write_file;
@@ -19,7 +19,6 @@ _G.tools.execute_shell = execute_shell;
 _G.tools.send_message = send_message;
 _G.tools.query_tasks = query_tasks;
 _G.tools.create_task = create_task;
-_G.tools.update_task = update_task;
 
 export class Agent {
   // Agents follow BehaviorTree (BT) patterns

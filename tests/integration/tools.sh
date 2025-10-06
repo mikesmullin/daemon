@@ -17,11 +17,11 @@ node src/daemon.mjs tool create_directory '{"path":"memory/tmp123/"}'
 
 # tools/tasks.mjs
 
-node src/daemon.mjs tool create_task '{"title":"Check Redis status","priority":"B","stakeholders":["@sarah"],"tags":["#redis"]}'
+node src/daemon.mjs tool create_task '{"title":"Check Redis status","priority":"B","stakeholders":["@sarah"],"tags":["#redis"],"id":"test-1234"}'
 
-node src/daemon.mjs tool query_tasks '{"status":"open"}'
+node src/daemon.mjs tool --format yaml query_tasks '{"query":"SELECT * FROM tasks/approvals.task.md"}'
 
-node src/daemon.mjs tool update_task '{"id":"task_id","status":"completed"}'
+node src/daemon.mjs tool query_tasks '{"query":"UPDATE tasks/approvals.task.md SET completed = true WHERE id = \"test-1234\""}'
 
 
 # tools/shell.mjs

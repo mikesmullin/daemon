@@ -2,7 +2,6 @@
 //
 // - query_tasks(query) // Query tasks using SQL-like syntax
 // - create_task(title, priority, stakeholders, tags, prompt) // Create a new task
-// - update_task(id, updates) // Update an existing task
 //
 
 import { _G } from '../lib/globals.mjs';
@@ -37,7 +36,6 @@ const spawnAsync = (command, args = []) => {
   });
 };
 
-
 export const create_task = {
   definition: {
     type: 'function',
@@ -65,6 +63,10 @@ export const create_task = {
             type: 'array',
             items: { type: 'string' },
             description: 'Topic tags for categorization (e.g. ["#infra", "#redis"])'
+          },
+          id: {
+            type: 'string',
+            description: 'Globally unique identifier for this task (e.g., "task-001")'
           },
           prompt: {
             type: 'string',
@@ -94,6 +96,12 @@ export const create_task = {
       if (args.tags && args.tags.length > 0) {
         const tagsStr = args.tags.map(tag => tag.replace('#', '')).join(',');
         setClause += `, tags = '${tagsStr}'`;
+      }
+
+      // Add id if provided
+      if (args.id) {
+        const escapedId = args.id.replace(/'/g, "''");
+        setClause += `, id = '${escapedId}'`;
       }
 
       // Add prompt if provided (escape single quotes for SQL)
@@ -134,46 +142,6 @@ export const create_task = {
   }
 };
 
-export const update_task = {
-  definition: {
-    type: 'function',
-    function: {
-      name: 'update_task',
-      description: 'Update task(s) using SQL-like UPDATE syntax',
-      parameters: {
-        type: 'object',
-        properties: {
-          query: {
-            type: 'string',
-            description: 'UPDATE query (e.g. "UPDATE tasks.md SET completed = true WHERE id = \'task-001\'")'
-          }
-        },
-        required: ['query']
-      }
-    }
-  },
-  requiresApproval: false,
-  execute: async (args) => {
-    try {
-      const result = await spawnAsync('todo', ['query', args.query]);
-      if (result.exitCode !== 0) {
-        return {
-          success: false,
-          error: result.stderr || `Command failed with exit code ${result.exitCode}`,
-          exitCode: result.exitCode
-        };
-      }
-      return {
-        success: true,
-        output: result.stdout,
-        exitCode: result.exitCode
-      };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-};
-
 export const query_tasks = {
   definition: {
     type: 'function',
@@ -195,7 +163,7 @@ export const query_tasks = {
   requiresApproval: false,
   execute: async (args) => {
     try {
-      const result = await spawnAsync('todo', ['query', args.query]);
+      const result = await spawnAsync('todo', ['--format', 'json', 'query', args.query]);
       if (result.exitCode !== 0) {
         return {
           success: false,
