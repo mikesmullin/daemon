@@ -29,10 +29,12 @@ export const execute_shell = {
     }
   },
   execute: async (args, options = {}) => {
-    // Use existing allowlist checker
-    return await executeCommandWithCheck(args.command, {
-      autoApprove: options.autoApprove || false,
-      cwd: args.cwd
-    });
+    // Use allowlist checker
+    const result = await executeCommandWithCheck(args.command);
+    // content for agent response
+    if (result.success) {
+    }
+
+    return result.success ? result.output : result.error;
   }
 };

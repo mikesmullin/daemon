@@ -2,8 +2,10 @@ const fs = await import('fs/promises');
 const path = await import('path');
 import yaml from 'js-yaml';
 import { _G } from './globals.mjs';
-import { assert, log, abort, readYaml, writeYaml } from './utils.mjs';
+import { assert, log, abort, readYaml, writeYaml, unixToIso, unixTime } from './utils.mjs';
+import color from './colors.mjs';
 import { Copilot } from './copilot.mjs';
+import _ from 'lodash';
 
 // agent tools
 import { read_file, write_file, list_directory, create_directory } from '../tools/fs.mjs';
@@ -243,36 +245,40 @@ export class Agent {
 
   // evaluate an agent session by sending its context to the LLM as a prompt
   static async eval(session_id) {
-    await Agent.state(session_id, 'running');
-
-    const sessionFileName = `${session_id}.yaml`;
-    const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-    const sessionContent = await readYaml(sessionPath);
-
-    const system_prompt = sessionContent.spec.system_prompt || 'You are a helpful assistant.';
-    const messages = [{ role: 'system', content: system_prompt }];
-    let last_role = 'system';
-    for (const message of (sessionContent.spec.messages || [])) {
-      messages.push({
-        role: (last_role = message.role),
-        content: message.content
-      });
-    }
-
-    if (last_role != 'user') {
-      await Agent.state(session_id, 'idle');
-      abort(`Last message in session ${session_id} is not from user.`);
-    }
-
-    const toolDefinitions = [];
-    const capabilities = sessionContent.metadata.tools || [];
-    for (const name in _G.tools) {
-      if (capabilities.includes(name)) {
-        toolDefinitions.push(_G.tools[name].definition);
-      }
-    }
-
     try {
+      const state = await Agent.state(session_id);
+      if (state !== 'idle') {
+        abort(`Cannot eval session ${session_id} in state ${state}`);
+      }
+      await Agent.state(session_id, 'running');
+
+      const sessionFileName = `${session_id}.yaml`;
+      const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
+      const sessionContent = await readYaml(sessionPath);
+
+      const toolDefinitions = [];
+      const capabilities = sessionContent.metadata.tools || [];
+      for (const name in _G.tools) {
+        if (capabilities.includes(name)) {
+          toolDefinitions.push(_G.tools[name].definition);
+        }
+      }
+
+      await Agent.processPendingToolCalls(sessionContent);
+
+      const system_prompt = sessionContent.spec.system_prompt || 'You are a helpful assistant.';
+      const messages = [{ role: 'system', content: system_prompt }];
+      let last_role = 'system';
+      for (const message of (sessionContent.spec.messages || [])) {
+        messages.push(_.omit(message, ['ts']));
+        last_role = message.role;
+      }
+
+      if (last_role != 'user' && last_role != 'tool_result') {
+        await Agent.state(session_id, 'idle');
+        abort(`Last message in session ${session_id} is not from user.`);
+      }
+
       await Copilot.init();
       sessionContent.metadata.model = sessionContent.metadata.model || 'gpt-4o';
       const response = await Copilot.client.chat.completions.create({
@@ -282,25 +288,21 @@ export class Agent {
         // max_tokens: 300,
       });
 
+      console.debug('🤖 Copilot API Response: ' + JSON.stringify(response, null, 2));
+
       sessionContent.metadata.usage = response.usage;
       let last_message = '';
       for (const choice of response.choices) {
-        if (!choice) continue;
-        sessionContent.metadata.finish_reason = choice.finish_reason || 'unknown';
-        const ts = new Date().toISOString();
         if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
-        sessionContent.spec.messages.push({
-          ts,
-          role: choice.message.role,
-          content: choice.message.content,
-          tool_calls: choice.message.tool_calls,
-        });
-        last_message = `${ts} ${choice.message.role}: ${choice.message.content}`;
+        choice.message.ts = unixToIso(_.get(response, 'created', unixTime()));
+        choice.message.finish_reason = choice.finish_reason;
+        const msg2 = _.pick(choice.message, ['ts', 'role', 'content', 'tool_calls', 'finish_reason']);
+        sessionContent.spec.messages.push(msg2);
+        const tool_calls = _.map(msg2.tool_calls, 'function.name').join(', ');
+        last_message = `${msg2.ts} ${msg2.role}: ${msg2.content || ''}${tool_calls ? `(tools: ${tool_calls})` : ''} `;
       }
 
       await writeYaml(sessionPath, sessionContent);
-
-      console.debug('🤖 Copilot API Response: ' + JSON.stringify(response, null, 2));
 
       await Agent.state(session_id, 'idle');
       return {
@@ -319,7 +321,7 @@ export class Agent {
   // execute an agent tool
   static async tool(name, args, options = {}) {
     const tool = _G.tools[name];
-    assert(tool, `Unknown tool: ${name}`);
+    assert(tool, `Unknown tool: ${name} `);
 
     try {
       const result = await tool.execute(args, options);
@@ -329,22 +331,94 @@ export class Agent {
     }
   }
 
+  // process pending tool calls from session file
+  static async processPendingToolCalls(sessionContent) {
+    if (!sessionContent.spec?.messages) {
+      return;
+    }
+
+    let sessionUpdated = false;
+
+    // Find tool_calls messages and process pending calls
+    for (const message of sessionContent.spec.messages) {
+      if (message.role === 'assistant' && message.tool_calls) {
+        for (const toolCall of message.tool_calls) {
+          // Check if this tool call needs to be executed
+          let shouldExecute = true;
+          for (const attempt of sessionContent.metadata.attempts || []) {
+            if (attempt.tool_call_id === toolCall.id) {
+              shouldExecute = false;
+              break;
+            }
+          }
+
+          if (shouldExecute) {
+            log('warn', `🔧 Executing tool call ${color.bold(toolCall.function.name)} `);
+
+            // Update attempts tracking
+            if (!sessionContent.metadata.attempts) {
+              sessionContent.metadata.attempts = [];
+            }
+            sessionContent.metadata.attempts.push({
+              tool_call_id: toolCall.id,
+              lastRunAt: new Date().toISOString()
+            });
+            sessionUpdated = true;
+
+            try {
+              // Parse arguments and execute the tool
+              const args = JSON.parse(toolCall.function.arguments);
+              const result = await Agent.tool(toolCall.function.name, args);
+
+              // Add tool result message to session
+              sessionContent.spec.messages.push({
+                ts: new Date().toISOString(),
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: result,
+              });
+
+              log('debug', `Tool call ${toolCall.function.name} completed`);
+            } catch (error) {
+              // Add error result message to session
+              sessionContent.spec.messages.push({
+                ts: new Date().toISOString(),
+                role: 'tool_result',
+                content: {
+                  success: false,
+                  error: error.message
+                },
+                tool_call_id: toolCall.id
+              });
+
+              log('error', `Error during Tool call ${toolCall.function.name}.error: `, error.message);
+            }
+
+            sessionUpdated = true;
+          }
+        }
+      }
+    }
+
+    return sessionUpdated;
+  }
+
   // // perform a single step of the agent orchestrator loop
   // static async step() {
   //   // find all sessions
   //   const sessions = await Agent.list();
 
   //   const a1 = await Agent.fork('planner');
-  //   console.debug(`Forked new agent session: ${a1}`);
+  //   console.debug(`Forked new agent session: ${ a1 } `);
   //   const as1 = await Agent.state(a1);
-  //   console.debug(`Session ${a1} state: ${as1}`);
+  //   console.debug(`Session ${ a1 } state: ${ as1 } `);
 
   //   const a2 = await Agent.fork('executor');
-  //   console.debug(`Forked new agent session: ${a2}`);
+  //   console.debug(`Forked new agent session: ${ a2 } `);
   //   const as2 = await Agent.state(a2);
-  //   console.debug(`Session ${a2} state: ${as2}`);
+  //   console.debug(`Session ${ a2 } state: ${ as2 } `);
 
   //   // const response = await Agent.eval(a1);
-  //   // console.debug(`Session ${a1} evaluation response:`, response);    
+  //   // console.debug(`Session ${ a1 } evaluation response: `, response);    
   // }
 }

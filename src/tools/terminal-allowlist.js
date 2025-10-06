@@ -1,6 +1,4 @@
 /**
- * lib/terminal-allowlist.js
- * 
  * Terminal command parsing and allowlist checking for AI-generated commands.
  * Implements security controls similar to VSCode's chat.tools.terminal.autoApprove.
  * 
@@ -10,20 +8,11 @@
  * - Support for regex patterns and exact matches
  * - Handle command substitution, process substitution, pipelines, etc.
  * - YAML-based allowlist configuration
- * 
- * Usage:
- *   import { checkCommand, parseCommandLine } from './lib/terminal-allowlist.js';
- *   const result = await checkCommand('echo hello && ls -la');
- *   if (result.approved) {
- *     // Execute command
- *   } else {
- *     // Request user approval
- *   }
  */
 
 import { _G } from '../lib/globals.mjs';
 import { existsSync } from 'fs';
-import { log, readYaml, writeYaml } from '../lib/utils.mjs';
+import { log, readYaml, writeYaml, spawnAsync } from '../lib/utils.mjs';
 
 /**
  * Default allowlist configuration
@@ -386,79 +375,37 @@ export async function checkCommand(commandLine, options = {}) {
 }
 
 /**
- * Interactive prompt for user approval
- * @param {string} commandLine - Command to approve
- * @param {string} reason - Reason for requiring approval
- * @returns {Promise<boolean>} True if approved
- */
-export async function promptForApproval(commandLine, reason) {
-  console.log('\n⚠️  Command requires approval:');
-  console.log(`   Command: ${commandLine}`);
-  console.log(`   Reason: ${reason}`);
-  console.log('');
-
-  // In a real implementation, this would use readline or a similar library
-  // For now, we'll auto-deny for safety
-  console.log('❌ Auto-denied (interactive approval not implemented)');
-  return false;
-}
-
-/**
  * Execute a command with allowlist checking
- * Integrates with the existing tool execution pattern
  * 
  * @param {string} commandLine - Command to execute
- * @param {Object} options - Options
- * @param {boolean} options.autoApprove - If true, skip allowlist check
- * @param {Object} options.allowlist - Custom allowlist
- * @returns {Promise<Object>} { success: boolean, output: string, approved: boolean, approvedBy: string }
+ * @returns {Promise<Object>}
  */
-export async function executeCommandWithCheck(commandLine, options = {}) {
-  const { autoApprove = false, allowlist } = options;
-  let approvedBy = 'allowlist';
-
-  // Check allowlist
-  if (!autoApprove) {
-    const check = await checkCommand(commandLine, { allowlist });
-
-    // log('warn', `🔒 Security check: ${check.approved ? '✅ Approved' : '⚠️  Requires approval'}`);
-    // log('info', `  ${check.reason}`);
-
-    if (!check.approved) {
-      const userApproved = await promptForApproval(commandLine, check.reason);
-      if (!userApproved) {
-        return {
-          success: false,
-          error: 'Command denied by security policy',
-          approvedBy: null,
-          securityCheck: check
-        };
-      }
-      approvedBy = 'human';
+export async function executeCommandWithCheck(commandLine) {
+  let grant = '';
+  const check = await checkCommand(commandLine);
+  if (!check.approved) {
+    // TODO: enqueue for human approval to tasks/approval.task.md
+    // TODO: poll for approval status before proceeding to execute
+    // grant = 'approved by human';
+    return {
+      pending: true,
+      content: 'submitted for human approval',
     }
+  } else {
+    grant = 'approved by allowlist';
   }
 
-  // Execute the command
-  log('debug', `⚙️  Executing: ${commandLine}`);
-  const { exec } = await import('child_process');
-  const { promisify } = await import('util');
-  const execAsync = promisify(exec);
-
   try {
-    const { stdout, stderr } = await execAsync(commandLine);
-    const output = stdout || stderr;
-    //console.log(`✅  Output:`, output.trim());
+    // Execute the command
+    log('debug', `⚙️  Executing: ${commandLine}`);
+    const result = await spawnAsync(commandLine);
     return {
-      success: true,
-      approvedBy,
-      output,
+      success: 0 == result.exitCode,
+      content: `${result.stdout}${result.stderr}`,
+      result,
+      grant,
     };
   } catch (error) {
-    log('error', `❌  Error:`, error.message);
-    return {
-      success: false,
-      approvedBy,
-      error: error.message,
-    };
+    abort(`❌ Error when executing tool: ${error.message}`);
   }
 }

@@ -12,9 +12,8 @@
         //"new", "planner", "Who are you?"
         //"eval", "0"
         //"tool", "--format", "yaml", "read_file", "{\"path\": \"memory/system-config.md\"}"
-        "tool",
-        "kill_session",
-        "{\"session_id\":0}"
+        "eval",
+        "0"
       ],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal"

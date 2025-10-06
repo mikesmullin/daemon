@@ -5,36 +5,7 @@
 //
 
 import { _G } from '../lib/globals.mjs';
-import { spawn } from 'child_process';
-
-// Helper function to run commands with spawn and capture exit code
-const spawnAsync = (command, args = []) => {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args);
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    child.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    child.on('close', (exitCode) => {
-      resolve({
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
-        exitCode
-      });
-    });
-
-    child.on('error', (error) => {
-      reject(error);
-    });
-  });
-};
+import { spawnAsync } from '../lib/utils.mjs';
 
 export const create_task = {
   definition: {

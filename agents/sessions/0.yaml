@@ -15,7 +15,6 @@ metadata:
     prompt_tokens_details:
       cached_tokens: 2093
     total_tokens: 2311
-  finish_reason: tool_calls
 spec:
   system_prompt: |
     You are an expert AI programming assistant, working with a user in the VS Code editor.
@@ -98,14 +97,16 @@ spec:
     - ts: "2025-10-06T03:14:11.517Z"
       role: user
       content: run the terminal command `whoami`
-    - ts: "2025-10-06T03:28:31.190Z"
+    - ts: "2025-10-06T05:09:41.000Z"
       role: assistant
       content: I'll run the `whoami` command in the terminal for you.
-    - ts: "2025-10-06T03:28:31.190Z"
+      finish_reason: tool_calls
+    - ts: "2025-10-06T05:09:41.000Z"
       role: assistant
       tool_calls:
         - function:
             arguments: "{\"command\":\"whoami\"}"
             name: execute_shell
-          id: toolu_vrtx_01KMHH9dcvTg7AhgLgMJDpHP
+          id: toolu_vrtx_01Wab2HT6mXS2b1ZiRm73NUm
           type: function
+      finish_reason: tool_calls

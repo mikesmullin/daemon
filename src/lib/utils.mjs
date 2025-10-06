@@ -1,9 +1,10 @@
+import { _G } from './globals.mjs';
 import path from 'path';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import color from './colors.mjs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { _G } from './globals.mjs';
+import { spawn } from 'child_process';
 import yaml from 'js-yaml';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -281,3 +282,42 @@ export function outputAs(type, data, options = {}) {
 
   abort(`Unsupported output type: ${type}`);
 }
+
+// convert Unix timestamp to ISO string
+export function unixToIso(unixTimestamp) {
+  return new Date(unixTimestamp * 1000).toISOString();
+}
+
+// get current Unix timestamp
+export function unixTime() {
+  return Math.floor(Date.now() / 1000);
+}
+
+// Helper function to run commands with spawn and capture exit code
+export function spawnAsync(command, args = []) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args);
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (exitCode) => {
+      resolve({
+        stdout: stdout.trim(),
+        stderr: stderr.trim(),
+        exitCode
+      });
+    });
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+  });
+};
