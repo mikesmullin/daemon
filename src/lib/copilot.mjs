@@ -3,6 +3,15 @@ import { readYaml, log, abort, writeYaml } from './utils.mjs';
 import OpenAI from 'openai';
 import open from 'open';
 
+/**
+ * Save tokens to .tokens.yaml file
+ * @param {Object} tokens - Tokens object to save
+ */
+function saveTokens(tokens) {
+  writeYaml(_G.TOKENS_PATH, tokens);
+  log('debug', `✅ Tokens saved to ${_G.TOKENS_PATH}`);
+}
+
 export class Copilot {
   static session = null;
   static client = null;
@@ -11,8 +20,6 @@ export class Copilot {
     if (Copilot.client) {
       return false; // already initialized
     }
-
-    _G.TOKENS = await readYaml(_G.TOKENS_PATH);
 
     // Get authenticated session
     // log('debug', '🔐 Authenticating with GitHub Copilot...');
@@ -160,7 +167,7 @@ export class Copilot {
     tokens.expires_at = copilotData.expires_at;
     tokens.api_url = copilotData.api_url;
 
-    await writeYaml(_G.TOKENS_PATH, tokens);
+    saveTokens(tokens);
     return tokens;
   }
 
@@ -174,7 +181,15 @@ export class Copilot {
    * @returns {Promise<Object>} Session object with valid tokens
    */
   static async getSession() {
-    let tokens = _G.TOKENS;
+    let tokens = {};
+
+    try {
+      tokens = await readYaml(_G.TOKENS_PATH);
+    } catch (error) {
+      // File doesn't exist yet, start with empty tokens
+      log('debug', '📄 No existing tokens file found, starting fresh');
+      tokens = {};
+    }
 
     // Tier 1: Check if we have valid Copilot token
     if (tokens.copilot_token && tokens.expires_at && tokens.expires_at * 1000 > Date.now()) {

@@ -9,6 +9,13 @@ metadata:
     - list_directory
     - create_directory
     - execute_shell
+  usage:
+    completion_tokens: 70
+    prompt_tokens: 2241
+    prompt_tokens_details:
+      cached_tokens: 0
+    total_tokens: 2311
+  finish_reason: tool_calls
 spec:
   system_prompt: |
     You are an expert AI programming assistant, working with a user in the VS Code editor.
@@ -91,3 +98,8 @@ spec:
     - ts: "2025-10-06T03:14:11.517Z"
       role: user
       content: run the terminal command `whoami`
+    - ts: "2025-10-06T03:23:55.440Z"
+      role: assistant
+      content: I'll run the `whoami` command in the terminal for you.
+    - ts: "2025-10-06T03:23:55.440Z"
+      role: assistant
