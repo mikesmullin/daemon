@@ -13,9 +13,8 @@
         //"eval", "0"
         //"tool", "--format", "yaml", "read_file", "{\"path\": \"memory/system-config.md\"}"
         "tool",
-        "--format",
-        "yaml",
-        "list"
+        "read_file",
+        "{\"path\": \"memory/system-config.md\"}"
       ],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal"

@@ -34,7 +34,7 @@ export const read_file = {
         return { success: false, error: 'File not found' };
       }
       const content = readFileSync(args.path, 'utf8');
-      return { success: true, content };
+      return { success: true, bytesRead: content.length, content };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -72,7 +72,9 @@ export const write_file = {
       }
 
       writeFileSync(args.path, args.content, 'utf8');
-      return { success: true, path: args.path };
+
+      const stats = statSync(args.path);
+      return { success: true, bytesWritten: stats.size, path: args.path };
     } catch (error) {
       return { success: false, error: error.message };
     }

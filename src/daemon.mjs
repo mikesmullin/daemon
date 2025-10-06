@@ -145,13 +145,6 @@ async function parseCliArgs() {
 
   if (subcommand === 'tool') {
     if (args.length < 2) {
-      abort(
-        `Error: tool requires a tool name\n` +
-        `Usage: daemon.mjs tool <name> <json-args>`);
-    }
-
-    const toolName = args[1];
-    if ('list' == toolName) {
       const tools = Object.keys(_G.tools).map(name => {
         return {
           name,
@@ -166,9 +159,15 @@ async function parseCliArgs() {
       process.exit(0);
     }
 
-    const jsonArgs = args.slice(2).join(' ');
+    if (args.length < 3) {
+      abort(
+        `Error: tool requires a tool name and JSON arguments.\n` +
+        `Usage: daemon.mjs tool <name> <json-args>`);
+    }
 
     try {
+      const toolName = args[1];
+      const jsonArgs = args.slice(2).join(' ');
       const toolArgs = JSON.parse(jsonArgs);
       const result = await Agent.tool(toolName, toolArgs);
       console.log(outputAs(format, result, { truncate }));

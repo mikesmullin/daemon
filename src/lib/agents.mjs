@@ -13,6 +13,7 @@ import { query_tasks, create_task, update_task } from '../tools/tasks.mjs';
 // registry of available tools
 _G.tools.read_file = read_file;
 _G.tools.write_file = write_file;
+_G.tools.list_directory = list_directory;
 _G.tools.create_directory = create_directory;
 _G.tools.execute_shell = execute_shell;
 _G.tools.send_message = send_message;
