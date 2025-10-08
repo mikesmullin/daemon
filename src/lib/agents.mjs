@@ -261,9 +261,9 @@ export class Agent {
   static async eval(session_id) {
     try {
       const state = await Agent.state(session_id);
-      if (state !== 'idle') {
-        abort(`Cannot eval session ${session_id} in state ${state}`);
-      }
+      // if (state !== 'idle') {
+      //   abort(`Cannot eval session ${session_id} in state ${state}`);
+      // }
       await Agent.state(session_id, 'running');
 
       const sessionFileName = `${session_id}.yaml`;
@@ -371,9 +371,15 @@ export class Agent {
           //     break;
           //   }
           // }
+          for (const message2 of sessionContent.spec.messages) {
+            if (message2.role == 'tool' && message2.tool_call_id == toolCall.id) {
+              shouldExecute = false;
+              break;
+            }
+          }
 
           if (shouldExecute) {
-            log('warn', `🔧 Executing tool call ${color.bold(toolCall.function.name)} `);
+            log('warn', `🔧 Executing tool call ${color.bold(toolCall.function.name)} #${toolCall.id}`);
 
             // Update attempts tracking
             // if (!sessionContent.metadata.attempts) {
@@ -403,10 +409,10 @@ export class Agent {
                 console.log(content);
               }
               if (true == result.success) {
-                log('info', `✅ Tool ${color.bold(toolCall.function.name)} succeeded.`);
+                log('info', `✅ Tool ${color.bold(toolCall.function.name)} succeeded. #${toolCall.id}`);
               }
               else {
-                log('error', `❌ Tool ${color.bold(toolCall.function.name)} failed.`);
+                log('error', `❌ Tool ${color.bold(toolCall.function.name)} failed. #${toolCall.id} Error: ${content}`);
               }
             } catch (error) {
               // Add error result message to session

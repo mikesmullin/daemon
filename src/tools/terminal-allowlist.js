@@ -12,7 +12,7 @@
 
 import { _G } from '../lib/globals.mjs';
 import { existsSync } from 'fs';
-import { log, readYaml, writeYaml, spawnAsync } from '../lib/utils.mjs';
+import { abort, log, readYaml, writeYaml, spawnAsync } from '../lib/utils.mjs';
 
 /**
  * Default allowlist configuration
@@ -424,6 +424,11 @@ export async function executeCommandWithCheck(commandLine) {
       grant,
     };
   } catch (error) {
-    abort(`❌ Error when executing tool: ${error.message}`);
+    return {
+      success: false,
+      content: `${error.message}`,
+      result: null,
+      grant,
+    };
   }
 }
