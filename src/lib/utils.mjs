@@ -46,6 +46,41 @@ export function assert(cond, message = null) {
   }
 }
 
+// Indent text with a prefix on every line
+export function indent(lpad, text) {
+  return text.split('\n').map(line => lpad + line).join('\n');
+}
+
+// Indent text with an icon on the first line and spaces on subsequent lines
+export function indentIcon(icon, text) {
+  const lines = text.split('\n');
+  if (lines.length === 0) return '';
+
+  const iconStr = String(icon);
+  const visualLength = color.stripAnsi(iconStr).length;
+  const padding = ' '.repeat(visualLength);
+
+  return lines.map((line, index) => {
+    return (index === 0 ? iconStr : padding) + line;
+  }).join('\n');
+}
+
+// Format text as a colored blockquote with left border
+export function blockquote(colorName, text) {
+  const colorFn = color['open_' + colorName] || color.reset;
+  const prefix = colorFn(' ┃ ');
+  return indent(prefix, text);
+}
+
+// blockquote w/ icon and label
+export function bqIconLabel(colorName, icon, label, text) {
+  let t1 =
+    indentIcon(`${icon} `,
+      color[colorName](color.bold(label)) + '\n' +
+      text);
+  let t2 = blockquote(colorName, t1);
+  return t2;
+}
 
 // Logging function with timestamp and color support
 export function log(type, message) {
@@ -61,23 +96,24 @@ export function log(type, message) {
 
   switch (type) {
     case 'debug':
-      colorFn = color.blue;
+      colorFn = color.open_blue;
       break;
     case 'info':
       colorFn = color.reset;
       break;
     case 'warn':
-      colorFn = color.yellow;
+      colorFn = color.open_yellow;
       break;
     case 'error':
-      colorFn = color.red;
+      colorFn = color.open_red;
       output = process.stderr;
       break;
     default:
       colorFn = (msg) => msg;
   }
 
-  output.write(colorFn(`${timestamp} ${message}\n`));
+  let indented = indentIcon(colorFn(timestamp) + ' ', message)
+  output.write(indented + '\n');
 }
 
 // read configuration from YAML file
@@ -327,4 +363,53 @@ export function spawnAsync(command, args = []) {
       reject(error);
     });
   });
+};
+
+export function logThought(text) {
+  console.log('');
+  log('info', bqIconLabel('gray', '🧠', color.indigo('Thinking...'), text));
+  console.log('');
+}
+
+export function logAssistant(text) {
+  console.log('');
+  log('info', bqIconLabel('white', '🤖', color.red('Assistant'), text));
+  console.log('');
+}
+
+export function logUser(text) {
+  console.log('');
+  log('info', bqIconLabel('constructionYellow', '🧑', ('User'), text));
+  console.log('');
+}
+
+export function logShell(text) {
+  console.log('');
+  // log('info', bqIconLabel('moneyGreen', '🐚', 'Tool: execute_shell', 'podman ps'));
+  log('info', blockquote('moneyGreen', `🐚 $ ${text}`));
+  console.log('');
+}
+
+export default {
+  mkdirp,
+  relWS,
+  abort,
+  assert,
+  indent,
+  indentIcon,
+  blockquote,
+  bqIconLabel,
+  log,
+  readYaml,
+  writeYaml,
+  initializeDirectories,
+  makeDirectories,
+  outputAs,
+  unixToIso,
+  unixTime,
+  spawnAsync,
+  logThought,
+  logAssistant,
+  logUser,
+  logShell,
 };

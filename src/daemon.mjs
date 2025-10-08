@@ -5,9 +5,7 @@
 import fs from 'fs';
 import clipboardy from 'clipboardy';
 import { _G } from './lib/globals.mjs';
-import {
-  relWS, log, readYaml, initializeDirectories, makeDirectories, outputAs, abort
-} from './lib/utils.mjs';
+import utils, { relWS, log, readYaml, initializeDirectories, makeDirectories, outputAs, abort } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
 import color from './lib/colors.mjs';
 
@@ -31,6 +29,13 @@ let logWasUndefined = false;
 // parse and route command line arguments
 async function parseCliArgs() {
   const args = process.argv.slice(2);
+
+  utils.logUser('list running redis containers with podman');
+  utils.logThought('Welcome to the jungle...');
+  utils.logAssistant('Ok I will use a tool.');
+  utils.logShell('podman ps');
+
+  process.exit(0);
 
   // Parse --format flag
   let format = 'table';
@@ -195,6 +200,7 @@ async function parseCliArgs() {
 
   if (subcommand === 'help' || 0 == args.length) {
     console.log('👺 Multi-Agent Orchestrator Daemon\n')
+
     if (subcommand != 'help') {
       console.error(`  Unknown subcommand.\n`);
     }
