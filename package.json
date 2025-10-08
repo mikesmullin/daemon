@@ -3,7 +3,10 @@
   "version": "2.0.0",
   "type": "module",
   "description": "File-based multi-agent orchestrator using GitHub Copilot API",
-  "main": "daemon-yaml.js",
+  "main": "src/daemon.mjs",
+  "bin": {
+    "d": "./src/daemon.mjs"
+  },
   "scripts": {
     "help": "node src/daemon.mjs help",
     "clean": "node src/daemon.mjs clean",
