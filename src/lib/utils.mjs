@@ -21,7 +21,8 @@ export function relWS(...pathComponents) {
 
 // Abort with error message
 export function abort(message) {
-  log('error', `Fatal Error: ${message}`);
+  const stack = new Error().stack.split('\n').slice(2).join('\n');
+  log('error', `Fatal Error: ${message}\n${stack}`);
   process.exit(1);
 }
 

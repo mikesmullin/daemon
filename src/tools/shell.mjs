@@ -31,10 +31,6 @@ export const execute_shell = {
   execute: async (args, options = {}) => {
     // Use allowlist checker
     const result = await executeCommandWithCheck(args.command);
-    // content for agent response
-    if (result.success) {
-    }
-
-    return result.success ? result.output : result.error;
+    return result;
   }
 };

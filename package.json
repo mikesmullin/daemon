@@ -10,7 +10,7 @@
   "scripts": {
     "help": "node src/daemon.mjs help",
     "clean": "node src/daemon.mjs clean",
-    "demo": "./tests/integration/slack-demo.sh",
+    "demo": "./tests/integration/agent-demo.sh",
     "pump": "node src/daemon.mjs pump",
     "test": "node tests/runner.js"
   },

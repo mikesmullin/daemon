@@ -386,21 +386,39 @@ export async function executeCommandWithCheck(commandLine) {
   if (!check.approved) {
     // TODO: enqueue for human approval to tasks/approval.task.md
     // TODO: poll for approval status before proceeding to execute
-    // grant = 'approved by human';
+    // return {
+    //   pending: true,
+    //   content: 'pending human approval',
+    // }
+    // grant = 'manually approved by human';
     return {
-      pending: true,
-      content: 'submitted for human approval',
-    }
+      success: false,
+      content: `The user was not authorized to run this command.\nReason: ${check.reason}`,
+      grant: 'auto-denied by denylist',
+    };
   } else {
-    grant = 'approved by allowlist';
+    grant = 'auto-approved by allowlist';
   }
 
   try {
     // Execute the command
     log('debug', `⚙️  Executing: ${commandLine}`);
-    const result = await spawnAsync(commandLine);
+
+    // const result = await spawnAsync(commandLine);
+    // return {
+    //   success: 0 == result.exitCode,
+    //   content: `${result.stdout}${result.stderr}`,
+    //   result,
+    //   grant,
+    // };
+
+    // stopping short of pseudo-tty, but still shell-like environment
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    const result = await execAsync(commandLine);
     return {
-      success: 0 == result.exitCode,
+      success: true,
       content: `${result.stdout}${result.stderr}`,
       result,
       grant,

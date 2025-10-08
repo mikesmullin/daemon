@@ -278,47 +278,59 @@ export class Agent {
         }
       }
 
-      await Agent.processPendingToolCalls(sessionContent);
+      let sessionUpdated = await Agent.processPendingToolCalls(sessionContent);
 
       const system_prompt = sessionContent.spec.system_prompt || 'You are a helpful assistant.';
       const messages = [{ role: 'system', content: system_prompt }];
-      let last_role = 'system';
+      let last_message = {};
       for (const message of (sessionContent.spec.messages || [])) {
         messages.push(_.omit(message, ['ts']));
-        last_role = message.role;
+        last_message = message;
       }
 
-      if (last_role != 'user' && last_role != 'tool_result') {
-        await Agent.state(session_id, 'idle');
-        abort(`Last message in session ${session_id} is not from user.`);
+
+      if (
+        // user has message pending for assistant
+        (last_message.role == 'user') ||
+
+        // user has run the tool and the result is pending for assistant
+        (last_message.role == 'tool')
+      ) {
+        const response = await Agent.prompt({
+          model: sessionContent.metadata.model,
+          messages: messages,
+          tools: toolDefinitions,
+        });
+
+        sessionContent.metadata.usage = response.usage;
+        for (const choice of response.choices) {
+          if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
+          choice.message.ts = unixToIso(_.get(response, 'created', unixTime()));
+          choice.message.finish_reason = choice.finish_reason;
+          const msg2 = _.pick(choice.message, ['ts', 'role', 'content', 'tool_calls', 'finish_reason']);
+          sessionContent.spec.messages.push(msg2);
+        }
+
+        sessionUpdated = true;
       }
 
-      await Agent.prompt({
-        model: sessionContent.metadata.model,
-        messages: messages,
-        tools: toolDefinitions,
-      });
-
-      sessionContent.metadata.usage = response.usage;
-      let last_message = '';
-      for (const choice of response.choices) {
-        if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
-        choice.message.ts = unixToIso(_.get(response, 'created', unixTime()));
-        choice.message.finish_reason = choice.finish_reason;
-        const msg2 = _.pick(choice.message, ['ts', 'role', 'content', 'tool_calls', 'finish_reason']);
-        sessionContent.spec.messages.push(msg2);
-        const tool_calls = _.map(msg2.tool_calls, 'function.name').join(', ');
-        last_message = `${msg2.ts} ${msg2.role}: ${msg2.content || ''}${tool_calls ? `(tools: ${tool_calls})` : ''} `;
+      let last_message_digest = '';
+      if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
+      for (const message of sessionContent.spec.messages) {
+        const tool_calls = _.map(message.tool_calls, 'function.name').join(', ');
+        last_message_digest = `${message.ts} ${message.role}: ${message.content || ''}${tool_calls ? `(tools: ${tool_calls})` : ''} `;
       }
 
-      await writeYaml(sessionPath, sessionContent);
+      if (sessionUpdated) {
+        await writeYaml(sessionPath, sessionContent);
+      }
 
       await Agent.state(session_id, 'idle');
       return {
         session_id,
         agent: sessionContent.metadata.name,
         model: sessionContent.metadata.model,
-        last_message,
+        last_message_digest,
         used_tokens: sessionContent.metadata.usage.total_tokens,
       };
     } catch (error) {
@@ -378,16 +390,25 @@ export class Agent {
               // Parse arguments and execute the tool
               const args = JSON.parse(toolCall.function.arguments);
               const result = await Agent.tool(toolCall.function.name, args);
+              const content = result.content ? result.content : JSON.stringify(result, null, 2);
 
               // Add tool result message to session
               sessionContent.spec.messages.push({
                 ts: new Date().toISOString(),
                 role: 'tool',
                 tool_call_id: toolCall.id,
-                content: result,
+                content,
               });
 
-              log('debug', `Tool call ${toolCall.function.name} completed`);
+              if (content) {
+                console.log(content);
+              }
+              if (true == result.success) {
+                log('info', `✅ Tool ${color.bold(toolCall.function.name)} succeeded.`);
+              }
+              else {
+                log('error', `❌ Tool ${color.bold(toolCall.function.name)} failed.`);
+              }
             } catch (error) {
               // Add error result message to session
               sessionContent.spec.messages.push({
@@ -400,7 +421,7 @@ export class Agent {
                 tool_call_id: toolCall.id
               });
 
-              log('error', `Error during Tool call ${toolCall.function.name}.error: `, error.message);
+              log('error', `Error during Tool call ${color.bold(toolCall.function.name)}.error: `, error.message);
             }
 
             sessionUpdated = true;

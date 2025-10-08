@@ -26,6 +26,8 @@ async function getConfig() {
   _G.CONFIG = await readYaml(_G.CONFIG_PATH);
 }
 
+let logWasUndefined = false;
+
 // parse and route command line arguments
 async function parseCliArgs() {
   const args = process.argv.slice(2);
@@ -148,6 +150,7 @@ async function parseCliArgs() {
     const sessionId = args[1];
 
     try {
+      await getConfig();
       const result = await Agent.eval(sessionId);
       console.log(outputAs(format, result, { truncate, flatten }));
       process.exit(0);
@@ -220,7 +223,7 @@ Options:
 
   // quick-prompt
   {
-    if (undefined == process.env.LOG) process.env.LOG = ''; // only show warnings
+    if (logWasUndefined) process.env.LOG = ''; // only show warnings
     await getConfig();
     const prompt = args.join(' ');
     const result = await Agent.prompt({
@@ -258,10 +261,14 @@ Options:
 
 // main
 (async () => {
+  if (undefined == process.env.LOG) {
+    logWasUndefined = true;
+    process.env.LOG = '*'; // show all logs
+  }
   initializeDirectories();
-  await parseCliArgs();
-  await getConfig();
   await makeDirectories();
+  await getConfig();
+  await parseCliArgs();
 
   log('info', `👺🚀 ${color.bold('Multi-Agent Orchestrator Daemon')} starting`);
 

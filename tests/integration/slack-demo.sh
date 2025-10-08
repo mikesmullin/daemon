@@ -18,6 +18,6 @@ EOF
 
 node src/daemon.mjs new planner "$input"
 
-node src/daemon.mjs list
+node src/daemon.mjs sessions
 node src/daemon.mjs eval 0
 
