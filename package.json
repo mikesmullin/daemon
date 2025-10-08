@@ -27,6 +27,7 @@
   "license": "MIT",
   "dependencies": {
     "chokidar": "^3.6.0",
+    "clipboardy": "^5.0.0",
     "js-yaml": "^4.1.0",
     "lodash": "^4.17.21",
     "open": "^10.1.0",

@@ -243,6 +243,20 @@ export class Agent {
     }
   }
 
+  static async prompt({ model, messages, tools = [], max_tokens }) {
+    await Copilot.init();
+    log('debug', '🤖 Copilot API Request');
+    const response = await Copilot.client.chat.completions.create({
+      model: model || 'claude-sonnet-4',
+      messages: messages,
+      tools: tools,
+      // max_tokens, // ie. 300
+      max_tokens: 300
+    });
+    log('debug', '🤖 Copilot API Response: ' + JSON.stringify(response, null, 2));
+    return response;
+  }
+
   // evaluate an agent session by sending its context to the LLM as a prompt
   static async eval(session_id) {
     try {
@@ -279,16 +293,11 @@ export class Agent {
         abort(`Last message in session ${session_id} is not from user.`);
       }
 
-      await Copilot.init();
-      sessionContent.metadata.model = sessionContent.metadata.model || 'gpt-4o';
-      const response = await Copilot.client.chat.completions.create({
+      await Agent.prompt({
         model: sessionContent.metadata.model,
         messages: messages,
         tools: toolDefinitions,
-        // max_tokens: 300,
       });
-
-      console.debug('🤖 Copilot API Response: ' + JSON.stringify(response, null, 2));
 
       sessionContent.metadata.usage = response.usage;
       let last_message = '';

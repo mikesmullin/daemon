@@ -48,6 +48,8 @@ export function assert(cond, message = null) {
 
 // Logging function with timestamp and color support
 export function log(type, message) {
+  if ('' == process.env.LOG && process.env.LOG != type) return;
+
   const elapsed = Date.now() - _G.startedAt;
   const seconds = Math.floor(elapsed / 1000);
   const ms = String(elapsed % 1000).padStart(3, '0');

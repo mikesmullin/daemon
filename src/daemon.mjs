@@ -3,6 +3,7 @@
 // daemon.mjs: Multi-agent orchestrator
 
 import fs from 'fs';
+import clipboardy from 'clipboardy';
 import { _G } from './lib/globals.mjs';
 import {
   relWS, log, readYaml, initializeDirectories, makeDirectories, outputAs, abort
@@ -19,6 +20,10 @@ async function clean() {
       log('debug', `🧹 Cleaned directory: ${dir}`);
     }
   }
+}
+
+async function getConfig() {
+  _G.CONFIG = await readYaml(_G.CONFIG_PATH);
 }
 
 // parse and route command line arguments
@@ -50,7 +55,7 @@ async function parseCliArgs() {
   }
 
   // Determine subcommand (first non-option arg after flags are removed) - default is 'help'
-  let subcommand = 'help';
+  let subcommand = '';
   if (args[0] && !args[0].startsWith('-')) {
     subcommand = args[0];
   }
@@ -67,7 +72,7 @@ async function parseCliArgs() {
     return;
   }
 
-  if (subcommand === 'list') {
+  if (subcommand === 'sessions') {
     const sessions = await Agent.list();
     console.log(outputAs(format, sessions, { truncate, flatten }));
     process.exit(0);
@@ -185,18 +190,20 @@ async function parseCliArgs() {
     }
   }
 
-  console.log('👺 Multi-Agent Orchestrator Daemon\n')
-  if (subcommand != 'help') {
-    console.error(`  Unknown subcommand.\n`);
-  }
-  console.log(`Usage: daemon.mjs <subcommand> [options]
+  if (subcommand === 'help' || 0 == args.length) {
+    console.log('👺 Multi-Agent Orchestrator Daemon\n')
+    if (subcommand != 'help') {
+      console.error(`  Unknown subcommand.\n`);
+    }
+    console.log(`Usage: d <subcommand> [options]
+Usage: d <prompt>
 
 Subcommands:
   help          Show this help message (default)
   clean         Remove transient state (proc, sessions, workspaces)
   pump          Run one iteration and exit
   watch         Run continuously, checking-in at intervals
-  list          List all agent sessions
+  sessions      List all agent sessions
   new           Create a new agent session: new <agent> [prompt]
   push          Append message to session: push <session_id> <prompt>
   fork          Fork an existing agent session: fork <session_id> [prompt]
@@ -208,15 +215,53 @@ Options:
   --truncate    Truncate long text fields in output
   --flatten     Flatten nested object hierarchies in output
 `);
-  process.exit(0);
+    process.exit(0);
+  }
+
+  // quick-prompt
+  {
+    process.env.LOG = ''; // only show warnings
+    await getConfig();
+    const prompt = args.join(' ');
+    const result = await Agent.prompt({
+      // model: 'grok-code-fast-1',
+      // model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content:
+            `You are a command line expert. ` +
+            `The user wants to run a command but they don't know how. ` +
+            `Return ONLY the exact shell command needed. ` +
+            `Do not prepend with an explanation, no markdown, no code blocks -- ` +
+            `just return the raw command you think will solve their query.`
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+    });
+    const response = result?.choices[0]?.message?.content;
+    console.log(`    ${color.yellow(response)}`);
+
+    // Copy to clipboard
+    try {
+      await clipboardy.write(response);
+    } catch (error) {
+      console.log(`${color.red(`❌ Failed to copy to clipboard: ${error.message}`)}`);
+    }
+
+    process.exit(0);
+  }
 }
 
 // main
 (async () => {
   initializeDirectories();
-  _G.CONFIG = await readYaml(_G.CONFIG_PATH);
-  await makeDirectories();
   await parseCliArgs();
+  await getConfig();
+  await makeDirectories();
 
   log('info', `👺🚀 ${color.bold('Multi-Agent Orchestrator Daemon')} starting`);
 
