@@ -288,7 +288,6 @@ export class Agent {
         last_message = message;
       }
 
-
       if (
         // user has message pending for assistant
         (last_message.role == 'user') ||
@@ -366,25 +365,25 @@ export class Agent {
         for (const toolCall of message.tool_calls) {
           // Check if this tool call needs to be executed
           let shouldExecute = true;
-          for (const attempt of sessionContent.metadata.attempts || []) {
-            if (attempt.tool_call_id === toolCall.id) {
-              shouldExecute = false;
-              break;
-            }
-          }
+          // for (const attempt of sessionContent.metadata.attempts || []) {
+          //   if (attempt.tool_call_id === toolCall.id) {
+          //     shouldExecute = false;
+          //     break;
+          //   }
+          // }
 
           if (shouldExecute) {
             log('warn', `🔧 Executing tool call ${color.bold(toolCall.function.name)} `);
 
             // Update attempts tracking
-            if (!sessionContent.metadata.attempts) {
-              sessionContent.metadata.attempts = [];
-            }
-            sessionContent.metadata.attempts.push({
-              tool_call_id: toolCall.id,
-              lastRunAt: new Date().toISOString()
-            });
-            sessionUpdated = true;
+            // if (!sessionContent.metadata.attempts) {
+            //   sessionContent.metadata.attempts = [];
+            // }
+            // sessionContent.metadata.attempts.push({
+            //   tool_call_id: toolCall.id,
+            //   lastRunAt: new Date().toISOString()
+            // });
+            // sessionUpdated = true;
 
             try {
               // Parse arguments and execute the tool
