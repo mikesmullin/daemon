@@ -184,8 +184,10 @@ export class Copilot {
     let tokens = {};
 
     try {
-      tokens = await readYaml(_G.TOKENS_PATH);
+      tokens = await readYaml(_G.TOKENS_PATH, true);
     } catch (error) {
+      // force-override logging
+      process.env.LOG = '*';
       // File doesn't exist yet, start with empty tokens
       log('debug', '📄 No existing tokens file found, starting fresh');
       tokens = {};

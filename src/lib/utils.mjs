@@ -48,7 +48,7 @@ export function assert(cond, message = null) {
 
 // Logging function with timestamp and color support
 export function log(type, message) {
-  if ('' == process.env.LOG && process.env.LOG != type) return;
+  if ('' == process.env.LOG || ('*' != process.env.LOG && process.env.LOG != type)) return;
 
   const elapsed = Date.now() - _G.startedAt;
   const seconds = Math.floor(elapsed / 1000);
@@ -80,12 +80,16 @@ export function log(type, message) {
 }
 
 // read configuration from YAML file
-export async function readYaml(file) {
-  try {
-    log('debug', `📄 Reading ${file}`);
+export async function readYaml(file, okToFail = false) {
+  log('debug', `📄 Reading ${file}`);
+  if (okToFail) {
     return yaml.load(await readFile(file, 'utf8'));
-  } catch (error) {
-    abort(`Failed to read ${file}: ${error.message}`);
+  } else {
+    try {
+      return yaml.load(await readFile(file, 'utf8'));
+    } catch (error) {
+      abort(`Failed to read ${file}: ${error.message}`);
+    }
   }
 }
 

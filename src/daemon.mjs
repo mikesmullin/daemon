@@ -220,7 +220,7 @@ Options:
 
   // quick-prompt
   {
-    process.env.LOG = ''; // only show warnings
+    if (undefined == process.env.LOG) process.env.LOG = ''; // only show warnings
     await getConfig();
     const prompt = args.join(' ');
     const result = await Agent.prompt({
