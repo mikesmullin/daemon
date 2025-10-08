@@ -4,6 +4,7 @@
 //
 
 import { _G } from '../lib/globals.mjs';
+import utils from '../lib/utils.mjs';
 import { executeCommandWithCheck } from './terminal-allowlist.js';
 
 export const execute_shell = {
@@ -29,6 +30,8 @@ export const execute_shell = {
     }
   },
   execute: async (args, options = {}) => {
+    utils.logShell(args.command);
+
     // Use allowlist checker
     const result = await executeCommandWithCheck(args.command);
     return result;

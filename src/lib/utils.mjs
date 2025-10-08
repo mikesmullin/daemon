@@ -113,7 +113,7 @@ export function log(type, message) {
   }
 
   let indented = indentIcon(colorFn(timestamp) + ' ', message)
-  output.write(indented + '\n');
+  output.write(indented + color.reset() + '\n');
 }
 
 // read configuration from YAML file
@@ -373,7 +373,7 @@ export function logThought(text) {
 
 export function logAssistant(text) {
   console.log('');
-  log('info', bqIconLabel('white', '🤖', color.red('Assistant'), text));
+  log('info', bqIconLabel('cyan', '🤖', color.red('Assistant'), text));
   console.log('');
 }
 

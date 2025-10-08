@@ -30,13 +30,6 @@ let logWasUndefined = false;
 async function parseCliArgs() {
   const args = process.argv.slice(2);
 
-  utils.logUser('list running redis containers with podman');
-  utils.logThought('Welcome to the jungle...');
-  utils.logAssistant('Ok I will use a tool.');
-  utils.logShell('podman ps');
-
-  process.exit(0);
-
   // Parse --format flag
   let format = 'table';
   const formatIndex = args.indexOf('--format');

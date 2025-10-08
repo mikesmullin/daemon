@@ -2,7 +2,7 @@ const fs = await import('fs/promises');
 const path = await import('path');
 import yaml from 'js-yaml';
 import { _G } from './globals.mjs';
-import { assert, log, abort, readYaml, writeYaml, unixToIso, unixTime } from './utils.mjs';
+import utils, { assert, log, abort, readYaml, writeYaml, unixToIso, unixTime } from './utils.mjs';
 import color from './colors.mjs';
 import { Copilot } from './copilot.mjs';
 import _ from 'lodash';
@@ -285,6 +285,19 @@ export class Agent {
       let last_message = {};
       for (const message of (sessionContent.spec.messages || [])) {
         messages.push(_.omit(message, ['ts']));
+        if (message.role == 'user') utils.logUser(message.content);
+        if (message.role == 'assistant' && message.content) utils.logAssistant(message.content);
+        if (message.role == 'assistant' && message.tool_calls?.length > 0) {
+          for (const tool_call of message.tool_calls) {
+            log('info', `🔧 Tool call: ${color.bold(tool_call.function.name)}(${tool_call.function.arguments})`);
+            for (const message2 of (sessionContent.spec.messages || [])) {
+              if (message2.role == 'tool' && message2.tool_call_id == tool_call.id && message2.content) {
+                console.log(message2.content);
+              }
+            }
+          }
+        }
+        // TODO: request and log claude thought
         last_message = message;
       }
 
@@ -307,6 +320,13 @@ export class Agent {
           choice.message.ts = unixToIso(_.get(response, 'created', unixTime()));
           choice.message.finish_reason = choice.finish_reason;
           const msg2 = _.pick(choice.message, ['ts', 'role', 'content', 'tool_calls', 'finish_reason']);
+          if (msg2.role == 'user') utils.logUser(msg2.content);
+          if (msg2.role == 'assistant' && msg2.content) utils.logAssistant(msg2.content);
+          if (msg2.role == 'assistant' && msg2.tool_calls?.length > 0) {
+            for (const tool_call of msg2.tool_calls) {
+              log('info', `🔧 Tool call: ${color.bold(tool_call.function.name)}(${tool_call.function.arguments})`);
+            }
+          }
           sessionContent.spec.messages.push(msg2);
         }
 

@@ -402,7 +402,7 @@ export async function executeCommandWithCheck(commandLine) {
 
   try {
     // Execute the command
-    log('debug', `⚙️  Executing: ${commandLine}`);
+    // log('info', `🔧  Executing: ${commandLine}`);
 
     // const result = await spawnAsync(commandLine);
     // return {
