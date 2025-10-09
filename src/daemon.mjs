@@ -2,6 +2,9 @@
 
 // daemon.mjs: Multi-agent orchestrator
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // allow self-signed certs
+process.removeAllListeners('warning'); // suppress node.js tls warnings etc.
+
 import fs from 'fs';
 import clipboardy from 'clipboardy';
 import { _G } from './lib/globals.mjs';
