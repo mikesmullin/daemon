@@ -279,16 +279,6 @@ Options:
   const sessions = await Agent.list();
   console.debug(`Found ${sessions.length} active session(s)`, sessions);
 
-  const a1 = await Agent.fork('planner');
-  console.debug(`Forked new agent session: ${a1}`);
-  const as1 = await Agent.state(a1);
-  console.debug(`Session ${a1} state: ${as1}`);
-
-  const a2 = await Agent.fork('executor');
-  console.debug(`Forked new agent session: ${a2}`);
-  const as2 = await Agent.state(a2);
-  console.debug(`Session ${a2} state: ${as2}`);
-
   // const response = await Agent.eval(a1);
   // console.debug(`Session ${a1} evaluation response:`, response);
 

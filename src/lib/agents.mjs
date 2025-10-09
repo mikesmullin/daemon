@@ -1,20 +1,24 @@
 const fs = await import('fs/promises');
 const path = await import('path');
 import yaml from 'js-yaml';
+import ejs from 'ejs';
 import { _G } from './globals.mjs';
 import utils, { assert, log, abort, readYaml, writeYaml, unixToIso, unixTime } from './utils.mjs';
 import color from './colors.mjs';
 import { Copilot } from './copilot.mjs';
 import _ from 'lodash';
+import os from 'os';
 
 // agent tools
-import { read_file, write_file, list_directory, create_directory } from '../tools/fs.mjs';
+import { create_file, view_file, edit_file, apply_patch, list_directory, create_directory } from '../tools/fs.mjs';
 import { execute_shell } from '../tools/shell.mjs';
 import { create_task, query_tasks } from '../tools/tasks.mjs';
 import { list_sessions, append_prompt, new_session, fork_session, kill_session } from '../tools/agent.mjs';
 // registry of available tools
-_G.tools.read_file = read_file;
-_G.tools.write_file = write_file;
+_G.tools.create_file = create_file;
+_G.tools.view_file = view_file;
+_G.tools.edit_file = edit_file;
+_G.tools.apply_patch = apply_patch;
 _G.tools.list_directory = list_directory;
 _G.tools.create_directory = create_directory;
 _G.tools.execute_shell = execute_shell;
@@ -224,6 +228,13 @@ export class Agent {
         const templateFileName = `${agent}.yaml`;
         const templatePath = path.join(_G.TEMPLATES_DIR, templateFileName);
         sessionContent = await readYaml(templatePath);
+
+        // render EJS in system prompt template, if present
+        if (sessionContent.spec.system_prompt) {
+          sessionContent.spec.system_prompt = ejs.render(sessionContent.spec.system_prompt, {
+            os,
+          });
+        }
       }
       const newgSessionFileName = `${new_session_id}.yaml`;
       const newgSessionPath = path.join(_G.SESSIONS_DIR, newgSessionFileName);
@@ -278,8 +289,7 @@ export class Agent {
         }
       }
 
-      let sessionUpdated = await Agent.processPendingToolCalls(sessionContent);
-
+      let sessionUpdated = await Agent.processPendingToolCalls(sessionContent, session_id);
       const system_prompt = sessionContent.spec.system_prompt || 'You are a helpful assistant.';
       const messages = [{ role: 'system', content: system_prompt }];
       let last_message = {};
@@ -364,6 +374,12 @@ export class Agent {
     assert(tool, `Unknown tool: ${name} `);
 
     try {
+      // Set session context if available
+      const sessionId = options.sessionId;
+      if (sessionId !== undefined) {
+        _G.currentSessionId = sessionId;
+      }
+
       const result = await tool.execute(args, options);
       return result;
     } catch (error) {
@@ -372,7 +388,7 @@ export class Agent {
   }
 
   // process pending tool calls from session file
-  static async processPendingToolCalls(sessionContent) {
+  static async processPendingToolCalls(sessionContent, session_id = null) {
     if (!sessionContent.spec?.messages) {
       return;
     }
@@ -414,7 +430,7 @@ export class Agent {
             try {
               // Parse arguments and execute the tool
               const args = JSON.parse(toolCall.function.arguments);
-              const result = await Agent.tool(toolCall.function.name, args);
+              const result = await Agent.tool(toolCall.function.name, args, { sessionId: session_id });
               const content = result.content ? result.content : JSON.stringify(result, null, 2);
 
               // Add tool result message to session
