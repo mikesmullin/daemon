@@ -14,6 +14,7 @@ import { create_file, view_file, edit_file, apply_patch, list_directory, create_
 import { execute_shell } from '../tools/shell.mjs';
 import { create_task, query_tasks } from '../tools/tasks.mjs';
 import { list_sessions, append_prompt, new_session, fork_session, kill_session } from '../tools/agent.mjs';
+import { fetch_webpage } from '../tools/web.mjs';
 // registry of available tools
 _G.tools.create_file = create_file;
 _G.tools.view_file = view_file;
@@ -29,6 +30,7 @@ _G.tools.new_session = new_session;
 _G.tools.append_prompt = append_prompt;
 _G.tools.fork_session = fork_session;
 _G.tools.kill_session = kill_session;
+_G.tools.fetch_webpage = fetch_webpage;
 
 export class Agent {
   // Agents follow BehaviorTree (BT) patterns

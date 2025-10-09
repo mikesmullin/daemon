@@ -12,6 +12,7 @@ metadata:
   - list_directory
   - create_directory
   - execute_shell
+  - fetch_webpage
 spec:
   system_prompt: |
     You are an expert AI System Administrator assistant, working with a user in the terminal.

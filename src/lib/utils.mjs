@@ -390,6 +390,12 @@ export function logShell(text) {
   console.log('');
 }
 
+export function logFetch(text) {
+  console.log('');
+  log('info', bqIconLabel('gray', '🌍', color.brightBlue('Fetching URL'), text));
+  console.log('');
+}
+
 export default {
   mkdirp,
   relWS,
@@ -412,4 +418,5 @@ export default {
   logAssistant,
   logUser,
   logShell,
+  logFetch,
 };
