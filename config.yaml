@@ -1,5 +1,5 @@
 daemon:
-  checkin_interval: 60 # seconds
+  watch_poll_interval: 5 # seconds
 
 github:
   # GitHub OAuth API endpoints

@@ -294,13 +294,13 @@ Options:
 
   // testing
   const sessions = await Agent.list();
-  console.debug(`Found ${sessions.length} active session(s)`, sessions);
+  // console.debug(`Found ${sessions.length} active session(s)`, sessions);
 
   // const response = await Agent.eval(a1);
   // console.debug(`Session ${a1} evaluation response:`, response);
 
   if ('watch' == _G.mode) {
-    log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump every ${_G.CONFIG.daemon.checkin_interval} seconds`);
+    log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump every ${_G.CONFIG.daemon.watch_poll_interval} seconds`);
 
     // Run initial pump
     try {
@@ -308,7 +308,7 @@ Options:
       if (initialResult.processed > 0) {
         log('info', `👀 Initial pump completed. Processed ${initialResult.processed}/${initialResult.total} sessions.`);
       } else {
-        log('debug', '👀 No idle sessions in initial pump.');
+        log('debug', '👀 No pending sessions in initial pump.');
       }
     } catch (error) {
       log('error', `❌ Initial pump failed: ${error.message}`);
@@ -317,29 +317,29 @@ Options:
     // Set up interval for continuous pumping
     setInterval(async () => {
       try {
-        log('debug', '👀 Watch interval: checking for idle sessions...');
+        log('debug', '👀 Watch interval: checking for pending sessions...');
         const result = await Agent.pump();
         if (result.processed > 0) {
           log('info', `👀 Watch pump completed. Processed ${result.processed}/${result.total} sessions.`);
         } else {
-          log('debug', '👀 No idle sessions to process.');
+          log('debug', '👀 No pending sessions to process.');
         }
       } catch (error) {
         log('error', `❌ Watch pump failed: ${error.message}`);
       }
-    }, _G.CONFIG.daemon.checkin_interval * 1000);
+    }, _G.CONFIG.daemon.watch_poll_interval * 1000);
 
     log('info', '👀 Watch mode started. Press Ctrl+C to stop.');
   }
 
   if ('pump' == _G.mode) {
-    log('debug', `⛽ ${color.bold('PUMP MODE:')} Processing idle sessions`);
+    log('debug', `⛽ ${color.bold('PUMP MODE:')} Processing pending sessions`);
     try {
       const result = await Agent.pump();
       if (result.processed > 0) {
         log('info', `⛽ Pump completed. Processed ${result.processed}/${result.total} sessions.`);
       } else {
-        log('debug', '🥱 No idle sessions to process. 😴💤 Exiting.');
+        log('debug', '🥱 No pending sessions to process. 😴💤 Exiting.');
       }
     } catch (error) {
       log('error', `❌ Pump failed: ${error.message}`);

@@ -145,19 +145,7 @@ api_url: https://api.githubcopilot.com
 
 ## Configuration
 
-System configuration is managed via `config.yaml`:
-
-```yaml
-daemon:
-  checkin_interval: 60  # seconds
-
-github:
-  client_id: "Iv1.b507a08c87ecfe98"  # VSCode Copilot Chat client
-
-copilot:
-  default_api_url: "https://api.githubcopilot.com"
-  user_agent: "GitHubCopilotChat/0.26.7"
-```
+System configuration is managed via [config.yaml](config.yaml).
 
 ## Development
 

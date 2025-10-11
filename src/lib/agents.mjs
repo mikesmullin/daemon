@@ -209,13 +209,41 @@ export class Agent {
         await utils.writeYaml(sessionPath, sessionContent);
       }
 
-      await Agent.state(session_id, 'idle');
+      // Determine final state based on session completion status
+      const sessionMessages = sessionContent.spec.messages || [];
+      const lastMessage = sessionMessages[sessionMessages.length - 1];
+
+      let finalState = 'idle'; // Default to idle
+
+      if (lastMessage) {
+        if (lastMessage.role === 'assistant') {
+          // If assistant message has tool_calls, we need to execute tools (pending)
+          if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
+            finalState = 'pending';
+          }
+          // If assistant message has finish_reason: stop and no tool_calls, we're done (idle)
+          else if (lastMessage.finish_reason === 'stop') {
+            finalState = 'idle';
+          }
+          // Other finish reasons might indicate more work needed
+          else {
+            finalState = 'pending';
+          }
+        }
+        // If last message is from user or tool, assistant needs to respond (pending)
+        else if (lastMessage.role === 'user' || lastMessage.role === 'tool') {
+          finalState = 'pending';
+        }
+      }
+
+      await Agent.state(session_id, finalState);
       return {
         session_id,
         agent: sessionContent.metadata.name,
         model: sessionContent.metadata.model,
         last_message_digest,
         used_tokens: sessionContent.metadata.usage.total_tokens,
+        final_state: finalState,
       };
     } catch (error) {
       await Agent.state(session_id, 'fail');
@@ -233,15 +261,15 @@ export class Agent {
     return Tool.processPendingCalls(sessionContent, session_id);
   }
 
-  // perform one pump iteration - process all idle sessions
+  // perform one pump iteration - process all pending sessions
   static async pump() {
     const sessions = await Session.list();
-    const idleSessions = sessions.filter(s => s.bt_state === 'idle');
+    const pendingSessions = sessions.filter(s => s.bt_state === 'pending');
 
-    log('info', `⛽ Found ${idleSessions.length} idle session(s) to process`);
+    log('info', `⛽ Found ${pendingSessions.length} pending session(s) to process`);
 
     let processed = 0;
-    for (const session of idleSessions) {
+    for (const session of pendingSessions) {
       try {
         log('info', `🔄 Processing session ${session.session_id} (${session.agent})`);
         await Agent.eval(session.session_id);
@@ -251,6 +279,6 @@ export class Agent {
       }
     }
 
-    return { processed, total: idleSessions.length };
+    return { processed, total: pendingSessions.length };
   }
 }

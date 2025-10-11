@@ -4,8 +4,8 @@ set -e  # Exit on error
 set -x  # Print commands
 
 # Test configuration
-WATCH_TIMEOUT=15  # seconds to run watch mode
-TEST_INTERVAL=5   # seconds between checks
+WATCH_TIMEOUT=12  # seconds to run watch mode
+TEST_INTERVAL=3   # seconds between checks
 LOG_FILE="tmp/watch-test.log"
 
 echo "🧪 Starting watch mode integration test"
@@ -15,7 +15,7 @@ node src/daemon.mjs clean
 
 # Temporarily set a shorter check-in interval for testing
 cp config.yaml config.yaml.backup
-sed 's/checkin_interval: 60/checkin_interval: 5/' config.yaml.backup > config.yaml
+sed 's/watch_poll_interval: 5/watch_poll_interval: 3/' config.yaml.backup > config.yaml
 
 # Create initial test sessions
 echo "📝 Creating test sessions..."
@@ -94,7 +94,7 @@ else
 fi
 
 echo "✅ Checking: Watch interval checking"
-if grep -q "Watch interval: checking for idle sessions" "$LOG_FILE"; then
+if grep -q "Watch interval: checking for pending sessions" "$LOG_FILE"; then
     echo "✅ Found: Watch interval checking"
 else
     echo "❌ Missing: Watch interval checking"
