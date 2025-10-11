@@ -396,6 +396,36 @@ export function logFetch(text) {
   console.log('');
 }
 
+// Read from stdin if available, returns null if no stdin
+export async function readStdin() {
+  return new Promise((resolve) => {
+    if (process.stdin.isTTY) {
+      // No stdin piped
+      resolve(null);
+      return;
+    }
+
+    let data = '';
+    process.stdin.setEncoding('utf8');
+
+    process.stdin.on('data', (chunk) => {
+      data += chunk;
+    });
+
+    process.stdin.on('end', () => {
+      resolve(data.trim() || null);
+    });
+
+    // Handle case where stdin ends immediately
+    process.stdin.on('readable', () => {
+      const chunk = process.stdin.read();
+      if (chunk === null) {
+        resolve(data.trim() || null);
+      }
+    });
+  });
+}
+
 export default {
   mkdirp,
   relWS,
@@ -419,4 +449,5 @@ export default {
   logUser,
   logShell,
   logFetch,
+  readStdin,
 };

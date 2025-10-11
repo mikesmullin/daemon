@@ -60,6 +60,10 @@ Use `d --help` to see all available commands and options. The tool follows Unix 
 # Create a new agent session
 d new solo "Check if Redis is running with podman"
 
+# Create session from stdin (pipe-friendly)
+echo "System status check" | d new solo
+echo "Deploy app" | d new executor -
+
 # List all active sessions
 d sessions
 
@@ -84,8 +88,14 @@ d watch
 Designed to work well with other Unix tools:
 
 ```bash
-# Future capability - pipe task lists to create agent sessions
+# Pipe task lists to create agent sessions
 todo next | d new planner
+
+# Use explicit stdin syntax
+echo "Check system status" | d new solo -
+
+# Combine prompt with stdin
+echo "Additional context" | d new executor "Deploy the application"
 
 # Format output for further processing
 d sessions --format json | jq '.[] | select(.state == "running")'

@@ -8,7 +8,7 @@ process.removeAllListeners('warning'); // suppress node.js tls warnings etc.
 import fs from 'fs';
 import clipboardy from 'clipboardy';
 import { _G } from './lib/globals.mjs';
-import utils, { relWS, log, readYaml, initializeDirectories, makeDirectories, outputAs, abort } from './lib/utils.mjs';
+import utils, { relWS, log, readYaml, initializeDirectories, makeDirectories, outputAs, abort, readStdin } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
 import color from './lib/colors.mjs';
 
@@ -84,12 +84,26 @@ async function parseCliArgs() {
   if (subcommand === 'new') {
     if (args.length < 2) {
       abort(
-        'Error: new requires an agent name' +
-        'Usage: daemon.mjs new <agent> [prompt]');
+        'Error: new requires an agent name\n' +
+        'Usage: daemon.mjs new <agent> [prompt|-]');
     }
 
     const agent = args[1];
-    const prompt = args.slice(2).join(' ') || null;
+    let prompt = args.slice(2).join(' ') || null;
+
+    // Handle stdin input
+    const stdinData = await readStdin();
+
+    if (prompt === '-') {
+      // Explicit stdin request
+      if (!stdinData) {
+        abort('Error: No stdin provided when "-" specified for prompt');
+      }
+      prompt = stdinData;
+    } else if (stdinData) {
+      // Append stdin to existing prompt or use as prompt if none provided
+      prompt = prompt ? `${prompt} ${stdinData}` : stdinData;
+    }
 
     try {
       const result = await Agent.fork({ agent, prompt });
@@ -209,7 +223,7 @@ Subcommands:
   pump          Run one iteration and exit
   watch         Run continuously, checking-in at intervals
   sessions      List all agent sessions
-  new           Create a new agent session: new <agent> [prompt]
+  new           Create a new agent session: new <agent> [prompt|-]
   push          Append message to session: push <session_id> <prompt>
   fork          Fork an existing agent session: fork <session_id> [prompt]
   eval          Ask Copilot to evaluate a session: eval <session_id>
