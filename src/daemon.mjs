@@ -288,52 +288,37 @@ Options:
 
   log('info', `👺🚀 ${color.bold('Multi-Agent Orchestrator Daemon')} starting`);
 
-  if ('pump' == _G.mode) {
-    log('debug', `⛽ ${color.bold('PUMP MODE:')} Will run one iteration and exit`);
-  }
-
-  // testing
-  const sessions = await Agent.list();
-  // console.debug(`Found ${sessions.length} active session(s)`, sessions);
-
-  // const response = await Agent.eval(a1);
-  // console.debug(`Session ${a1} evaluation response:`, response);
-
+  // Show session info for watch mode and debugging
   if ('watch' == _G.mode) {
     log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump every ${_G.CONFIG.daemon.watch_poll_interval} seconds`);
 
-    // Run initial pump
-    try {
-      const initialResult = await Agent.pump();
-      if (initialResult.processed > 0) {
-        log('info', `👀 Initial pump completed. Processed ${initialResult.processed}/${initialResult.total} sessions.`);
-      } else {
-        log('debug', '👀 No pending sessions in initial pump.');
-      }
-    } catch (error) {
-      log('error', `❌ Initial pump failed: ${error.message}`);
-    }
-
-    // Set up interval for continuous pumping
-    setInterval(async () => {
+    // Define the watch pump function
+    const performWatchPump = async () => {
       try {
-        log('debug', '👀 Watch interval: checking for pending sessions...');
+        log('debug', `👀 Checking for pending sessions...`);
         const result = await Agent.pump();
+
         if (result.processed > 0) {
-          log('info', `👀 Watch pump completed. Processed ${result.processed}/${result.total} sessions.`);
+          log('info', `👀 Pump completed. Processed ${result.processed}/${result.total} sessions.`);
         } else {
           log('debug', '👀 No pending sessions to process.');
         }
       } catch (error) {
-        log('error', `❌ Watch pump failed: ${error.message}`);
+        log('error', `❌ Pump failed: ${error.message}`);
       }
-    }, _G.CONFIG.daemon.watch_poll_interval * 1000);
+    };
+
+    // Run initial pump
+    await performWatchPump();
+
+    // Set up interval for continuous pumping
+    setInterval(performWatchPump, _G.CONFIG.daemon.watch_poll_interval * 1000);
 
     log('info', '👀 Watch mode started. Press Ctrl+C to stop.');
   }
 
   if ('pump' == _G.mode) {
-    log('debug', `⛽ ${color.bold('PUMP MODE:')} Processing pending sessions`);
+    log('debug', `⛽ ${color.bold('PUMP MODE:')} Will run one iteration and exit`);
     try {
       const result = await Agent.pump();
       if (result.processed > 0) {
