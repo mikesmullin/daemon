@@ -1,138 +1,130 @@
-# Minimal GitHub Copilot CLI
+# 👺 Daemon CLI
 
-A minimalist Node.js CLI tool that authenticates with GitHub Copilot API and allows you to interact with AI models via the Copilot API.
+A Multi-Agent Delegation (MAD) CLI 
+for orchestrating multiple AI agents using the GitHub Copilot API. 
+Promotes Unix-philosophy over TUI.
+Built for advanced users who want to delegate complex tasks across specialized agents while maintaining simple, pipeable command-line interfaces.
 
-**🚀 Now using YAML-based agent architecture!** - Clean, structured, and easy to parse.
+We aim to be deterministic, testable, auditable, and composable.
 
 ## Features
 
-- ✅ GitHub OAuth device flow authentication
-- ✅ Automatic token caching and renewal in `.tokens.yaml`
-- ✅ Token refresh handling
-- ✅ Uses OpenAI SDK for maximum compatibility
-- ✅ Tool calling support (function execution)
-- ✅ **Security allowlist for terminal commands** 🔒
-- ✅ Multi-turn conversations
-- ✅ **YAML-based agent templates and sessions** 📄
-- ✅ **Separate agent templates from chat instances** 🔄
-- ✅ System prompt control
-- ✅ Clean ES6 module syntax
-- ✅ Multiple AI models supported (GPT-4o, Claude Sonnet 4.5, etc.)
+- 🤖 **Multi-agent orchestration** - Delegate tasks across specialized AI agents
+- 📄 **YAML-based agent templates** - Clean, structured agent definitions
+- 🔄 **Session-based conversations** - Persistent, stateful agent interactions
+- 🔒 **Security allowlist** - Safe terminal command execution with approval controls
+- 🛠️ **Rich tool ecosystem** - File operations, shell execution, web fetching, and more
+- 🔑 **GitHub OAuth integration** - Seamless authentication with automatic token management
+- 🚀 **Pump/Watch modes** - Run one iteration or continuously monitor
+- 🔗 **Pipeline-friendly** - Designed for Unix-style stdin/stdout composition
+- 📊 **Multiple output formats** - JSON, YAML, CSV, and table output for scripting
 
 ## Architecture
 
-The system uses a **two-tier YAML architecture** with **task-based approvals**:
+The system uses a **file-based multi-agent architecture** with YAML configuration:
 
-### Agent Templates (`templates/*.agent.yaml`)
-Base configurations for instantiating agents. Think of these as "classes" or "blueprints":
-- Define agent capabilities and system prompts
-- Reusable across multiple sessions
-- Version-controlled and easy to review
+Code built with Node.js ES6 module syntax, with dependencies:
+- **OpenAI SDK** for Copilot API compatibility
 
-### Chat Sessions (`sessions/*.session.yaml`)
-Active conversation instances. Think of these as "objects" or "instances":
-- Contain full conversation history
-- Track session state (active, sleeping, completed)
-- Can have multiple sessions per agent template
-- Support long-running tasks with state preservation
+### Agent Templates (`agents/templates/*.yaml`)
+Reusable agent blueprints that define:
+- Agent capabilities and system prompts
+- Available tools and models
+- Behavioral parameters
+- Can be versioned and shared across projects
 
-### Approval System (`tasks/approvals.task.md`)
-Human approvals use the **todo CLI task format** (from tmp6-todo project):
-- All approval requests tracked as tasks in `tasks/approvals.task.md`
-- Approve by changing `[_]` to `[x]` and adding `approved_by: your-name`
-- Reject by changing `[_]` to `[-]` and adding `rejection_reason: ...`
-- Risk levels automatically assessed (HIGH, MEDIUM, LOW)
-- Clean, structured format that's easy to audit
+### Agent Sessions (`agents/sessions/`)
+Active conversation instances created from templates:
+- Persistent conversation history
+- Session state tracking (idle, running, success, fail)
+- Multiple sessions can be spawned from the same template
+- Isolated workspaces for each session
+
+### Daemon Modes
+- **Pump mode**: Execute one iteration and exit (perfect for testing/debugging)
+- **Watch mode**: Continuous monitoring with configurable check-in intervals
+- **Command mode**: Direct session manipulation (new, push, fork, eval)
 
 ## Installation
 
 ```bash
 npm install
+npm link  # Creates global 'd' command alias
 ```
 
-## Available Commands
+## Usage
+
+Use `d --help` to see all available commands and options. The tool follows Unix philosophy with simple, composable commands:
 
 ```bash
-npm start           # Start the multi-agent daemon (YAML mode)
-npm run start:legacy # Start daemon in legacy Markdown mode
-npm run pump        # Run daemon in pump mode (one iteration, then exit)
-npm run migrate     # Migrate old *.agent.md files to YAML format
-npm run demo        # Run the original demo scenario
-npm run demo:pump   # Run interactive demo using pump mode (step-by-step)
-npm test            # Run all tests (unit + integration)
-npm run test:pump   # Run automated pump mode tests
-npm run clean       # Clean up temporary files from tests and demos
+# Create a new agent session
+d new solo "Check if Redis is running with podman"
+
+# List all active sessions
+d sessions
+
+# Add a message to an existing session
+d push 0 "Now check PostgreSQL as well"
+
+# Fork a session to try a different approach
+d fork 0 "Use docker instead of podman"
+
+# Evaluate a session (let the agent process pending work)
+d eval 0
+
+# Run daemon in pump mode (one iteration, then exit)
+d pump
+
+# Run daemon in watch mode (continuous monitoring)
+d watch
 ```
 
-## Examples
+### Pipeline Integration
 
-The `examples/` directory contains demonstrations of key features:
-
-### 1. System Prompt, Roles, Context (`examples/1-ask.js`)
-```bash
-node examples/1-ask.js
-```
-Demonstrates controlling AI behavior with system prompts.
-Shows how to use different message roles (system, user, assistant, tool).
-Demonstrates multi-turn conversations where the AI remembers previous messages.
-
-### 2. Secure Tool Calling w/ Terminal Allowlist (`examples/2-secure-agent.js`)
-```bash
-node examples/2-secure-agent.js
-```
-Shows how to execute terminal commands via AI tool calling (function execution).
-Demonstrates terminal command execution with security controls using the command allowlist.
-Shows how to automatically approve safe commands and block dangerous ones.
-
-## How It Works
-
-### Pump Mode (New!)
-
-The daemon now supports **pump mode** for testing and debugging:
+Designed to work well with other Unix tools:
 
 ```bash
-node daemon.js --pump
+# Future capability - pipe task lists to create agent sessions
+todo next | d new planner
+
+# Format output for further processing
+d sessions --format json | jq '.[] | select(.state == "running")'
+
+# Combine with other CLI tools
+d sessions --format csv | grep "success" | wc -l
 ```
 
-In pump mode, the daemon:
-- Processes **exactly one iteration** of the event loop
-- Handles all pending agent messages
-- Processes all pending approvals
-- Exits immediately after completion
+## Available Agent Templates
 
-This is useful for:
-- **Testing**: Deterministic, reproducible test scenarios
-- **Debugging**: Step through the workflow manually
-- **Learning**: Understand the processing flow
-- **CI/CD**: Automated testing without long-running processes
+The system comes with several pre-built agent templates:
 
-See [TESTING.md](TESTING.md) for detailed testing documentation.
+- **solo**: General-purpose agent for standalone tasks
+- **planner**: Strategic planning and task breakdown
+- **executor**: Implementation and execution focused
+- **evaluator**: Analysis and assessment tasks
+- **retriever**: Information gathering and research
 
-### Authentication Flow
+## Security
+
+The system includes a comprehensive security allowlist for terminal commands (`storage/terminal-cmd-allowlist.yaml`). Commands are automatically categorized as:
+
+- **Allowed**: Safe commands like `ls`, `cat`, `git status`
+- **Blocked**: Dangerous commands like `rm`, `kill`, `dd`
+- **Pattern-based**: Regex rules for complex command validation
+
+Agents can execute approved commands automatically while flagging risky operations for human review.
+
+## Authentication
+
+The system uses GitHub OAuth device flow for authentication:
 
 1. **Device Flow**: Initiates GitHub OAuth device flow
-2. **Browser Auth**: Opens browser for user to authorize with GitHub
+2. **Browser Auth**: Opens browser for GitHub authorization
 3. **Token Exchange**: Exchanges device code for GitHub OAuth token
-4. **Copilot Token**: Uses OAuth token to get Copilot API token
-5. **Token Caching**: Saves tokens to `.tokens.yaml` for reuse
-6. **Auto Renewal**: Automatically refreshes tokens when expired
+4. **Copilot Token**: Uses OAuth token to get Copilot API access
+5. **Auto Caching**: Saves tokens to `.tokens.yaml` with automatic renewal
 
-### API Integration
-
-Uses the official **OpenAI SDK** with GitHub Copilot's API:
-- Base URL: Dynamic (from token response, e.g., `https://api.individual.githubcopilot.com`)
-- Models: Multiple models supported (GPT-4o, Claude Sonnet 4.5, o1-preview, etc.)
-- Authentication: Bearer token from Copilot API
-- Required Headers:
-  - `Editor-Version`: vscode/1.99.3
-  - `Editor-Plugin-Version`: copilot-chat/0.26.7
-  - `User-Agent`: GitHubCopilotChat/0.26.7
-  - `Copilot-Integration-Id`: vscode-chat
-  - `OpenAI-Intent`: conversation-panel
-
-## Token Storage
-
-Tokens are stored in `.tokens.yaml` in the project directory:
+Tokens are stored securely in `.tokens.yaml` (add to `.gitignore`):
 
 ```yaml
 github_token: ghp_xxxxx...
@@ -141,4 +133,34 @@ expires_at: 1234567890
 api_url: https://api.githubcopilot.com
 ```
 
-**Note**: Add `.tokens.yaml` to `.gitignore` to keep tokens secure.
+## Configuration
+
+System configuration is managed via `config.yaml`:
+
+```yaml
+daemon:
+  checkin_interval: 60  # seconds
+
+github:
+  client_id: "Iv1.b507a08c87ecfe98"  # VSCode Copilot Chat client
+
+copilot:
+  default_api_url: "https://api.githubcopilot.com"
+  user_agent: "GitHubCopilotChat/0.26.7"
+```
+
+## Development
+
+```bash
+# Run tests
+npm test
+
+# Clean transient state
+d clean
+
+# Debug with pump mode
+d pump
+
+# Monitor continuous operation
+d watch
+```
