@@ -300,13 +300,50 @@ Options:
   // console.debug(`Session ${a1} evaluation response:`, response);
 
   if ('watch' == _G.mode) {
-    log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and check in at ${_G.CONFIG.daemon.checkin_interval} second interval`);
-    setInterval(() => {
-      console.log(`Daemon checking-in...`);
+    log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump every ${_G.CONFIG.daemon.checkin_interval} seconds`);
+
+    // Run initial pump
+    try {
+      const initialResult = await Agent.pump();
+      if (initialResult.processed > 0) {
+        log('info', `👀 Initial pump completed. Processed ${initialResult.processed}/${initialResult.total} sessions.`);
+      } else {
+        log('debug', '👀 No idle sessions in initial pump.');
+      }
+    } catch (error) {
+      log('error', `❌ Initial pump failed: ${error.message}`);
+    }
+
+    // Set up interval for continuous pumping
+    setInterval(async () => {
+      try {
+        log('debug', '👀 Watch interval: checking for idle sessions...');
+        const result = await Agent.pump();
+        if (result.processed > 0) {
+          log('info', `👀 Watch pump completed. Processed ${result.processed}/${result.total} sessions.`);
+        } else {
+          log('debug', '👀 No idle sessions to process.');
+        }
+      } catch (error) {
+        log('error', `❌ Watch pump failed: ${error.message}`);
+      }
     }, _G.CONFIG.daemon.checkin_interval * 1000);
+
+    log('info', '👀 Watch mode started. Press Ctrl+C to stop.');
   }
 
   if ('pump' == _G.mode) {
-    log('debug', '🥱 Daemon has nothing to do. 😴💤 Exiting.');
+    log('debug', `⛽ ${color.bold('PUMP MODE:')} Processing idle sessions`);
+    try {
+      const result = await Agent.pump();
+      if (result.processed > 0) {
+        log('info', `⛽ Pump completed. Processed ${result.processed}/${result.total} sessions.`);
+      } else {
+        log('debug', '🥱 No idle sessions to process. 😴💤 Exiting.');
+      }
+    } catch (error) {
+      log('error', `❌ Pump failed: ${error.message}`);
+      process.exit(1);
+    }
   }
 })();

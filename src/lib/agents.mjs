@@ -28,7 +28,7 @@ export class Agent {
   // and its contents are the BT state
 
   static _isValidBtState(state) {
-    return Session.isValidBtState(state);
+    return Session._isValidBtState(state);
   }
 
   // if bt_state is given, write the BT state for a given session_id
@@ -233,22 +233,24 @@ export class Agent {
     return Tool.processPendingCalls(sessionContent, session_id);
   }
 
-  // // perform a single step of the agent orchestrator loop
-  // static async step() {
-  //   // find all sessions
-  //   const sessions = await Agent.list();
+  // perform one pump iteration - process all idle sessions
+  static async pump() {
+    const sessions = await Session.list();
+    const idleSessions = sessions.filter(s => s.bt_state === 'idle');
 
-  //   const a1 = await Agent.fork('planner');
-  //   console.debug(`Forked new agent session: ${ a1 } `);
-  //   const as1 = await Agent.state(a1);
-  //   console.debug(`Session ${ a1 } state: ${ as1 } `);
+    log('info', `⛽ Found ${idleSessions.length} idle session(s) to process`);
 
-  //   const a2 = await Agent.fork('executor');
-  //   console.debug(`Forked new agent session: ${ a2 } `);
-  //   const as2 = await Agent.state(a2);
-  //   console.debug(`Session ${ a2 } state: ${ as2 } `);
+    let processed = 0;
+    for (const session of idleSessions) {
+      try {
+        log('info', `🔄 Processing session ${session.session_id} (${session.agent})`);
+        await Agent.eval(session.session_id);
+        processed++;
+      } catch (error) {
+        log('error', `❌ Failed to process session ${session.session_id}: ${error.message}`);
+      }
+    }
 
-  //   // const response = await Agent.eval(a1);
-  //   // console.debug(`Session ${ a1 } evaluation response: `, response);    
-  // }
+    return { processed, total: idleSessions.length };
+  }
 }
