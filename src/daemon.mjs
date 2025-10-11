@@ -8,14 +8,14 @@ process.removeAllListeners('warning'); // suppress node.js tls warnings etc.
 import fs from 'fs';
 import clipboardy from 'clipboardy';
 import { _G } from './lib/globals.mjs';
-import utils, { relWS, log, readYaml, initializeDirectories, makeDirectories, outputAs, abort, readStdin } from './lib/utils.mjs';
+import utils, { log } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
 import color from './lib/colors.mjs';
 
 // clean up transient files in directories
 async function clean() {
   for (let dir of [_G.PROC_DIR, _G.SESSIONS_DIR, _G.WORKSPACES_DIR, _G.TASKS_DIR]) {
-    dir = relWS(dir);
+    dir = utils.relWS(dir);
     if (dir && fs.existsSync(dir)) {
       await fs.promises.rm(dir, { recursive: true, force: true });
       log('debug', `🧹 Cleaned directory: ${dir}`);
@@ -24,7 +24,7 @@ async function clean() {
 }
 
 async function getConfig() {
-  _G.CONFIG = await readYaml(_G.CONFIG_PATH);
+  _G.CONFIG = await utils.readYaml(_G.CONFIG_PATH);
 }
 
 let logWasUndefined = false;
@@ -65,7 +65,7 @@ async function parseCliArgs() {
 
   if (subcommand === 'clean') {
     await clean();
-    await makeDirectories();
+    await utils.makeDirectories();
     log('info', '🧹 Clean completed. Exiting.');
     process.exit(0);
   }
@@ -77,13 +77,13 @@ async function parseCliArgs() {
 
   if (subcommand === 'sessions') {
     const sessions = await Agent.list();
-    console.log(outputAs(format, sessions, { truncate, flatten }));
+    console.log(utils.outputAs(format, sessions, { truncate, flatten }));
     process.exit(0);
   }
 
   if (subcommand === 'new') {
     if (args.length < 2) {
-      abort(
+      utils.abort(
         'Error: new requires an agent name\n' +
         'Usage: daemon.mjs new <agent> [prompt|-]');
     }
@@ -92,12 +92,12 @@ async function parseCliArgs() {
     let prompt = args.slice(2).join(' ') || null;
 
     // Handle stdin input
-    const stdinData = await readStdin();
+    const stdinData = await utils.readStdin();
 
     if (prompt === '-') {
       // Explicit stdin request
       if (!stdinData) {
-        abort('Error: No stdin provided when "-" specified for prompt');
+        utils.abort('Error: No stdin provided when "-" specified for prompt');
       }
       prompt = stdinData;
     } else if (stdinData) {
@@ -108,16 +108,16 @@ async function parseCliArgs() {
     try {
       const result = await Agent.fork({ agent, prompt });
 
-      console.log(outputAs(format, result, { truncate, flatten }));
+      console.log(utils.outputAs(format, result, { truncate, flatten }));
       process.exit(0);
     } catch (error) {
-      abort(error.message);
+      utils.abort(error.message);
     }
   }
 
   if (subcommand === 'fork') {
     if (args.length < 2) {
-      abort(
+      utils.abort(
         'Error: fork requires a session id' +
         'Usage: daemon.mjs fork <session_id> [prompt]');
     }
@@ -129,16 +129,16 @@ async function parseCliArgs() {
       const result = await Agent.fork({ session_id, prompt });
       if (prompt) result.initial_prompt = prompt;
 
-      console.log(outputAs(format, result, { truncate, flatten }));
+      console.log(utils.outputAs(format, result, { truncate, flatten }));
       process.exit(0);
     } catch (error) {
-      abort(error.message);
+      utils.abort(error.message);
     }
   }
 
   if (subcommand === 'push') {
     if (args.length < 3) {
-      abort(
+      utils.abort(
         `Error: push requires a session ID and prompt` +
         `Usage: daemon.mjs push <session_id> <prompt>`);
     }
@@ -148,16 +148,16 @@ async function parseCliArgs() {
 
     try {
       const result = await Agent.push(sessionId, prompt);
-      console.log(outputAs(format, result, { truncate, flatten }));
+      console.log(utils.outputAs(format, result, { truncate, flatten }));
       process.exit(0);
     } catch (error) {
-      abort(error.message);
+      utils.abort(error.message);
     }
   }
 
   if (subcommand === 'eval') {
     if (args.length < 2) {
-      abort(
+      utils.abort(
         `Error: eval requires a session ID` +
         `Usage: daemon.mjs eval <session_id>`);
     }
@@ -167,10 +167,10 @@ async function parseCliArgs() {
     try {
       await getConfig();
       const result = await Agent.eval(sessionId);
-      console.log(outputAs(format, result, { truncate, flatten }));
+      console.log(utils.outputAs(format, result, { truncate, flatten }));
       process.exit(0);
     } catch (error) {
-      abort(error.message);
+      utils.abort(error.message);
     }
   }
 
@@ -186,12 +186,12 @@ async function parseCliArgs() {
               Object.keys(_G.tools[name]?.definition?.function?.parameters?.properties || {}).join(', '),
         };
       });
-      console.log(outputAs(format, tools, { truncate, flatten }));
+      console.log(utils.outputAs(format, tools, { truncate, flatten }));
       process.exit(0);
     }
 
     if (args.length < 3) {
-      abort(
+      utils.abort(
         `Error: tool requires a tool name and JSON arguments.\n` +
         `Usage: daemon.mjs tool <name> <json-args>`);
     }
@@ -201,10 +201,10 @@ async function parseCliArgs() {
       const jsonArgs = args.slice(2).join(' ');
       const toolArgs = JSON.parse(jsonArgs);
       const result = await Agent.tool(toolName, toolArgs);
-      console.log(outputAs(format, result, { truncate, flatten }));
+      console.log(utils.outputAs(format, result, { truncate, flatten }));
       process.exit(0);
     } catch (error) {
-      abort(error.message);
+      utils.abort(error.message);
     }
   }
 
@@ -281,8 +281,8 @@ Options:
     logWasUndefined = true;
     process.env.LOG = '*'; // show all logs
   }
-  initializeDirectories();
-  await makeDirectories();
+  utils.initializeDirectories();
+  await utils.makeDirectories();
   await getConfig();
   await parseCliArgs();
 

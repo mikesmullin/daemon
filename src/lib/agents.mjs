@@ -3,7 +3,7 @@ const path = await import('path');
 import yaml from 'js-yaml';
 import ejs from 'ejs';
 import { _G } from './globals.mjs';
-import utils, { assert, log, abort, readYaml, writeYaml, unixToIso, unixTime } from './utils.mjs';
+import utils, { log } from './utils.mjs';
 import color from './colors.mjs';
 import { Copilot } from './copilot.mjs';
 import _ from 'lodash';
@@ -52,14 +52,14 @@ export class Agent {
     if (bt_state) { // write
       const procPath = path.join(_G.PROC_DIR, `${session_id}`);
       if (!Agent._isValidBtState(bt_state)) {
-        abort(`Refuse to write ${procPath}. session: ${session_id}, invalid_state: ${bt_state}`);
+        utils.abort(`Refuse to write ${procPath}. session: ${session_id}, invalid_state: ${bt_state}`);
       }
       try {
         await fs.writeFile(procPath, bt_state, 'utf-8');
         log('debug', `Wrote ${procPath}. session: ${session_id}, state: ${bt_state}`);
         return bt_state;
       } catch (err) {
-        abort(`Failed to write ${procPath}. session: ${session_id}, state: ${err.message}`);
+        utils.abort(`Failed to write ${procPath}. session: ${session_id}, state: ${err.message}`);
       }
     }
     else { // read
@@ -67,20 +67,20 @@ export class Agent {
         const sessionPath = path.join(_G.PROC_DIR, session_id);
         const stats = await fs.stat(sessionPath);
         if (!stats.isFile()) {
-          abort(`BT state path for session ${session_id} is not a file`);
+          utils.abort(`BT state path for session ${session_id} is not a file`);
         }
 
         const bt_state_raw = await fs.readFile(sessionPath, 'utf-8');
         const bt_state = bt_state_raw.trim();
         if (!Agent._isValidBtState(bt_state)) {
-          abort(`Invalid BT state "${bt_state}" for session ${session_id}`);
+          utils.abort(`Invalid BT state "${bt_state}" for session ${session_id}`);
         }
         return bt_state;
       } catch (error) {
         if (error.code === 'ENOENT') {
-          abort(`BT state file for session ${session_id} not found`);
+          utils.abort(`BT state file for session ${session_id} not found`);
         } else {
-          abort(`Failed to read BT state for session ${session_id}: ${error.message}`);
+          utils.abort(`Failed to read BT state for session ${session_id}: ${error.message}`);
         }
       }
     }
@@ -149,7 +149,7 @@ export class Agent {
     try {
       const raw = await fs.readFile(_G.NEXT_PATH, 'utf-8');
       if (!/^\d+$/.test(raw)) {
-        abort(`Corrupt next file value "${raw}"`);
+        utils.abort(`Corrupt next file value "${raw}"`);
       }
       const next = String(+raw + 1);
       await fs.writeFile(_G.NEXT_PATH, next, 'utf-8');
@@ -159,7 +159,7 @@ export class Agent {
         await fs.writeFile(_G.NEXT_PATH, '1', 'utf-8');
         return '0';
       }
-      abort(`Failed allocating next session id: ${err.message}`);
+      utils.abort(`Failed allocating next session id: ${err.message}`);
     }
   }
 
@@ -173,7 +173,7 @@ export class Agent {
     try {
       const sessionFileName = `${session_id}.yaml`;
       const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-      const sessionContent = await readYaml(sessionPath);
+      const sessionContent = await utils.readYaml(sessionPath);
 
       // Initialize messages array if it doesn't exist
       if (!sessionContent.spec.messages) {
@@ -191,7 +191,7 @@ export class Agent {
       const messageId = sessionContent.spec.messages.length - 1;
 
       // Write back to file
-      await writeYaml(sessionPath, sessionContent);
+      await utils.writeYaml(sessionPath, sessionContent);
 
       // Return detailed information about the appended message
       return {
@@ -202,7 +202,7 @@ export class Agent {
         message: newMessage.content
       };
     } catch (error) {
-      abort(`Failed to push message to session ${session_id}: ${error.message}`);
+      utils.abort(`Failed to push message to session ${session_id}: ${error.message}`);
     }
   }
 
@@ -218,9 +218,9 @@ export class Agent {
       if (null != session_id) {
         const existingSessionFileName = `${session_id}.yaml`;
         const existingSessionPath = path.join(_G.SESSIONS_DIR, existingSessionFileName);
-        sessionContent = await readYaml(existingSessionPath);
-        assert(sessionContent.apiVersion == 'daemon/v1');
-        assert(sessionContent.kind == 'Agent');
+        sessionContent = await utils.readYaml(existingSessionPath);
+        utils.assert(sessionContent.apiVersion == 'daemon/v1');
+        utils.assert(sessionContent.kind == 'Agent');
 
         if (null == agent) {
           agent = sessionContent.name;
@@ -229,7 +229,7 @@ export class Agent {
       else {
         const templateFileName = `${agent}.yaml`;
         const templatePath = path.join(_G.TEMPLATES_DIR, templateFileName);
-        sessionContent = await readYaml(templatePath);
+        sessionContent = await utils.readYaml(templatePath);
 
         // render EJS in system prompt template, if present
         if (sessionContent.spec.system_prompt) {
@@ -240,7 +240,7 @@ export class Agent {
       }
       const newgSessionFileName = `${new_session_id}.yaml`;
       const newgSessionPath = path.join(_G.SESSIONS_DIR, newgSessionFileName);
-      await writeYaml(newgSessionPath, sessionContent);
+      await utils.writeYaml(newgSessionPath, sessionContent);
 
       if (prompt) {
         await Agent.push(new_session_id, prompt);
@@ -252,7 +252,7 @@ export class Agent {
         prompt,
       };
     } catch (error) {
-      abort(`Failed to fork session for agent ${agent}: ${error.message}`);
+      utils.abort(`Failed to fork session for agent ${agent}: ${error.message}`);
     }
   }
 
@@ -275,13 +275,13 @@ export class Agent {
     try {
       const state = await Agent.state(session_id);
       // if (state !== 'idle') {
-      //   abort(`Cannot eval session ${session_id} in state ${state}`);
+      //   utils.abort(`Cannot eval session ${session_id} in state ${state}`);
       // }
       await Agent.state(session_id, 'running');
 
       const sessionFileName = `${session_id}.yaml`;
       const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-      const sessionContent = await readYaml(sessionPath);
+      const sessionContent = await utils.readYaml(sessionPath);
 
       const toolDefinitions = [];
       const capabilities = sessionContent.metadata.tools || [];
@@ -329,7 +329,7 @@ export class Agent {
         sessionContent.metadata.usage = response.usage;
         for (const choice of response.choices) {
           if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
-          choice.message.ts = unixToIso(_.get(response, 'created', unixTime()));
+          choice.message.ts = utils.unixToIso(_.get(response, 'created', utils.unixTime()));
           choice.message.finish_reason = choice.finish_reason;
           const msg2 = _.pick(choice.message, ['ts', 'role', 'content', 'tool_calls', 'finish_reason']);
           if (msg2.role == 'user') utils.logUser(msg2.content);
@@ -353,7 +353,7 @@ export class Agent {
       }
 
       if (sessionUpdated) {
-        await writeYaml(sessionPath, sessionContent);
+        await utils.writeYaml(sessionPath, sessionContent);
       }
 
       await Agent.state(session_id, 'idle');
@@ -366,14 +366,14 @@ export class Agent {
       };
     } catch (error) {
       await Agent.state(session_id, 'fail');
-      abort(error.message);
+      utils.abort(error.message);
     }
   }
 
   // execute an agent tool
   static async tool(name, args, options = {}) {
     const tool = _G.tools[name];
-    assert(tool, `Unknown tool: ${name} `);
+    utils.assert(tool, `Unknown tool: ${name} `);
 
     try {
       // Set session context if available
