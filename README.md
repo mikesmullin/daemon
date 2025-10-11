@@ -9,13 +9,15 @@ We aim to be deterministic, testable, auditable, and composable.
 
 ## Features
 
-- 🤖 **Multi-agent orchestration** - Delegate tasks across specialized AI agents
-- 📄 **YAML-based agent templates** - Clean, structured agent definitions
-- 🔄 **Session-based conversations** - Persistent, stateful agent interactions
-- 🔒 **Security allowlist** - Safe terminal command execution with approval controls
-- 🛠️ **Rich tool ecosystem** - File operations, shell execution, web fetching, and more
-- 🔑 **GitHub OAuth integration** - Seamless authentication with automatic token management
-- 🚀 **Pump/Watch modes** - Run one iteration or continuously monitor
+- 🤖 **Multi-agent orchestration** - Delegate tasks across specialized AI agents that collaborate autonomously
+- ⚡ **Quick-prompt mode** - Get instant command suggestions with `d "your task"` 
+- 📄 **YAML-based agent templates** - Clean, structured agent definitions for reusable behaviors
+- 🔄 **Session-based workflows** - Persistent, stateful agent interactions with BehaviorTree state management
+- 🔒 **Security allowlist** - Safe terminal command execution with comprehensive approval controls
+- 🛠️ **Rich tool ecosystem** - File operations, shell execution, web fetching, agent coordination (future: MCP integration)
+- 🔑 **GitHub Copilot integration** - Native GitHub OAuth with automatic token management
+- ⛽ **Pump mode** - Step-through debugging for development and external orchestration
+- 👀 **Watch mode** - Continuous background operation for daily workflows  
 - 🔗 **Pipeline-friendly** - Designed for Unix-style stdin/stdout composition
 - 📊 **Multiple output formats** - JSON, YAML, CSV, and table output for scripting
 
@@ -27,23 +29,41 @@ Code built with Node.js ES6 module syntax, with dependencies:
 - **OpenAI SDK** for Copilot API compatibility
 
 ### Agent Templates (`agents/templates/*.yaml`)
-Reusable agent blueprints that define:
+Reusable agent blueprints that define specialized behaviors:
 - Agent capabilities and system prompts
-- Available tools and models
-- Behavioral parameters
-- Can be versioned and shared across projects
+- Available tools and model preferences  
+- Behavioral parameters and constraints
+- Versioned and shareable across projects
+- Future: Templates for complex multi-agent collaboration patterns
 
 ### Agent Sessions (`agents/sessions/`)
 Active conversation instances created from templates:
-- Persistent conversation history
-- Session state tracking (idle, running, success, fail)
-- Multiple sessions can be spawned from the same template
+- Persistent conversation history and context
+- BehaviorTree state tracking: `idle`, `running`, `pending`, `fail`
+- Multiple sessions can spawn from the same template
 - Isolated workspaces for each session
+- Sessions can spawn sub-agent sessions for task delegation
 
-### Daemon Modes
-- **Pump mode**: Execute one iteration and exit (perfect for testing/debugging)
-- **Watch mode**: Continuous monitoring with configurable check-in intervals
-- **Command mode**: Direct session manipulation (new, push, fork, eval)
+### Operation Modes
+
+**Quick-prompt mode** (`d "task"`):
+- Instant command suggestions for immediate tasks
+- Future: Intelligent agent team orchestration for complex requests
+- Example: `d "read slack and reply"` → spawns retriever + executor + evaluator agents
+
+**Pump mode** (`d pump`):  
+- Execute one iteration and exit
+- Perfect for development, testing, and external orchestration
+- Enables step-through debugging and state inspection
+
+**Watch mode** (`d watch`):
+- Continuous background monitoring with configurable intervals
+- Processes pending sessions autonomously 
+- Ideal for daily operation and long-running workflows
+
+**Session management**:
+- Direct session manipulation (new, push, fork, eval)
+- Pipeline-friendly for automation and scripting
 
 ## Installation
 
@@ -54,82 +74,112 @@ npm link  # Creates global 'd' command alias
 
 ## Usage
 
-Use `d --help` to see all available commands and options. The tool follows Unix philosophy with simple, composable commands:
+The tool offers three primary interaction patterns:
+
+### 1. Quick-Prompt Mode (Most Common)
+Get instant command suggestions or trigger agent workflows:
+
+```bash
+# Simple command help
+d "check if redis is running"
+d "find large files in current directory"
+d "deploy app to staging"
+
+# Future: Complex multi-agent workflows
+d "read slack and reply"           # → spawns retriever + executor + evaluator
+d "code review pull request #123"  # → spawns analyzer + reviewer + commenter
+```
+
+### 2. Session Management
+Direct control over agent conversations:
 
 ```bash
 # Create a new agent session
 d new solo "Check if Redis is running with podman"
+d new executor "Deploy the application to staging"
 
 # Create session from stdin (pipe-friendly)
-echo "System status check" | d new solo
-echo "Deploy app" | d new executor -
+echo "System status check" | d new solo -
+todo next | d new planner
 
-# List all active sessions
-d sessions
+# Interact with existing sessions
+d sessions                    # List all sessions
+d push 0 "Now check PostgreSQL as well"  # Add message to session
+d fork 0 "Use docker instead of podman"  # Fork session with new direction
+d eval 0                      # Process pending work in session
+```
 
-# Add a message to an existing session
-d push 0 "Now check PostgreSQL as well"
+### 3. Daemon Operations
+Background orchestration and development modes:
 
-# Fork a session to try a different approach
-d fork 0 "Use docker instead of podman"
+```bash
+# Development and debugging
+d pump                        # Process one iteration, then exit
+d clean                       # Reset all transient state
 
-# Evaluate a session (let the agent process pending work)
-d eval 0
+# Background operation  
+d watch                       # Continuous monitoring of pending sessions
 
-# Run daemon in pump mode (one iteration, then exit)
-d pump
-
-# Run daemon in watch mode (continuous monitoring)
-d watch
+# Inspect system state
+d sessions --format json      # Machine-readable session status
+d tool                        # List available agent tools
 ```
 
 ### Pipeline Integration
 
-Designed to work well with other Unix tools:
+Designed to work seamlessly with Unix tools and automation:
 
 ```bash
-# Pipe task lists to create agent sessions
+# Pipe tasks to agents
 todo next | d new planner
-
-# Use explicit stdin syntax
-echo "Check system status" | d new solo -
-
-# Combine prompt with stdin
-echo "Additional context" | d new executor "Deploy the application"
-
-# Format output for further processing
-d sessions --format json | jq '.[] | select(.state == "running")'
+kubectl get pods --field-selector=status.phase=Failed | d new troubleshooter -
 
 # Combine with other CLI tools
-d sessions --format csv | grep "success" | wc -l
+d sessions --format json | jq '.[] | select(.state == "pending")'
+d sessions --format csv | grep "idle" | wc -l
+
+# External orchestration (via pump mode)
+while true; do
+  d pump
+  sleep 30
+done
 ```
 
 ## Available Agent Templates
 
-The system comes with several pre-built agent templates:
+The system includes specialized agent templates for different workflows:
 
-- **solo**: General-purpose agent for standalone tasks
-- **planner**: Strategic planning and task breakdown
-- **executor**: Implementation and execution focused
-- **evaluator**: Analysis and assessment tasks
-- **retriever**: Information gathering and research
+- **solo**: General-purpose agent for standalone tasks and quick automation
+- **planner**: Strategic planning, task breakdown, and workflow orchestration  
+- **executor**: Implementation-focused agent for running commands and deployments
+- **evaluator**: Analysis, testing, and quality assessment tasks
+- **retriever**: Information gathering, research, and data collection
+
+*Future: Templates will support complex multi-agent collaboration patterns where agents automatically spawn and coordinate sub-agents for sophisticated workflows.*
 
 ## Security
 
-The system includes a comprehensive security allowlist for terminal commands (`storage/terminal-cmd-allowlist.yaml`). Commands are automatically categorized as:
+The system includes a comprehensive security allowlist for terminal commands (`storage/terminal-cmd-allowlist.yaml`) - a central feature for safe agent operation:
 
-- **Allowed**: Safe commands like `ls`, `cat`, `git status`
-- **Blocked**: Dangerous commands like `rm`, `kill`, `dd`
-- **Pattern-based**: Regex rules for complex command validation
+**Command Classification:**
+- **Allowed**: Safe commands like `ls`, `cat`, `git status`, `kubectl get`
+- **Blocked**: Dangerous commands like `rm -rf`, `kill`, `dd`, `mkfs`  
+- **Pattern-based**: Regex rules for complex command validation and parameter restrictions
 
-Agents can execute approved commands automatically while flagging risky operations for human review.
+**Security Features:**
+- Agents execute approved commands automatically
+- Risky operations flagged for human review
+- Allowlist is extensible and version-controlled
+- Commands logged for audit trails
+
+*The allowlist system is essential for autonomous agent operation while maintaining system security.*
 
 ## Authentication
 
 The system uses GitHub OAuth device flow for authentication:
 
 1. **Device Flow**: Initiates GitHub OAuth device flow
-2. **Browser Auth**: Opens browser for GitHub authorization
+2. **Browser Auth**: Opens browser for GitHub authorization  
 3. **Token Exchange**: Exchanges device code for GitHub OAuth token
 4. **Copilot Token**: Uses OAuth token to get Copilot API access
 5. **Auto Caching**: Saves tokens to `.tokens.yaml` with automatic renewal
@@ -145,20 +195,45 @@ api_url: https://api.githubcopilot.com
 
 ## Configuration
 
-System configuration is managed via [config.yaml](config.yaml).
+System configuration via `config.yaml`:
+
+- **Daemon settings**: Watch mode polling intervals, session timeouts
+- **GitHub OAuth**: Device flow endpoints and client configuration  
+- **Copilot API**: Endpoint URLs and authentication parameters
+- **Security**: Terminal allowlist policies and tool restrictions
+
+See [config.yaml](config.yaml) for current settings.
 
 ## Development
 
 ```bash
-# Run tests
-npm test
+# Install and link globally
+npm install
+npm link                      # Creates global 'd' command
 
-# Clean transient state
-d clean
+# Development workflow
+d clean                       # Reset all transient state  
+d pump                        # Debug single iteration
+d watch                       # Test continuous operation
 
-# Debug with pump mode
-d pump
-
-# Monitor continuous operation
-d watch
+# Testing
+npm test                      # Run test suite
+./tests/integration/agent-demo.sh  # Integration tests
 ```
+
+## Roadmap
+
+**Near-term:**
+- Enhanced multi-agent collaboration workflows
+- Expanded tool ecosystem with MCP (Model Context Protocol) integration
+- Advanced session state management and recovery
+- Template sharing and versioning system
+
+**Long-term:**
+- Multi-provider LLM support (while maintaining Copilot focus)
+- File-based workflow designer for complex agent orchestrations  
+- Plugin ecosystem for domain-specific agent behaviors
+- Enterprise features: audit logs, role-based access, team collaboration
+
+**Vision:**
+Transform from command-line helper to full autonomous agent orchestration platform - where simple prompts like `d "deploy feature X"` automatically coordinate teams of specialized agents to handle complex, multi-step workflows.
