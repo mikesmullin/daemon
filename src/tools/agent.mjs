@@ -8,7 +8,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { Agent } from '../lib/agents.mjs';
 
-export const list_sessions = {
+_G.tools.list_sessions = {
   definition: {
     type: 'function',
     function: {
@@ -31,7 +31,7 @@ export const list_sessions = {
   }
 };
 
-export const append_prompt = {
+_G.tools.append_prompt = {
   definition: {
     type: 'function',
     function: {
@@ -68,7 +68,7 @@ export const append_prompt = {
   }
 };
 
-export const new_session = {
+_G.tools.new_session = {
   definition: {
     type: 'function',
     function: {
@@ -105,7 +105,7 @@ export const new_session = {
   }
 };
 
-export const fork_session = {
+_G.tools.fork_session = {
   definition: {
     type: 'function',
     function: {
@@ -142,7 +142,7 @@ export const fork_session = {
   }
 };
 
-export const kill_session = {
+_G.tools.kill_session = {
   definition: {
     type: 'function',
     function: {

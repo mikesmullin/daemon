@@ -7,7 +7,7 @@
 import { _G } from '../lib/globals.mjs';
 import { spawnAsync } from '../lib/utils.mjs';
 
-export const create_task = {
+_G.tools.create_task = {
   definition: {
     type: 'function',
     function: {
@@ -113,7 +113,7 @@ export const create_task = {
   }
 };
 
-export const query_tasks = {
+_G.tools.query_tasks = {
   definition: {
     type: 'function',
     function: {

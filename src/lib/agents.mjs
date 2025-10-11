@@ -9,28 +9,12 @@ import { Copilot } from './copilot.mjs';
 import _ from 'lodash';
 import os from 'os';
 
-// agent tools
-import { create_file, view_file, edit_file, apply_patch, list_directory, create_directory } from '../tools/fs.mjs';
-import { execute_shell } from '../tools/shell.mjs';
-import { create_task, query_tasks } from '../tools/tasks.mjs';
-import { list_sessions, append_prompt, new_session, fork_session, kill_session } from '../tools/agent.mjs';
-import { fetch_webpage } from '../tools/web.mjs';
-// registry of available tools
-_G.tools.create_file = create_file;
-_G.tools.view_file = view_file;
-_G.tools.edit_file = edit_file;
-_G.tools.apply_patch = apply_patch;
-_G.tools.list_directory = list_directory;
-_G.tools.create_directory = create_directory;
-_G.tools.execute_shell = execute_shell;
-_G.tools.create_task = create_task;
-_G.tools.query_tasks = query_tasks;
-_G.tools.list_sessions = list_sessions;
-_G.tools.new_session = new_session;
-_G.tools.append_prompt = append_prompt;
-_G.tools.fork_session = fork_session;
-_G.tools.kill_session = kill_session;
-_G.tools.fetch_webpage = fetch_webpage;
+// Auto-register all tools
+import '../tools/fs.mjs';
+import '../tools/shell.mjs';
+import '../tools/tasks.mjs';
+import '../tools/agent.mjs';
+import '../tools/web.mjs';
 
 export class Agent {
   // Agents follow BehaviorTree (BT) patterns

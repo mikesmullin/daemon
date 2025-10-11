@@ -6,7 +6,7 @@
 import { _G } from '../lib/globals.mjs';
 import utils, { log } from '../lib/utils.mjs';
 
-export const fetch_webpage = {
+_G.tools.fetch_webpage = {
   definition: {
     type: 'function',
     function: {

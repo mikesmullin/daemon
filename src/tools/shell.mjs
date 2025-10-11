@@ -7,7 +7,7 @@ import { _G } from '../lib/globals.mjs';
 import utils from '../lib/utils.mjs';
 import { executeCommandWithCheck } from './terminal-allowlist.js';
 
-export const execute_shell = {
+_G.tools.execute_shell = {
   definition: {
     type: 'function',
     function: {

@@ -199,7 +199,7 @@ function countChanges(oldContent, newContent) {
   return { additions, removals };
 }
 
-export const create_file = {
+_G.tools.create_file = {
   definition: {
     type: 'function',
     function: {
@@ -243,7 +243,7 @@ export const create_file = {
   }
 };
 
-export const list_directory = {
+_G.tools.list_directory = {
   definition: {
     type: 'function',
     function: {
@@ -285,7 +285,7 @@ export const list_directory = {
   }
 };
 
-export const create_directory = {
+_G.tools.create_directory = {
   definition: {
     type: 'function',
     function: {
@@ -313,7 +313,7 @@ export const create_directory = {
   }
 };
 
-export const view_file = {
+_G.tools.view_file = {
   definition: {
     type: 'function',
     function: {
@@ -385,7 +385,7 @@ export const view_file = {
   }
 };
 
-export const edit_file = {
+_G.tools.edit_file = {
   definition: {
     type: 'function',
     function: {
@@ -521,7 +521,7 @@ The tool will fail safely if:
   }
 };
 
-export const apply_patch = {
+_G.tools.apply_patch = {
   definition: {
     type: 'function',
     function: {
