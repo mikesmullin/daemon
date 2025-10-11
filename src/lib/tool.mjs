@@ -1,7 +1,9 @@
 import { _G } from './globals.mjs';
 import utils, { log } from './utils.mjs';
 import color from './colors.mjs';
-import read from 'read';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { read } = require('read');
 
 /**
  * Tool Management Class
@@ -36,18 +38,18 @@ export class Tool {
       // 1. Run preToolUse hook if it exists
       if (tool.metadata?.preToolUse) {
         const decision = await tool.metadata.preToolUse(args, { sessionId });
-        
+
         if (decision === 'deny') {
-          return { 
-            content: "Tool execution denied by security policy", 
-            metadata: { denied: true, reason: 'security_policy' }, 
-            success: false 
+          return {
+            content: "Tool execution denied by security policy",
+            metadata: { denied: true, reason: 'security_policy' },
+            success: false
           };
         }
-        
+
         if (decision === 'approve') {
           const approval = await Tool.askHuman(name, args, sessionId);
-          
+
           if (approval.action === 'rejected') {
             return {
               content: "The user refused to run the tool. You may try alternatives, or ask them to explain.",
@@ -55,7 +57,7 @@ export class Tool {
               success: false
             };
           }
-          
+
           if (approval.action === 'modified') {
             return {
               content: `The user refused to run the tool. Try this instead: ${approval.prompt}`,
@@ -63,10 +65,10 @@ export class Tool {
               success: false
             };
           }
-          
+
           // If approved, continue to execution
         }
-        
+
         // If 'allow' or approved, proceed to execution
       }
 
@@ -75,10 +77,10 @@ export class Tool {
       return result;
 
     } catch (error) {
-      return { 
-        content: `Tool execution error: ${error.message}`, 
-        metadata: { error: error.message }, 
-        success: false 
+      return {
+        content: `Tool execution error: ${error.message}`,
+        metadata: { error: error.message },
+        success: false
       };
     }
   }
@@ -108,7 +110,7 @@ export class Tool {
    */
   static async askHuman(name, args, sessionId) {
     const tool = _G.tools[name];
-    
+
     // Get tool-specific context for the approval prompt
     let toolContext = '';
     if (tool.metadata?.getApprovalPrompt) {
@@ -118,11 +120,11 @@ export class Tool {
     // Display eye-catching approval prompt
     console.log('\\n' + color.red('🔧 TOOL APPROVAL REQUIRED 🔧'));
     console.log(color.yellow(`Tool: ${name}`));
-    
+
     if (toolContext) {
       console.log(color.cyan(toolContext));
     }
-    
+
     console.log('\\n' + color.white('Type APPROVE (exact case) to proceed'));
     console.log(color.white('Press R + ENTER to reject'));
     console.log(color.white('Press M + ENTER to modify'));
@@ -131,7 +133,7 @@ export class Tool {
     while (true) {
       try {
         const response = await new Promise((resolve, reject) => {
-          read({ prompt: color.bold('Your choice: ') }, (err, result) => {
+          read({ prompt: color.bold('Your choice: '), silent: false }, (err, result) => {
             if (err) reject(err);
             else resolve(result);
           });
@@ -154,11 +156,12 @@ export class Tool {
         // Check for modify (M or m)
         if (trimmed.toLowerCase() === 'm') {
           console.log(color.yellow('📝 User wants to modify the request'));
-          
+
           // Get alternative prompt from user
           const userPrompt = await new Promise((resolve, reject) => {
-            read({ 
-              prompt: color.bold('Enter your alternative request: ') 
+            read({
+              prompt: color.bold('Enter your alternative request: '),
+              silent: false
             }, (err, result) => {
               if (err) reject(err);
               else resolve(result);
@@ -207,7 +210,7 @@ export class Tool {
         for (const toolCall of message.tool_calls) {
           // Check if this tool call needs to be executed
           let shouldExecute = true;
-          
+
           // Look for existing tool result for this call
           for (const message2 of sessionContent.spec.messages) {
             if (message2.role == 'tool' && message2.tool_call_id == toolCall.id) {
@@ -223,7 +226,7 @@ export class Tool {
               // Parse arguments and execute the tool through our approval workflow
               const args = JSON.parse(toolCall.function.arguments);
               const result = await Tool.execute(toolCall.function.name, args, session_id);
-              
+
               // Use the content field for API compatibility, but keep rich metadata
               const content = result.content || JSON.stringify(result, null, 2);
 
@@ -239,7 +242,7 @@ export class Tool {
               if (content) {
                 console.log(content);
               }
-              
+
               if (result.success) {
                 log('info', `✅ Tool ${color.bold(toolCall.function.name)} succeeded. #${toolCall.id}`);
               } else {

@@ -29,6 +29,29 @@ _G.tools.execute_shell = {
       }
     }
   },
+  metadata: {
+    requiresHumanApproval: true,
+
+    preToolUse: async (args, context) => {
+      // Security check - delegate to existing allowlist system
+      // This determines if human approval is needed
+      const isAllowed = await utils.isCommandAllowed?.(args.command);
+
+      if (isAllowed === true) {
+        return 'allow';  // Execute without approval
+      } else if (isAllowed === false) {
+        return 'deny';   // Block execution entirely
+      } else {
+        return 'approve'; // Request human approval
+      }
+    },
+
+    getApprovalPrompt: async (args, context) => {
+      return `Shell command: ${args.command}\n` +
+        `Working directory: ${args.cwd || 'current'}\n` +
+        `⚠️  This command may modify your system or files.`;
+    }
+  },
   execute: async (args, options = {}) => {
     utils.logShell(args.command);
 

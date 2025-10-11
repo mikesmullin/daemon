@@ -221,6 +221,33 @@ _G.tools.create_file = {
       }
     }
   },
+  metadata: {
+    requiresHumanApproval: false,  // File creation is generally safe
+
+    preToolUse: async (args, context) => {
+      // Check if trying to overwrite critical system files
+      const criticalPaths = ['/etc/', '/bin/', '/usr/bin/', '/sys/', '/proc/'];
+      const filePath = args.filePath;
+
+      if (criticalPaths.some(path => filePath.startsWith(path))) {
+        return 'deny';
+      }
+
+      // Check if file already exists (should be handled by tool logic but safety first)
+      if (existsSync(filePath)) {
+        return 'approve'; // Ask user since tool says it won't edit existing files
+      }
+
+      return 'allow';
+    },
+
+    getApprovalPrompt: async (args, context) => {
+      const exists = existsSync(args.filePath);
+      return `Creating file: ${args.filePath}\n` +
+        `Content length: ${args.content.length} characters\n` +
+        (exists ? `⚠️  File already exists and will be overwritten!` : `✅ New file creation`);
+    }
+  },
   execute: async (args) => {
     try {
       // Check if file already exists

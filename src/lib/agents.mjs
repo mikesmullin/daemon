@@ -6,6 +6,8 @@ import { _G } from './globals.mjs';
 import utils, { log } from './utils.mjs';
 import color from './colors.mjs';
 import { Copilot } from './copilot.mjs';
+import { Session } from './session.mjs';
+import { Tool } from './tool.mjs';
 import _ from 'lodash';
 import os from 'os';
 
@@ -26,168 +28,34 @@ export class Agent {
   // and its contents are the BT state
 
   static _isValidBtState(state) {
-    return ['idle', 'running', 'success', 'fail'].includes(state);
+    return Session.isValidBtState(state);
   }
 
   // if bt_state is given, write the BT state for a given session_id
   // else return the current BT state for a given session_id
   // aborts if the state file does not exist, is invalid, or any error occurs
   static async state(session_id, bt_state) {
-    if (bt_state) { // write
-      const procPath = path.join(_G.PROC_DIR, `${session_id}`);
-      if (!Agent._isValidBtState(bt_state)) {
-        utils.abort(`Refuse to write ${procPath}. session: ${session_id}, invalid_state: ${bt_state}`);
-      }
-      try {
-        await fs.writeFile(procPath, bt_state, 'utf-8');
-        log('debug', `Wrote ${procPath}. session: ${session_id}, state: ${bt_state}`);
-        return bt_state;
-      } catch (err) {
-        utils.abort(`Failed to write ${procPath}. session: ${session_id}, state: ${err.message}`);
-      }
-    }
-    else { // read
-      try {
-        const sessionPath = path.join(_G.PROC_DIR, session_id);
-        const stats = await fs.stat(sessionPath);
-        if (!stats.isFile()) {
-          utils.abort(`BT state path for session ${session_id} is not a file`);
-        }
-
-        const bt_state_raw = await fs.readFile(sessionPath, 'utf-8');
-        const bt_state = bt_state_raw.trim();
-        if (!Agent._isValidBtState(bt_state)) {
-          utils.abort(`Invalid BT state "${bt_state}" for session ${session_id}`);
-        }
-        return bt_state;
-      } catch (error) {
-        if (error.code === 'ENOENT') {
-          utils.abort(`BT state file for session ${session_id} not found`);
-        } else {
-          utils.abort(`Failed to read BT state for session ${session_id}: ${error.message}`);
-        }
-      }
-    }
+    return Session.state(session_id, bt_state);
   }
 
   // list agent sessions and their BT state
   static async list() {
-    try {
-      log('debug', `Listing sessions in ${_G.PROC_DIR}`);
-
-      const session_ids = await fs.readdir(_G.PROC_DIR);
-      const sessions = [];
-
-      for (const session_id of session_ids) {
-        if ('_next' == session_id) continue;
-        const bt_state = await Agent.state(session_id);
-        if (bt_state) {
-          // Read session file to get additional details
-          const sessionFileName = `${session_id}.yaml`;
-          const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-
-          let agent = 'unknown';
-          let model = 'unknown';
-          let last_message = '';
-
-          try {
-            const sessionContent = await fs.readFile(sessionPath, 'utf-8');
-            const sessionData = yaml.load(sessionContent);
-
-            // Extract agent and model from metadata
-            if (sessionData.metadata) {
-              agent = sessionData.metadata.name || 'unknown';
-              model = sessionData.metadata.model || 'unknown';
-            }
-
-            // Extract last message
-            if (sessionData.spec.messages && sessionData.spec.messages.length > 0) {
-              const lastMsg = sessionData.spec.messages[sessionData.spec.messages.length - 1];
-              // Format as "timestamp role: content" (no truncation here - let outputAs handle it)
-              const content = lastMsg.content || '';
-              last_message = `${lastMsg.ts || ''} ${lastMsg.role || ''}: ${content}`;
-            }
-          } catch (fileError) {
-            log('debug', `Could not read session file ${sessionFileName}: ${fileError.message}`);
-          }
-
-          sessions.push({
-            session_id: session_id,
-            bt_state,
-            agent,
-            model,
-            last_message
-          });
-        }
-      }
-
-      return sessions;
-    } catch (error) {
-      log('error', `Failed to list sessions: ${error.message}`);
-      return [];
-    }
+    return Session.list();
   }
 
   // generate the next agent session ID (a monotonically increasing integer)
   static async nextId() {
-    try {
-      const raw = await fs.readFile(_G.NEXT_PATH, 'utf-8');
-      if (!/^\d+$/.test(raw)) {
-        utils.abort(`Corrupt next file value "${raw}"`);
-      }
-      const next = String(+raw + 1);
-      await fs.writeFile(_G.NEXT_PATH, next, 'utf-8');
-      return raw;
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        await fs.writeFile(_G.NEXT_PATH, '1', 'utf-8');
-        return '0';
-      }
-      utils.abort(`Failed allocating next session id: ${err.message}`);
-    }
+    return Session.nextId();
   }
 
   // mark an agent session with a new BT state
   static async kill(session_id, bt_state = 'fail') {
-    return await Agent.state(session_id, bt_state);
+    return Session.state(session_id, bt_state);
   }
 
   // append a new user message to an agent session
   static async push(session_id, prompt) {
-    try {
-      const sessionFileName = `${session_id}.yaml`;
-      const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-      const sessionContent = await utils.readYaml(sessionPath);
-
-      // Initialize messages array if it doesn't exist
-      if (!sessionContent.spec.messages) {
-        sessionContent.spec.messages = [];
-      }
-
-      // Add new user message with timestamp
-      const newMessage = {
-        ts: new Date().toISOString(),
-        role: 'user',
-        content: prompt
-      };
-
-      sessionContent.spec.messages.push(newMessage);
-      const messageId = sessionContent.spec.messages.length - 1;
-
-      // Write back to file
-      await utils.writeYaml(sessionPath, sessionContent);
-
-      // Return detailed information about the appended message
-      return {
-        session_id: session_id,
-        message_id: messageId,
-        ts: newMessage.ts,
-        role: newMessage.role,
-        message: newMessage.content
-      };
-    } catch (error) {
-      utils.abort(`Failed to push message to session ${session_id}: ${error.message}`);
-    }
+    return Session.push(session_id, prompt);
   }
 
   // fork a new agent session from a template or an existing session
@@ -267,13 +135,14 @@ export class Agent {
       const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
       const sessionContent = await utils.readYaml(sessionPath);
 
-      const toolDefinitions = [];
       const capabilities = sessionContent.metadata.tools || [];
+      const availableTools = [];
       for (const name in _G.tools) {
         if (capabilities.includes(name)) {
-          toolDefinitions.push(_G.tools[name].definition);
+          availableTools.push(_G.tools[name]);
         }
       }
+      const toolDefinitions = Tool.prepareToolsForAPI(availableTools);
 
       let sessionUpdated = await Agent.processPendingToolCalls(sessionContent, session_id);
       const system_prompt = sessionContent.spec.system_prompt || 'You are a helpful assistant.';
@@ -356,108 +225,12 @@ export class Agent {
 
   // execute an agent tool
   static async tool(name, args, options = {}) {
-    const tool = _G.tools[name];
-    utils.assert(tool, `Unknown tool: ${name} `);
-
-    try {
-      // Set session context if available
-      const sessionId = options.sessionId;
-      if (sessionId !== undefined) {
-        _G.currentSessionId = sessionId;
-      }
-
-      const result = await tool.execute(args, options);
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    return Tool.execute(name, args, options.sessionId);
   }
 
   // process pending tool calls from session file
   static async processPendingToolCalls(sessionContent, session_id = null) {
-    if (!sessionContent.spec?.messages) {
-      return;
-    }
-
-    let sessionUpdated = false;
-
-    // Find tool_calls messages and process pending calls
-    for (const message of sessionContent.spec.messages) {
-      if (message.role === 'assistant' && message.tool_calls) {
-        for (const toolCall of message.tool_calls) {
-          // Check if this tool call needs to be executed
-          let shouldExecute = true;
-          // for (const attempt of sessionContent.metadata.attempts || []) {
-          //   if (attempt.tool_call_id === toolCall.id) {
-          //     shouldExecute = false;
-          //     break;
-          //   }
-          // }
-          for (const message2 of sessionContent.spec.messages) {
-            if (message2.role == 'tool' && message2.tool_call_id == toolCall.id) {
-              shouldExecute = false;
-              break;
-            }
-          }
-
-          if (shouldExecute) {
-            log('warn', `🔧 Executing tool call ${color.bold(toolCall.function.name)} #${toolCall.id}`);
-
-            // Update attempts tracking
-            // if (!sessionContent.metadata.attempts) {
-            //   sessionContent.metadata.attempts = [];
-            // }
-            // sessionContent.metadata.attempts.push({
-            //   tool_call_id: toolCall.id,
-            //   lastRunAt: new Date().toISOString()
-            // });
-            // sessionUpdated = true;
-
-            try {
-              // Parse arguments and execute the tool
-              const args = JSON.parse(toolCall.function.arguments);
-              const result = await Agent.tool(toolCall.function.name, args, { sessionId: session_id });
-              const content = result.content ? result.content : JSON.stringify(result, null, 2);
-
-              // Add tool result message to session
-              sessionContent.spec.messages.push({
-                ts: new Date().toISOString(),
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content,
-              });
-
-              if (content) {
-                console.log(content);
-              }
-              if (true == result.success) {
-                log('info', `✅ Tool ${color.bold(toolCall.function.name)} succeeded. #${toolCall.id}`);
-              }
-              else {
-                log('error', `❌ Tool ${color.bold(toolCall.function.name)} failed. #${toolCall.id} Error: ${content}`);
-              }
-            } catch (error) {
-              // Add error result message to session
-              sessionContent.spec.messages.push({
-                ts: new Date().toISOString(),
-                role: 'tool_result',
-                content: {
-                  success: false,
-                  error: error.message
-                },
-                tool_call_id: toolCall.id
-              });
-
-              log('error', `Error during Tool call ${color.bold(toolCall.function.name)}.error: `, error.message);
-            }
-
-            sessionUpdated = true;
-          }
-        }
-      }
-    }
-
-    return sessionUpdated;
+    return Tool.processPendingCalls(sessionContent, session_id);
   }
 
   // // perform a single step of the agent orchestrator loop

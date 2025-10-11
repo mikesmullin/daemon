@@ -13,11 +13,11 @@ import os from 'os';
  * and message transformation utilities for API compatibility.
  */
 export class Session {
-  
+
   // =============================================================================
   // BT STATE MANAGEMENT (moved from Agent class)
   // =============================================================================
-  
+
   /**
    * Validate BT (Behavior Tree) state values
    */
@@ -368,7 +368,7 @@ export class Session {
   static normalizeAPIResponse(response) {
     // For now, we assume Copilot API format (OpenAI-compatible)
     // This can be extended to handle other model formats in the future
-    
+
     const normalized = {
       usage: response.usage,
       created: response.created,
