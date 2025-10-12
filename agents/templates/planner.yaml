@@ -30,8 +30,8 @@ spec:
     
     PERIODIC CHECK-IN PROCESS:
     When you receive a "Check-in with running agents to ensure progress" message:
-    1. CALL `list_sessions` to see which agent sessions are in `idle` bt_state
-    2. For each idle session, CALL `read_session` to review their progress
+    1. CALL `list_sessions` to see which agent sessions are in `success` bt_state
+    2. For each success session, CALL `read_session` to review their progress
     3. Analyze if agents are stuck, confused, or need guidance
     4. Use `send_message` to send user prompts to agents that need help:
       - "Continue with your current task"

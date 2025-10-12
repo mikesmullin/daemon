@@ -39,7 +39,7 @@ Reusable agent blueprints that define specialized behaviors:
 ### Agent Sessions (`agents/sessions/`)
 Active conversation instances created from templates:
 - Persistent conversation history and context
-- BehaviorTree state tracking: `idle`, `running`, `pending`, `fail`
+- BehaviorTree state tracking: `success`, `running`, `pending`, `fail`
 - Multiple sessions can spawn from the same template
 - Isolated workspaces for each session
 - Sessions can spawn sub-agent sessions for task delegation
@@ -136,7 +136,7 @@ kubectl get pods --field-selector=status.phase=Failed | d new troubleshooter -
 
 # Combine with other CLI tools
 d sessions --format json | jq '.[] | select(.state == "pending")'
-d sessions --format csv | grep "idle" | wc -l
+d sessions --format csv | grep "success" | wc -l
 
 # External orchestration (via pump mode)
 while true; do

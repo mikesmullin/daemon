@@ -22,7 +22,6 @@ export class Agent {
   // Agents follow BehaviorTree (BT) patterns
   // each Agent can have zero or more Sessions
   // every Session has a corresponding BT state
-  // valid BT states are: idle, running, success, fail
   // states are recorded as lock files in _G.PROC_DIR
   // where a lock file is named <session_id>
   // and its contents are the BT state
@@ -64,7 +63,7 @@ export class Agent {
       // Generate new session ID
       const new_session_id = await Agent.nextId();
 
-      await Agent.state(new_session_id, 'idle');
+      await Agent.state(new_session_id, 'success');
 
       let sessionContent = {};
       if (null != session_id) {
@@ -126,7 +125,7 @@ export class Agent {
   static async eval(session_id) {
     try {
       const state = await Agent.state(session_id);
-      // if (state !== 'idle') {
+      // if (state !== 'success') {
       //   utils.abort(`Cannot eval session ${session_id} in state ${state}`);
       // }
       await Agent.state(session_id, 'running');
@@ -227,7 +226,7 @@ export class Agent {
       const sessionMessages = sessionContent.spec.messages || [];
       const lastMessage = sessionMessages[sessionMessages.length - 1];
 
-      let finalState = 'idle'; // Default to idle
+      let finalState = 'success'; // Default to success
 
       if (lastMessage) {
         if (lastMessage.role === 'assistant') {
@@ -255,7 +254,7 @@ export class Agent {
           }
           // If assistant message has finish_reason: stop and no tool_calls, we're done
           else if (lastMessage.finish_reason === 'stop') {
-            finalState = 'idle';
+            finalState = 'success';
           }
           // Other finish reasons might indicate more work needed
           else {

@@ -22,7 +22,7 @@ export class Session {
    * Validate BT (Behavior Tree) state values
    */
   static _isValidBtState(state) {
-    return ['pending', 'running', 'fail', 'idle'].includes(state);
+    return ['pending', 'running', 'fail', 'success'].includes(state);
   }
 
   /**
@@ -30,7 +30,7 @@ export class Session {
    * BT states are stored as lock files in _G.PROC_DIR
    * 
    * @param {string} session_id - The session identifier
-   * @param {string} bt_state - Optional state to set ('idle', 'pending', 'running', 'success', 'fail')
+   * @param {string} bt_state - Optional state to set
    * @returns {Promise<string>} The BT state
    */
   static async state(session_id, bt_state) {
@@ -144,7 +144,7 @@ export class Session {
       const new_session_id = await Session.nextId();
 
       // Set initial state based on whether there's work to do
-      const initialState = prompt ? 'pending' : 'idle';
+      const initialState = prompt ? 'pending' : 'success';
       await Session.setState(new_session_id, initialState);
 
       const templateFileName = `${agent}.yaml`;
@@ -182,7 +182,7 @@ export class Session {
       const new_session_id = await Session.nextId();
 
       // Set initial state based on whether there's work to do
-      const initialState = prompt ? 'pending' : 'idle';
+      const initialState = prompt ? 'pending' : 'success';
       await Session.setState(new_session_id, initialState);
 
       const sessionContent = await Session.load(session_id);
