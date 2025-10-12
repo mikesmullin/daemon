@@ -116,10 +116,33 @@ _G.tools.fetch_webpage = {
     }
 
     if (successfulResults.length === 0) {
-      response = 'No content could be retrieved from the provided URLs.';
+      return {
+        success: false,
+        content: 'No content could be retrieved from the provided URLs.',
+        metadata: {
+          urls: urls,
+          query: query,
+          errors: failedResults,
+          operation: 'fetch_webpage'
+        }
+      };
     }
 
-    return response.trim();
+    // Log the operation
+    utils.logFetch(`Fetched content from ${successfulResults.length} webpage(s) for query: "${query}"`);
+
+    return {
+      success: true,
+      content: response.trim(),
+      metadata: {
+        urls: urls,
+        query: query,
+        successfulResults: successfulResults.length,
+        failedResults: failedResults.length,
+        errors: failedResults,
+        operation: 'fetch_webpage'
+      }
+    };
   }
 };
 

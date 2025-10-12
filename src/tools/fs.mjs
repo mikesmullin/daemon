@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSy
 import { join, dirname } from 'path';
 import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
+import utils from '../lib/utils.mjs';
 
 // File tracking system for safety (persistent across daemon restarts)
 const fileVersions = new Map();
@@ -252,7 +253,15 @@ _G.tools.create_file = {
     try {
       // Check if file already exists
       if (existsSync(args.filePath)) {
-        return { success: false, error: 'File already exists. Use a different tool to edit existing files.' };
+        return {
+          success: false,
+          content: 'File already exists. Use a different tool to edit existing files.',
+          metadata: {
+            path: args.filePath,
+            error: 'file_exists',
+            operation: 'create_file'
+          }
+        };
       }
 
       // Ensure directory exists
@@ -263,9 +272,28 @@ _G.tools.create_file = {
 
       writeFileSync(args.filePath, args.content, 'utf8');
 
-      return `The following files were successfully edited:\n${args.filePath}`;
+      // Log the operation
+      utils.logFileSystem(`Created file: ${args.filePath}`);
+
+      return {
+        success: true,
+        content: `The following files were successfully edited:\n${args.filePath}`,
+        metadata: {
+          path: args.filePath,
+          size: args.content.length,
+          operation: 'create_file'
+        }
+      };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          path: args.filePath,
+          error: error.message,
+          operation: 'create_file'
+        }
+      };
     }
   }
 };
@@ -291,7 +319,15 @@ _G.tools.list_directory = {
   execute: async (args) => {
     try {
       if (!existsSync(args.path)) {
-        return { success: false, error: 'Directory not found' };
+        return {
+          success: false,
+          content: 'Directory not found',
+          metadata: {
+            path: args.path,
+            error: 'directory_not_found',
+            operation: 'list_directory'
+          }
+        };
       }
 
       const entries = readdirSync(args.path).map(name => {
@@ -305,9 +341,29 @@ _G.tools.list_directory = {
         };
       });
 
-      return { success: true, entries };
+      // Log the operation
+      utils.logFileSystem(`Listed directory: ${args.path} (${entries.length} entries)`);
+
+      return {
+        success: true,
+        content: `Listed ${entries.length} entries in ${args.path}:\n${entries.map(e => `${e.type === 'directory' ? '📁' : '📄'} ${e.name}`).join('\n')}`,
+        metadata: {
+          path: args.path,
+          entries: entries,
+          count: entries.length,
+          operation: 'list_directory'
+        }
+      };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          path: args.path,
+          error: error.message,
+          operation: 'list_directory'
+        }
+      };
     }
   }
 };
@@ -333,9 +389,28 @@ _G.tools.create_directory = {
   execute: async (args) => {
     try {
       mkdirSync(args.dirPath, { recursive: true });
-      return `Created directory at ${args.dirPath}`;
+
+      // Log the operation
+      utils.logFileSystem(`Created directory: ${args.dirPath}`);
+
+      return {
+        success: true,
+        content: `Created directory at ${args.dirPath}`,
+        metadata: {
+          path: args.dirPath,
+          operation: 'create_directory'
+        }
+      };
     } catch (error) {
-      return `Error creating directory: ${error.message}`;
+      return {
+        success: false,
+        content: `Error creating directory: ${error.message}`,
+        metadata: {
+          path: args.dirPath,
+          error: error.message,
+          operation: 'create_directory'
+        }
+      };
     }
   }
 };
@@ -369,12 +444,28 @@ _G.tools.view_file = {
   execute: async (args) => {
     try {
       if (!existsSync(args.filePath)) {
-        return { success: false, error: 'File not found' };
+        return {
+          success: false,
+          content: 'File not found',
+          metadata: {
+            path: args.filePath,
+            error: 'file_not_found',
+            operation: 'view_file'
+          }
+        };
       }
 
       const stats = statSync(args.filePath);
       if (stats.isDirectory()) {
-        return { success: false, error: 'Path is a directory, not a file' };
+        return {
+          success: false,
+          content: 'Path is a directory, not a file',
+          metadata: {
+            path: args.filePath,
+            error: 'is_directory',
+            operation: 'view_file'
+          }
+        };
       }
 
       const content = readFileSync(args.filePath, 'utf8');
@@ -396,18 +487,32 @@ _G.tools.view_file = {
         displayContent = selectedLines.join('\n');
       }
 
+      // Log the operation
+      utils.logFileSystem(`Viewed file: ${args.filePath} (lines ${startLine}-${endLine})`);
+
       return {
         success: true,
-        filePath: args.filePath,
         content: displayContent,
-        totalLines: lines.length,
-        displayedLines: `${startLine}-${endLine}`,
-        size: stats.size,
-        lastModified: stats.mtime.toISOString(),
-        readTimestamp: Date.now()
+        metadata: {
+          filePath: args.filePath,
+          totalLines: lines.length,
+          displayedLines: `${startLine}-${endLine}`,
+          size: stats.size,
+          lastModified: stats.mtime.toISOString(),
+          readTimestamp: Date.now(),
+          operation: 'view_file'
+        }
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          path: args.filePath,
+          error: error.message,
+          operation: 'view_file'
+        }
+      };
     }
   }
 };
@@ -459,12 +564,28 @@ The tool will fail safely if:
     try {
       // Validate file exists
       if (!existsSync(args.filePath)) {
-        return { success: false, error: 'File not found' };
+        return {
+          success: false,
+          content: 'File not found',
+          metadata: {
+            path: args.filePath,
+            error: 'file_not_found',
+            operation: 'edit_file'
+          }
+        };
       }
 
       const stats = statSync(args.filePath);
       if (stats.isDirectory()) {
-        return { success: false, error: 'Path is a directory, not a file' };
+        return {
+          success: false,
+          content: 'Path is a directory, not a file',
+          metadata: {
+            path: args.filePath,
+            error: 'is_directory',
+            operation: 'edit_file'
+          }
+        };
       }
 
       // Safety check: must read file first
@@ -472,7 +593,12 @@ The tool will fail safely if:
       if (!lastReadTime) {
         return {
           success: false,
-          error: 'You must read the file using view_file before editing it. This ensures safety and prevents conflicts.'
+          content: 'You must read the file using view_file before editing it. This ensures safety and prevents conflicts.',
+          metadata: {
+            path: args.filePath,
+            error: 'file_not_read',
+            operation: 'edit_file'
+          }
         };
       }
 
@@ -528,22 +654,36 @@ The tool will fail safely if:
       // Update read timestamp to reflect the change
       recordFileRead(args.filePath);
 
+      // Log the operation
+      utils.logFileSystem(`Edited file: ${args.filePath} (+${additions} -${removals})`);
+
       return {
         success: true,
-        message: `Successfully edited file: ${args.filePath}`,
-        filePath: args.filePath,
-        diff: diff,
-        changes: {
-          additions: additions,
-          removals: removals,
-          oldLength: oldContent.length,
-          newLength: newContent.length
-        },
-        operation: args.newString === '' ? 'delete' : args.newString ? 'replace' : 'insert'
+        content: `Successfully edited file: ${args.filePath}`,
+        metadata: {
+          message: `Successfully edited file: ${args.filePath}`,
+          filePath: args.filePath,
+          diff: diff,
+          changes: {
+            additions: additions,
+            removals: removals,
+            oldLength: oldContent.length,
+            newLength: newContent.length
+          },
+          operation: args.newString === '' ? 'delete' : args.newString ? 'replace' : 'insert'
+        }
       };
 
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          path: args.filePath,
+          error: error.message,
+          operation: 'edit_file'
+        }
+      };
     }
   }
 };
@@ -591,12 +731,28 @@ Supports unified diff format with context lines:
     try {
       // Validate file exists
       if (!existsSync(args.filePath)) {
-        return { success: false, error: 'File not found' };
+        return {
+          success: false,
+          content: 'File not found',
+          metadata: {
+            path: args.filePath,
+            error: 'file_not_found',
+            operation: 'apply_patch'
+          }
+        };
       }
 
       const stats = statSync(args.filePath);
       if (stats.isDirectory()) {
-        return { success: false, error: 'Path is a directory, not a file' };
+        return {
+          success: false,
+          content: 'Path is a directory, not a file',
+          metadata: {
+            path: args.filePath,
+            error: 'is_directory',
+            operation: 'apply_patch'
+          }
+        };
       }
 
       // Safety check: must read file first
@@ -604,7 +760,12 @@ Supports unified diff format with context lines:
       if (!lastReadTime) {
         return {
           success: false,
-          error: 'You must read the file using view_file before applying patches. This ensures safety and prevents conflicts.'
+          content: 'You must read the file using view_file before applying patches. This ensures safety and prevents conflicts.',
+          metadata: {
+            path: args.filePath,
+            error: 'file_not_read',
+            operation: 'apply_patch'
+          }
         };
       }
 
@@ -729,13 +890,17 @@ Supports unified diff format with context lines:
       if (args.dryRun) {
         return {
           success: true,
-          message: 'Patch validation successful - no conflicts found',
-          filePath: args.filePath,
-          dryRun: true,
-          hunksFound: hunks.length,
-          estimatedChanges: {
-            additions: hunks.reduce((sum, h) => sum + h.changes.filter(c => c.type === '+').length, 0),
-            removals: hunks.reduce((sum, h) => sum + h.changes.filter(c => c.type === '-').length, 0)
+          content: 'Patch validation successful - no conflicts found',
+          metadata: {
+            message: 'Patch validation successful - no conflicts found',
+            filePath: args.filePath,
+            dryRun: true,
+            hunksFound: hunks.length,
+            estimatedChanges: {
+              additions: hunks.reduce((sum, h) => sum + h.changes.filter(c => c.type === '+').length, 0),
+              removals: hunks.reduce((sum, h) => sum + h.changes.filter(c => c.type === '-').length, 0)
+            },
+            operation: 'apply_patch'
           }
         };
       }
@@ -746,7 +911,12 @@ Supports unified diff format with context lines:
       if (oldContent === newContent) {
         return {
           success: false,
-          error: 'Patch resulted in no changes to the file content.'
+          content: 'Patch resulted in no changes to the file content.',
+          metadata: {
+            error: 'Patch resulted in no changes to the file content.',
+            path: args.filePath,
+            operation: 'apply_patch'
+          }
         };
       }
 
@@ -759,22 +929,37 @@ Supports unified diff format with context lines:
       // Generate final diff for verification
       const finalDiff = generateDiff(oldContent, newContent, args.filePath);
 
+      // Log the operation
+      utils.logFileSystem(`Applied patch to: ${args.filePath} (+${totalAdditions} -${totalRemovals})`);
+
       return {
         success: true,
-        message: `Successfully applied patch to: ${args.filePath}`,
-        filePath: args.filePath,
-        hunksApplied: hunks.length,
-        changes: {
-          additions: totalAdditions,
-          removals: totalRemovals,
-          oldLength: oldContent.length,
-          newLength: newContent.length
-        },
-        diff: finalDiff
+        content: `Successfully applied patch to: ${args.filePath}`,
+        metadata: {
+          message: `Successfully applied patch to: ${args.filePath}`,
+          filePath: args.filePath,
+          hunksApplied: hunks.length,
+          changes: {
+            additions: totalAdditions,
+            removals: totalRemovals,
+            oldLength: oldContent.length,
+            newLength: newContent.length
+          },
+          diff: finalDiff,
+          operation: 'apply_patch'
+        }
       };
 
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          path: args.filePath,
+          error: error.message,
+          operation: 'apply_patch'
+        }
+      };
     }
   }
 };

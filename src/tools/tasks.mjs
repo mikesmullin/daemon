@@ -6,6 +6,7 @@
 
 import { _G } from '../lib/globals.mjs';
 import { spawnAsync } from '../lib/utils.mjs';
+import utils from '../lib/utils.mjs';
 
 _G.tools.create_task = {
   definition: {
@@ -90,9 +91,13 @@ _G.tools.create_task = {
       if (result.exitCode !== 0) {
         return {
           success: false,
-          error: result.stderr || `Command failed with exit code ${result.exitCode}`,
-          exitCode: result.exitCode,
-          cmd: `${cmd} ${cmdArgs.join(' ')}`,
+          content: result.stderr || `Command failed with exit code ${result.exitCode}`,
+          metadata: {
+            error: result.stderr || `Command failed with exit code ${result.exitCode}`,
+            exitCode: result.exitCode,
+            cmd: `${cmd} ${cmdArgs.join(' ')}`,
+            operation: 'create_task'
+          }
         };
       }
 
@@ -100,15 +105,29 @@ _G.tools.create_task = {
       const match = result.stdout.match(/Inserted task (\w+) into/);
       const taskId = match ? match[1] : 'unknown';
 
+      // Add logging
+      utils.logTask(`Created task: ${args.title} (ID: ${taskId})`);
+
       return {
         success: true,
-        file: taskFile,
-        task_id: taskId,
-        output: result.stdout,
-        exitCode: result.exitCode
+        content: `Created task ${taskId} in ${taskFile}`,
+        metadata: {
+          file: taskFile,
+          task_id: taskId,
+          output: result.stdout,
+          exitCode: result.exitCode,
+          operation: 'create_task'
+        }
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          error: error.message,
+          operation: 'create_task'
+        }
+      };
     }
   }
 };
@@ -138,17 +157,39 @@ _G.tools.query_tasks = {
       if (result.exitCode !== 0) {
         return {
           success: false,
-          error: result.stderr || `Command failed with exit code ${result.exitCode}`,
-          exitCode: result.exitCode
+          content: result.stderr || `Command failed with exit code ${result.exitCode}`,
+          metadata: {
+            error: result.stderr || `Command failed with exit code ${result.exitCode}`,
+            exitCode: result.exitCode,
+            query: args.query,
+            operation: 'query_tasks'
+          }
         };
       }
+
+      // Add logging
+      utils.logTask(`Queried tasks: ${args.query}`);
+
       return {
         success: true,
-        output: result.stdout,
-        exitCode: result.exitCode
+        content: result.stdout,
+        metadata: {
+          output: result.stdout,
+          exitCode: result.exitCode,
+          query: args.query,
+          operation: 'query_tasks'
+        }
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          error: error.message,
+          query: args.query,
+          operation: 'query_tasks'
+        }
+      };
     }
   }
 };

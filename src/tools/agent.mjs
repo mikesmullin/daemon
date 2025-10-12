@@ -9,6 +9,7 @@
 
 import { _G } from '../lib/globals.mjs';
 import { Agent } from '../lib/agents.mjs';
+import utils from '../lib/utils.mjs';
 
 _G.tools.list_sessions = {
   definition: {
@@ -22,13 +23,28 @@ _G.tools.list_sessions = {
     try {
       const result = await Agent.list();
 
+      // Log the operation
+      utils.logAgent(`Listed ${result.length} active sessions`);
+
       return {
         success: true,
-        intent: 'list_sessions',
-        sessions: result
+        content: `Found ${result.length} active sessions`,
+        metadata: {
+          intent: 'list_sessions',
+          sessions: result,
+          count: result.length,
+          operation: 'list_sessions'
+        }
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          error: error.message,
+          operation: 'list_sessions'
+        }
+      };
     }
   }
 };
@@ -59,13 +75,29 @@ _G.tools.append_prompt = {
     try {
       const result = await Agent.push(args.session_id, args.prompt);
 
+      // Log the operation
+      utils.logAgent(`Appended prompt to session ${args.session_id}`);
+
       return {
         success: true,
-        intent: 'append_prompt',
-        result
+        content: `Successfully appended prompt to session ${args.session_id}`,
+        metadata: {
+          intent: 'append_prompt',
+          session_id: args.session_id,
+          result: result,
+          operation: 'append_prompt'
+        }
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          error: error.message,
+          session_id: args.session_id,
+          operation: 'append_prompt'
+        }
+      };
     }
   }
 };
@@ -96,13 +128,30 @@ _G.tools.new_session = {
     try {
       const result = await Agent.fork({ agent: args.agent, prompt: args.prompt });
 
+      // Log the operation
+      utils.logAgent(`Created new ${args.agent} session: ${result.session_id}`);
+
       return {
         success: true,
-        intent: 'fork_session',
-        result
+        content: `Successfully created new ${args.agent} session ${result.session_id}`,
+        metadata: {
+          intent: 'fork_session',
+          agent: args.agent,
+          session_id: result.session_id,
+          result: result,
+          operation: 'new_session'
+        }
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          error: error.message,
+          agent: args.agent,
+          operation: 'new_session'
+        }
+      };
     }
   }
 };
@@ -133,13 +182,30 @@ _G.tools.fork_session = {
     try {
       const result = await Agent.fork({ session_id: args.session_id, prompt: args.prompt });
 
+      // Log the operation
+      utils.logAgent(`Forked session ${args.session_id} to new session ${result.session_id}`);
+
       return {
         success: true,
-        intent: 'fork_session',
-        result
+        content: `Successfully forked session ${args.session_id} to new session ${result.session_id}`,
+        metadata: {
+          intent: 'fork_session',
+          original_session_id: args.session_id,
+          new_session_id: result.session_id,
+          result: result,
+          operation: 'fork_session'
+        }
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          error: error.message,
+          session_id: args.session_id,
+          operation: 'fork_session'
+        }
+      };
     }
   }
 };
@@ -166,13 +232,29 @@ _G.tools.kill_session = {
     try {
       const result = await Agent.kill(args.session_id);
 
+      // Log the operation
+      utils.logAgent(`Terminated session ${args.session_id}`);
+
       return {
         success: true,
-        intent: 'kill_session',
-        bt_state: result
+        content: `Successfully terminated session ${args.session_id}`,
+        metadata: {
+          intent: 'kill_session',
+          session_id: args.session_id,
+          bt_state: result,
+          operation: 'kill_session'
+        }
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          error: error.message,
+          session_id: args.session_id,
+          operation: 'kill_session'
+        }
+      };
     }
   }
 };

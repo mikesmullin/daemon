@@ -476,6 +476,24 @@ export function logFetch(text) {
   console.log('');
 }
 
+export function logFileSystem(text) {
+  console.log('');
+  log('info', bqIconLabel('green', '📂', color.green('File System'), '\n' + text));
+  console.log('');
+}
+
+export function logAgent(text) {
+  console.log('');
+  log('info', bqIconLabel('purple', '🤖', color.magenta('Agent Operation'), '\n' + text));
+  console.log('');
+}
+
+export function logTask(text) {
+  console.log('');
+  log('info', bqIconLabel('yellow', '📋', color.yellow('Task Management'), '\n' + text));
+  console.log('');
+}
+
 // Read from stdin if available, returns null if no stdin
 export async function readStdin() {
   return new Promise((resolve) => {
@@ -531,5 +549,8 @@ export default {
   logShell,
   logHumanApproval,
   logFetch,
+  logFileSystem,
+  logAgent,
+  logTask,
   readStdin,
 };
