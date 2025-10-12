@@ -66,7 +66,18 @@ export class Tool {
             };
           }
 
-          // If approved, continue to execution
+          if (approval.action === 'approved') {
+            // User approved, continue to execution
+            console.log(color.green('🚀 User approved - proceeding with tool execution'));
+          } else {
+            // Unknown approval action, treat as rejection for safety
+            console.log(color.red(`❌ Unknown approval action: ${approval.action}`));
+            return {
+              content: "Unknown approval response. Tool execution cancelled for safety.",
+              metadata: { error: 'unknown_approval_action', action: approval.action },
+              success: false
+            };
+          }
         }
 
         // If 'allow' or approved, proceed to execution
@@ -118,14 +129,14 @@ export class Tool {
     }
 
     // Display eye-catching approval prompt
-    console.log('\\n' + color.red('🔧 TOOL APPROVAL REQUIRED 🔧'));
+    console.log(color.red('🔧 TOOL APPROVAL REQUIRED'));
     console.log(color.yellow(`Tool: ${name}`));
 
     if (toolContext) {
       console.log(color.cyan(toolContext));
     }
 
-    console.log('\\n' + color.white('Type APPROVE (exact case) to proceed'));
+    console.log(color.white('Type APPROVE (exact case) to proceed'));
     console.log(color.white('Press R + ENTER to reject'));
     console.log(color.white('Press M + ENTER to modify'));
     console.log('');

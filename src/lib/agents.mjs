@@ -196,6 +196,22 @@ export class Agent {
         }
 
         sessionUpdated = true;
+        
+        // IMPROVEMENT: Immediately process any tool calls from the response
+        // This creates a seamless flow: get response → approve tools → execute → finish
+        // Benefits: no need to persist approval state, better UX
+        const toolCallsAdded = response.choices.some(choice => 
+          choice.message.tool_calls && choice.message.tool_calls.length > 0
+        );
+        
+        if (toolCallsAdded) {
+          log('info', '🔄 Processing tool calls immediately...');
+          const toolsExecuted = await Agent.processPendingToolCalls(sessionContent, session_id);
+          if (toolsExecuted) {
+            sessionUpdated = true;
+            log('info', '✅ Tool execution completed in same eval pass');
+          }
+        }
       }
 
       let last_message_digest = '';
@@ -217,11 +233,29 @@ export class Agent {
 
       if (lastMessage) {
         if (lastMessage.role === 'assistant') {
-          // If assistant message has tool_calls, we need to execute tools (pending)
+          // If assistant message has tool_calls, check if they were executed
           if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
-            finalState = 'pending';
+            // Check if all tool calls have corresponding tool results
+            let allToolsExecuted = true;
+            for (const toolCall of lastMessage.tool_calls) {
+              const hasResult = sessionMessages.some(msg => 
+                msg.role === 'tool' && msg.tool_call_id === toolCall.id
+              );
+              if (!hasResult) {
+                allToolsExecuted = false;
+                break;
+              }
+            }
+            
+            if (allToolsExecuted) {
+              // All tools executed, assistant may need to respond to results
+              finalState = 'pending';
+            } else {
+              // Tools still need execution (shouldn't happen with new flow, but safety)
+              finalState = 'pending';
+            }
           }
-          // If assistant message has finish_reason: stop and no tool_calls, we're done (idle)
+          // If assistant message has finish_reason: stop and no tool_calls, we're done
           else if (lastMessage.finish_reason === 'stop') {
             finalState = 'idle';
           }
@@ -230,8 +264,12 @@ export class Agent {
             finalState = 'pending';
           }
         }
-        // If last message is from user or tool, assistant needs to respond (pending)
-        else if (lastMessage.role === 'user' || lastMessage.role === 'tool') {
+        // If last message is tool result, assistant should respond to it
+        else if (lastMessage.role === 'tool') {
+          finalState = 'pending';
+        }
+        // If last message is from user, assistant needs to respond
+        else if (lastMessage.role === 'user') {
           finalState = 'pending';
         }
       }

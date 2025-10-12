@@ -5,7 +5,7 @@
 
 import { _G } from '../lib/globals.mjs';
 import utils from '../lib/utils.mjs';
-import { executeCommandWithCheck } from './terminal-allowlist.js';
+import { executeCommandWithCheck, checkCommand } from './terminal-allowlist.js';
 
 _G.tools.execute_shell = {
   definition: {
@@ -35,18 +35,27 @@ _G.tools.execute_shell = {
     preToolUse: async (args, context) => {
       // Security check - delegate to existing allowlist system
       // This determines if human approval is needed
-      const isAllowed = await utils.isCommandAllowed?.(args.command);
-
-      if (isAllowed === true) {
-        return 'allow';  // Execute without approval
-      } else if (isAllowed === false) {
-        return 'deny';   // Block execution entirely
-      } else {
-        return 'approve'; // Request human approval
+      try {
+        const checkResult = await checkCommand(args.command);
+        
+        if (checkResult.approved) {
+          return 'allow';  // Execute without approval
+        } else {
+          // Check if it's explicitly denied or just needs approval
+          const isDenied = checkResult.details?.fullLineCheck?.denied || 
+                          checkResult.details?.subCommandChecks?.some(c => c.denied);
+          
+          if (isDenied) {
+            return 'deny';   // Block execution entirely
+          } else {
+            return 'approve'; // Request human approval
+          }
+        }
+      } catch (error) {
+        // If allowlist check fails, require approval as safety measure
+        return 'approve';
       }
-    },
-
-    getApprovalPrompt: async (args, context) => {
+    },    getApprovalPrompt: async (args, context) => {
       return `Shell command: ${args.command}\n` +
         `Working directory: ${args.cwd || 'current'}\n` +
         `⚠️  This command may modify your system or files.`;
