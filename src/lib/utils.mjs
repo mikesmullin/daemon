@@ -1,6 +1,6 @@
 import { _G } from './globals.mjs';
 import path from 'path';
-import { mkdir, readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile, appendFile } from 'fs/promises';
 import color from './colors.mjs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -212,7 +212,16 @@ export function log(type, message, messageTimestamp = null) {
   }
 
   let indented = indentIcon(color.grey(timestamp) + colorFn(' '), message)
-  output.write(indented + color.reset() + '\n');
+  const logLine = indented + color.reset() + '\n';
+  
+  // Write to stdout/stderr
+  output.write(logLine);
+  
+  // Also append to log file (async, don't await to avoid blocking)
+  const logFilePath = path.join(__dirname, '..', '..', 'tmp', 'watch.log');
+  appendFile(logFilePath, logLine).catch(err => {
+    // Silently ignore file write errors to avoid infinite logging loops
+  });
 }
 
 // read configuration from YAML file
