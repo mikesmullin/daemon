@@ -320,9 +320,13 @@ Options:
   if ('watch' == _G.mode) {
     log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump every ${_G.CONFIG.daemon.watch_poll_interval} seconds`);
 
-    // Define the watch pump function
+    const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
+    let lastIterationStart = 0;
+
+    // Define the watch pump function with serial execution
     const performWatchPump = async () => {
       try {
+        const iterationStart = Date.now();
         log('debug', `👀 Checking for pending sessions...`);
         const result = await Agent.pump();
 
@@ -331,18 +335,36 @@ Options:
         } else {
           log('debug', '👀 No pending sessions to process.');
         }
+
+        // Calculate elapsed time for this iteration
+        const iterationEnd = Date.now();
+        const iterationDuration = iterationEnd - iterationStart;
+
+        // Calculate how long since the last iteration started
+        const timeSinceLastStart = lastIterationStart ? iterationStart - lastIterationStart : 0;
+        lastIterationStart = iterationStart;
+
+        // Calculate remaining time until next interval
+        // If iteration took longer than interval, run immediately (delay = 0)
+        // Otherwise, wait for the remaining time to maintain the interval
+        const remainingDelay = Math.max(0, watchIntervalMs - timeSinceLastStart);
+
+        log('debug', `⏱️ Iteration took ${iterationDuration}ms, next run in ${remainingDelay}ms`);
+
+        // Schedule next pump iteration (serial execution ensures no overlapping)
+        setTimeout(performWatchPump, remainingDelay);
+
       } catch (error) {
         log('error', `❌ Pump failed: ${error.message}`);
+        // Still schedule next iteration even if this one failed
+        setTimeout(performWatchPump, watchIntervalMs);
       }
     };
 
     // Run initial pump
     await performWatchPump();
 
-    // Set up interval for continuous pumping
-    setInterval(performWatchPump, _G.CONFIG.daemon.watch_poll_interval * 1000);
-
-    log('info', '👀 Watch mode started. Press Ctrl+C to stop.');
+    log('info', '👀 Watch mode started with serial execution. Press Ctrl+C to stop.');
   }
 
   if ('pump' == _G.mode) {

@@ -151,14 +151,8 @@ export class Tool {
           output: process.stdout
         });
 
-        const response = await new Promise((resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            rl.close();
-            reject(new Error('Input timeout after 30 seconds'));
-          }, 30000);
-
+        const response = await new Promise((resolve) => {
           rl.question(color.bold('Your choice: '), (answer) => {
-            clearTimeout(timeoutId);
             rl.close();
             resolve(answer);
           });
