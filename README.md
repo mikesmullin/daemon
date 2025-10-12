@@ -18,7 +18,8 @@ We aim to be deterministic, testable, auditable, and composable.
 - 🔑 **GitHub Copilot integration** - Native GitHub OAuth with automatic token management
 - ⛽ **Pump mode** - Step-through debugging for development and external orchestration
 - 👀 **Watch mode** - Continuous background operation for daily workflows  
-- 🔗 **Pipeline-friendly** - Designed for Unix-style stdin/stdout composition
+- �️ **Parallel execution** - Watch parallel processes, optionally with automatic tmux pane creation
+- �🔗 **Pipeline-friendly** - Designed for Unix-style stdin/stdout composition
 - 📊 **Multiple output formats** - JSON, YAML, CSV, and table output for scripting
 
 ## Architecture
@@ -59,7 +60,15 @@ Active conversation instances created from templates:
 **Watch mode** (`d watch`):
 - Continuous background monitoring with configurable intervals
 - Processes pending sessions autonomously 
+- Session-specific watching: `d watch <session_id>` for targeted monitoring
+- Auto-tmux integration: New sessions automatically create dedicated watch panes
 - Ideal for daily operation and long-running workflows
+
+**Parallel execution**:
+- Process-based parallelism with one watch process per session
+- Tmux integration for visual monitoring of multiple sessions
+- Serial execution within sessions prevents conflicts
+- Auto-scaling: New sessions spawn their own monitoring processes
 
 **Session management**:
 - Direct session manipulation (new, push, fork, eval)
@@ -118,7 +127,12 @@ d pump                        # Process one iteration, then exit
 d clean                       # Reset all transient state
 
 # Background operation  
-d watch                       # Continuous monitoring of pending sessions
+d watch                       # Continuous monitoring of all pending sessions
+d watch 4                     # Monitor only session 4 (parallel execution)
+
+# Tmux integration
+tmux -f .tmux.conf new-session -s daemon    # Start w/ this if you want tmux auto-pane creation
+# New sessions auto-create watch panes when auto_tmux_panes: true in config
 
 # Inspect system state
 d sessions --format json      # Machine-readable session status
