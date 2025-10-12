@@ -108,10 +108,11 @@ export class Agent {
 
           log('debug', `🖼️  Creating tmux pane: ${command}`);
 
-          // Split the current pane vertically and run the watch command
+          // Split the current pane and run the watch command
           const result = spawn('tmux', [
             'split-window',
-            '-v',  // vertical split
+            // '-v',  // vertical split
+            '-h',  // horizontal split
             '-c', process.cwd(),  // set working directory
             command  // command to run in new pane
           ], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });

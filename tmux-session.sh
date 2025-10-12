@@ -4,16 +4,24 @@
 # Create a new tmux session for daemon work
 create_daemon_session() {
     local session_name=${1:-"daemon"}
+    local workspace_dir="$(pwd)"
+    
+    # Source workspace tmux config if it exists
+    local tmux_config=""
+    if [ -f "$workspace_dir/.tmux.conf" ]; then
+        tmux_config="-f $workspace_dir/.tmux.conf"
+        echo "Using workspace tmux config: $workspace_dir/.tmux.conf"
+    fi
     
     # Create new session with main daemon watch
-    tmux new-session -d -s "$session_name" -n "main" "d watch"
+    tmux $tmux_config new-session -d -s "$session_name" -c "$workspace_dir" -n "main" "d watch"
     
     # Create additional windows for different functions
-    tmux new-window -t "$session_name" -n "manual" "bash"
-    tmux new-window -t "$session_name" -n "logs" "tail -f tmp/watch.log"
+    tmux $tmux_config new-window -t "$session_name" -n "manual" -c "$workspace_dir" "bash"
+    tmux $tmux_config new-window -t "$session_name" -n "logs" -c "$workspace_dir" "tail -f tmp/watch.log"
     
     # Select the main window
-    tmux select-window -t "$session_name:main"
+    tmux $tmux_config select-window -t "$session_name:main"
     
     echo "Created tmux session '$session_name' with daemon setup"
     echo "Attach with: tmux attach -t $session_name"
