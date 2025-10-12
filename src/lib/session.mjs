@@ -424,7 +424,7 @@ export class Session {
         utils.logAssistant(message.content);
       } else if (message.role == 'assistant' && message.tool_calls?.length > 0) {
         for (const tool_call of message.tool_calls) {
-          log('info', `🔧 Tool call: ${tool_call.function.name}(${tool_call.function.arguments})`);
+          utils.logToolCall(tool_call);
         }
       }
       // TODO: Add support for Claude think blocks

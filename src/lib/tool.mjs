@@ -140,13 +140,13 @@ export class Tool {
           input: process.stdin,
           output: process.stdout
         });
-        
+
         const response = await new Promise((resolve, reject) => {
           const timeoutId = setTimeout(() => {
             rl.close();
             reject(new Error('Input timeout after 30 seconds'));
           }, 30000);
-          
+
           rl.question(color.bold('Your choice: '), (answer) => {
             clearTimeout(timeoutId);
             rl.close();
@@ -177,7 +177,7 @@ export class Tool {
             input: process.stdin,
             output: process.stdout
           });
-          
+
           const userPrompt = await new Promise((resolve, reject) => {
             rl2.question(color.bold('Enter your alternative request: '), (answer) => {
               rl2.close();
@@ -235,15 +235,19 @@ export class Tool {
           }
 
           if (shouldExecute) {
-            log('warn', `🔧 Executing tool call ${color.bold(toolCall.function.name)} #${toolCall.id}`);
+            log('debug', `Now executing tool call ${color.bold(toolCall.function.name)} #${toolCall.id}`);
+            console.log('000');
 
             try {
               // Parse arguments and execute the tool through our approval workflow
               const args = JSON.parse(toolCall.function.arguments);
+              console.log('111');
               const result = await Tool.execute(toolCall.function.name, args, session_id);
+              console.log('222');
 
               // Use the content field for API compatibility, but keep rich metadata
               const content = result.content || JSON.stringify(result, null, 2);
+              console.log('333');
 
               // Add tool result message to session
               sessionContent.spec.messages.push({
@@ -253,18 +257,24 @@ export class Tool {
                 content,
               });
 
+              console.log('aaa');
+
               // Log the result for human visibility
               if (content) {
                 console.log(content);
               }
 
               if (result.success) {
+                console.log('bbb');
                 log('info', `✅ Tool ${color.bold(toolCall.function.name)} succeeded. #${toolCall.id}`);
               } else {
+                console.log('ddd');
                 log('error', `❌ Tool ${color.bold(toolCall.function.name)} failed. #${toolCall.id} Error: ${content}`);
               }
+              console.log('ccc');
 
             } catch (error) {
+              console.log('eee');
               // Add error result message to session
               sessionContent.spec.messages.push({
                 ts: new Date().toISOString(),

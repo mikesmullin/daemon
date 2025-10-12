@@ -107,16 +107,25 @@ export class Agent {
     }
   }
 
-  static async prompt({ model, messages, tools = [], max_tokens }) {
+  static async prompt({ model, messages, tools = [], max_tokens, refreshedOnce = false }) {
     await Copilot.init();
     log('debug', '🤖 Copilot API Request');
-    const response = await Copilot.client.chat.completions.create({
-      model: model || 'claude-sonnet-4',
-      messages: messages,
-      tools: tools,
-      // max_tokens, // ie. 300
-      max_tokens: 300
-    });
+    let response = {};
+    try {
+      response = await Copilot.client.chat.completions.create({
+        model: model || 'claude-sonnet-4',
+        messages: messages,
+        tools: tools,
+        // max_tokens, // ie. 300
+        max_tokens: 300
+      });
+    } catch (error) {
+      if (error.message.includes('token expired') && !refreshedOnce) {
+        await Copilot.refreshToken();
+        return Agent.prompt({ model, messages, tools, max_tokens, refreshedOnce: true });
+      }
+      utils.abort(error);
+    }
     log('debug', '🤖 Copilot API Response: ' + JSON.stringify(response, null, 2));
     return response;
   }
@@ -153,7 +162,7 @@ export class Agent {
         if (message.role == 'assistant' && message.content) utils.logAssistant(message.content);
         if (message.role == 'assistant' && message.tool_calls?.length > 0) {
           for (const tool_call of message.tool_calls) {
-            log('info', `🔧 Tool call: ${color.bold(tool_call.function.name)}(${tool_call.function.arguments})`);
+            utils.logToolCall(tool_call);
             for (const message2 of (sessionContent.spec.messages || [])) {
               if (message2.role == 'tool' && message2.tool_call_id == tool_call.id && message2.content) {
                 console.log(message2.content);
@@ -188,7 +197,7 @@ export class Agent {
           if (msg2.role == 'assistant' && msg2.content) utils.logAssistant(msg2.content);
           if (msg2.role == 'assistant' && msg2.tool_calls?.length > 0) {
             for (const tool_call of msg2.tool_calls) {
-              log('info', `🔧 Tool call: ${color.bold(tool_call.function.name)}(${tool_call.function.arguments})`);
+              utils.logToolCall(tool_call);
             }
           }
           sessionContent.spec.messages.push(msg2);
@@ -230,8 +239,12 @@ export class Agent {
 
       if (lastMessage) {
         if (lastMessage.role === 'assistant') {
+          // If assistant message has finish_reason: stop and no tool_calls, we're done
+          if (lastMessage.finish_reason === 'stop' && (!lastMessage.tool_calls || lastMessage.tool_calls.length === 0)) {
+            finalState = 'success';
+          }
           // If assistant message has tool_calls, check if they were executed
-          if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
+          else if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
             // Check if all tool calls have corresponding tool results
             let allToolsExecuted = true;
             for (const toolCall of lastMessage.tool_calls) {
@@ -251,10 +264,6 @@ export class Agent {
               // Tools still need execution (shouldn't happen with new flow, but safety)
               finalState = 'pending';
             }
-          }
-          // If assistant message has finish_reason: stop and no tool_calls, we're done
-          else if (lastMessage.finish_reason === 'stop') {
-            finalState = 'success';
           }
           // Other finish reasons might indicate more work needed
           else {
@@ -282,7 +291,7 @@ export class Agent {
       };
     } catch (error) {
       await Agent.state(session_id, 'fail');
-      utils.abort(error.message);
+      utils.abort(error);
     }
   }
 

@@ -5,6 +5,7 @@ import color from './colors.mjs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { spawn } from 'child_process';
+import _ from 'lodash';
 import yaml from 'js-yaml';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -20,8 +21,12 @@ export function relWS(...pathComponents) {
 }
 
 // Abort with error message
-export function abort(message) {
-  const stack = new Error().stack.split('\n').slice(2).join('\n');
+export function abort(error) {
+  let message = error?.message || error;
+  let stack = error?.stack ? error.stack.split('\n').slice(1).join('\n') : null;
+  if (null == stack) {
+    stack = new Error().stack.split('\n').slice(2).join('\n');
+  }
   log('error', `Fatal Error: ${message}\n${stack}`);
   process.exit(1);
 }
@@ -156,7 +161,7 @@ export function log(type, message) {
       colorFn = (msg) => msg;
   }
 
-  let indented = indentIcon(colorFn(timestamp) + ' ', message)
+  let indented = indentIcon(color.grey(timestamp) + colorFn(' '), message)
   output.write(indented + color.reset() + '\n');
 }
 
@@ -423,14 +428,27 @@ export function logAssistant(text) {
 
 export function logUser(text) {
   console.log('');
-  log('info', bqIconLabel('constructionYellow', '🧑', ('User'), text));
+  log('info', bqIconLabel('constructionYellow', '🧑', 'User', text));
   console.log('');
+}
+
+export function logToolCall(tool_call) {
+  // console.log('');
+  let args = {};
+  try {
+    args = JSON.parse(_.get(tool_call, 'function.arguments', '{}'));
+  } catch (e) {
+  }
+  log('info', bqIconLabel('grey', '🔧', color.white(`Tool Call: ${_.get(tool_call, 'function.name', 'unknown_name')}`) + color.grey(` #${_.get(tool_call, 'id', 'unknown_id')}`),
+    '' // yaml.dump(args).trim()
+  ));
+  // console.log('');
 }
 
 export function logShell(text) {
   console.log('');
-  // log('info', bqIconLabel('moneyGreen', '🐚', 'Tool: execute_shell', 'podman ps'));
-  log('info', blockquote('moneyGreen', `🐚 $ ${text}`));
+  log('info', bqIconLabel('moneyGreen', '🐚', ('Shell Execution'), `$ ${text}`));
+  // log('info', blockquote('moneyGreen', `🐚 $ ${text}`));
   console.log('');
 }
 
@@ -438,7 +456,7 @@ export function logHumanApproval(toolName, details, approved = null) {
   console.log('');
   const icon = approved === true ? '✅' : approved === false ? '❌' : '❓';
   const colorName = approved === true ? 'green' : approved === false ? 'red' : 'red';
-  
+
   if (approved === null) {
     // Show approval prompt
     log('info', bqIconLabel(colorName, icon, 'Human Approval Required', `Tool: ${toolName}\n${details}`));
@@ -508,6 +526,7 @@ export default {
   spawnAsync,
   logThought,
   logAssistant,
+  logToolCall,
   logUser,
   logShell,
   logHumanApproval,
