@@ -4,6 +4,9 @@ export let _G = {
   // (used to calculate elapsed run time)
   startedAt: Date.now(),
 
+  // first message timestamp in current session (for relative message timing)
+  sessionFirstMessageTime: null,
+
   // mode of daemon operation
   // - pump: run once and exit
   // - watch: run continuously, checking in at intervals

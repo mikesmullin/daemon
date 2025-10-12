@@ -168,19 +168,25 @@ export class Agent {
       // Get last_read timestamp to avoid repeating already logged messages
       const lastRead = await Session.getLastRead(session_id);
 
-      for (const message of (sessionContent.spec.messages || [])) {
+      // Set session first message time for relative timestamp calculation
+      const allMessages = sessionContent.spec.messages || [];
+      if (allMessages.length > 0 && allMessages[0].ts) {
+        _G.sessionFirstMessageTime = allMessages[0].ts;
+      }
+
+      for (const message of allMessages) {
         messages.push(_.omit(message, ['ts']));
 
         // Only log messages that are newer than last_read timestamp
         const shouldLog = !lastRead || !message.ts || new Date(message.ts) > new Date(lastRead); if (shouldLog) {
-          if (message.role == 'user') utils.logUser(message.content);
-          if (message.role == 'assistant' && message.content) utils.logAssistant(message.content);
+          if (message.role == 'user') utils.logUser(message.content, message.ts);
+          if (message.role == 'assistant' && message.content) utils.logAssistant(message.content, message.ts);
           if (message.role == 'assistant' && message.tool_calls?.length > 0) {
             for (const tool_call of message.tool_calls) {
-              utils.logToolCall(tool_call);
-              for (const message2 of (sessionContent.spec.messages || [])) {
+              utils.logToolCall(tool_call, message.ts);
+              for (const message2 of allMessages) {
                 if (message2.role == 'tool' && message2.tool_call_id == tool_call.id && message2.content) {
-                  utils.logToolResponse(message2.content);
+                  utils.logToolResponse(message2.content, message2.ts);
                 }
               }
             }
@@ -209,14 +215,19 @@ export class Agent {
           choice.message.ts = utils.unixToIso(_.get(response, 'created', utils.unixTime()));
           choice.message.finish_reason = choice.finish_reason;
           const msg2 = _.pick(choice.message, ['ts', 'role', 'content', 'tool_calls', 'finish_reason']);
-          if (msg2.role == 'user') utils.logUser(msg2.content);
-          if (msg2.role == 'assistant' && msg2.content) utils.logAssistant(msg2.content);
+          if (msg2.role == 'user') utils.logUser(msg2.content, msg2.ts);
+          if (msg2.role == 'assistant' && msg2.content) utils.logAssistant(msg2.content, msg2.ts);
           if (msg2.role == 'assistant' && msg2.tool_calls?.length > 0) {
             for (const tool_call of msg2.tool_calls) {
-              utils.logToolCall(tool_call);
+              utils.logToolCall(tool_call, msg2.ts);
             }
           }
           sessionContent.spec.messages.push(msg2);
+
+          // Set session first message time if this is the first message
+          if (sessionContent.spec.messages.length === 1 && msg2.ts) {
+            _G.sessionFirstMessageTime = msg2.ts;
+          }
         }
 
         sessionUpdated = true;

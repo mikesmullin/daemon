@@ -131,14 +131,64 @@ function _shouldLog(type) {
   return logEnvLower === typeLower;
 }
 
+// Format relative time duration in human-readable format
+function formatRelativeTime(startTime, endTime) {
+  const diffMs = new Date(endTime) - new Date(startTime);
+  const diffSeconds = Math.floor(diffMs / 1000);
+
+  if (diffSeconds < 60) {
+    return `${diffSeconds}s`;
+  }
+
+  const minutes = Math.floor(diffSeconds / 60);
+  const seconds = diffSeconds % 60;
+
+  if (minutes < 60) {
+    return `${minutes}m ${seconds}s`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (hours < 24) {
+    return `${hours}h ${remainingMinutes}m ${seconds}s`;
+  }
+
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+
+  if (days < 30) {
+    return `${days}d ${remainingHours}h ${remainingMinutes}m ${seconds}s`;
+  }
+
+  const months = Math.floor(days / 30);
+  const remainingDays = days % 30;
+
+  if (months < 12) {
+    return `${months}mo ${remainingDays}d ${remainingHours}h ${remainingMinutes}m ${seconds}s`;
+  }
+
+  const years = Math.floor(months / 12);
+  const remainingMonths = months % 12;
+
+  return `${years}y ${remainingMonths}mo ${remainingDays}d ${remainingHours}h ${remainingMinutes}m ${seconds}s`;
+}
+
 // Logging function with timestamp and color support
-export function log(type, message) {
+export function log(type, message, messageTimestamp = null) {
   if (!_shouldLog(type)) return;
 
-  const elapsed = Date.now() - _G.startedAt;
-  const seconds = Math.floor(elapsed / 1000);
-  const ms = String(elapsed % 1000).padStart(3, '0');
-  const timestamp = `${seconds}.${ms}`;
+  let timestamp;
+  if (messageTimestamp && _G.sessionFirstMessageTime) {
+    // Use message-relative timing with special formatting
+    timestamp = formatRelativeTime(_G.sessionFirstMessageTime, messageTimestamp);
+  } else {
+    // Use process-relative timing (default behavior)
+    const elapsed = Date.now() - _G.startedAt;
+    const seconds = Math.floor(elapsed / 1000);
+    const ms = String(elapsed % 1000).padStart(3, '0');
+    timestamp = `${seconds}.${ms}`;
+  }
 
   let colorFn;
   let output = process.stdout;
@@ -420,19 +470,19 @@ export function logThought(text) {
   console.log('');
 }
 
-export function logAssistant(text) {
+export function logAssistant(text, messageTimestamp = null) {
   console.log('');
-  log('info', bqIconLabel('cyan', '🤖', color.red('Assistant'), '\n' + text));
-  console.log('');
-}
-
-export function logUser(text) {
-  console.log('');
-  log('info', bqIconLabel('constructionYellow', '🧑', 'User', '\n' + text));
+  log('info', bqIconLabel('cyan', '🤖', color.red('Assistant'), '\n' + text), messageTimestamp);
   console.log('');
 }
 
-export function logToolCall(tool_call) {
+export function logUser(text, messageTimestamp = null) {
+  console.log('');
+  log('info', bqIconLabel('constructionYellow', '🧑', 'User', '\n' + text), messageTimestamp);
+  console.log('');
+}
+
+export function logToolCall(tool_call, messageTimestamp = null) {
   // console.log('');
   let args = {};
   try {
@@ -441,7 +491,7 @@ export function logToolCall(tool_call) {
   }
   log('info', bqIconLabel('grey', '🔧', color.white(`Tool Call: ${_.get(tool_call, 'function.name', 'unknown_name')}`) + color.grey(` #${_.get(tool_call, 'id', 'unknown_id')}`),
     // yaml.dump(args).trim()
-  ));
+  ), messageTimestamp);
   // console.log('');
 }
 
@@ -494,9 +544,9 @@ export function logTask(text) {
   console.log('');
 }
 
-export function logToolResponse(text) {
+export function logToolResponse(text, messageTimestamp = null) {
   console.log('');
-  log('info', bqIconLabel('brightBlue', '🔧', color.brightBlue('Tool Response'), '\n' + text));
+  log('info', bqIconLabel('brightBlue', '🔧', color.brightBlue('Tool Response'), '\n' + text), messageTimestamp);
   console.log('');
 }
 
