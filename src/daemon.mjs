@@ -341,6 +341,17 @@ Options:
         if (result.processed > 0) {
           log('info', `👀 Pump completed. Processed ${result.processed}/${result.total}${sessionInfo}.`);
         } else {
+          // If watching a specific session, check if it's completed
+          if (_G.watchSessionId) {
+            const sessions = await Agent.list();
+            const targetSession = sessions.find(s => s.session_id === _G.watchSessionId);
+            if (targetSession && ['success', 'fail'].includes(targetSession.bt_state)) {
+              log('info', `✅ Session ${_G.watchSessionId} completed with state: ${targetSession.bt_state}`);
+              log('info', `👀 Watch will continue monitoring for any state changes...`);
+            } else if (!targetSession) {
+              log('warn', `⚠️  Session ${_G.watchSessionId} not found. Continuing to monitor...`);
+            }
+          }
           log('debug', `👀 No pending${sessionInfo} to process.`);
         }
 
