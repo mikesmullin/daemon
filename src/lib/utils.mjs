@@ -434,6 +434,24 @@ export function logShell(text) {
   console.log('');
 }
 
+export function logHumanApproval(toolName, details, approved = null) {
+  console.log('');
+  const icon = approved === true ? '✅' : approved === false ? '❌' : '❓';
+  const colorName = approved === true ? 'green' : approved === false ? 'red' : 'red';
+  
+  if (approved === null) {
+    // Show approval prompt
+    log('info', bqIconLabel(colorName, icon, 'Human Approval Required', `Tool: ${toolName}\n${details}`));
+  } else if (approved === true) {
+    // Show approval granted
+    log('info', bqIconLabel(colorName, icon, 'Approved by user', `Tool: ${toolName}`));
+  } else {
+    // Show approval denied
+    log('info', bqIconLabel(colorName, icon, 'Rejected by user', `Tool: ${toolName}`));
+  }
+  console.log('');
+}
+
 export function logFetch(text) {
   console.log('');
   log('info', bqIconLabel('gray', '🌍', color.brightBlue('Fetching URL'), text));
@@ -492,6 +510,7 @@ export default {
   logAssistant,
   logUser,
   logShell,
+  logHumanApproval,
   logFetch,
   readStdin,
 };

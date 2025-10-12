@@ -65,8 +65,7 @@ export class Tool {
           }
 
           if (approval.action === 'approved') {
-            // User approved, continue to execution
-            console.log(color.green('🚀 User approved - proceeding with tool execution'));
+            // User approved, continue to execution (logging handled by askHuman)
           } else {
             // Unknown approval action, treat as rejection for safety
             console.log(color.red(`❌ Unknown approval action: ${approval.action}`));
@@ -126,13 +125,8 @@ export class Tool {
       toolContext = await tool.metadata.getApprovalPrompt(args, { sessionId });
     }
 
-    // Display eye-catching approval prompt
-    console.log(color.red('🔧 TOOL APPROVAL REQUIRED'));
-    console.log(color.yellow(`Tool: ${name}`));
-
-    if (toolContext) {
-      console.log(color.cyan(toolContext));
-    }
+    // Display approval prompt using new cleaner format
+    utils.logHumanApproval(name, toolContext);
 
     console.log(color.white('Type APPROVE (exact case) to proceed'));
     console.log(color.white('Press R + ENTER to reject'));
@@ -146,13 +140,13 @@ export class Tool {
           input: process.stdin,
           output: process.stdout
         });
-
+        
         const response = await new Promise((resolve, reject) => {
           const timeoutId = setTimeout(() => {
             rl.close();
             reject(new Error('Input timeout after 30 seconds'));
           }, 30000);
-
+          
           rl.question(color.bold('Your choice: '), (answer) => {
             clearTimeout(timeoutId);
             rl.close();
@@ -164,13 +158,13 @@ export class Tool {
 
         // Check for exact "APPROVE" (case-sensitive)
         if (trimmed === 'APPROVE') {
-          console.log(color.green('✅ Approved by user'));
+          utils.logHumanApproval(name, '', true);
           return { action: 'approved' };
         }
 
         // Check for reject (R or r)
         if (trimmed.toLowerCase() === 'r') {
-          console.log(color.red('❌ Rejected by user'));
+          utils.logHumanApproval(name, '', false);
           return { action: 'rejected' };
         }
 
@@ -183,7 +177,7 @@ export class Tool {
             input: process.stdin,
             output: process.stdout
           });
-
+          
           const userPrompt = await new Promise((resolve, reject) => {
             rl2.question(color.bold('Enter your alternative request: '), (answer) => {
               rl2.close();
@@ -203,9 +197,7 @@ export class Tool {
         return { action: 'rejected' };
       }
     }
-  }
-
-  // =============================================================================
+  }  // =============================================================================
   // PENDING TOOL CALLS PROCESSING
   // =============================================================================
 

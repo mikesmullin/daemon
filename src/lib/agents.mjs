@@ -205,11 +205,9 @@ export class Agent {
         );
 
         if (toolCallsAdded) {
-          log('info', '🔄 Processing tool calls immediately...');
           const toolsExecuted = await Agent.processPendingToolCalls(sessionContent, session_id);
           if (toolsExecuted) {
             sessionUpdated = true;
-            log('info', '✅ Tool execution completed in same eval pass');
           }
         }
       }
