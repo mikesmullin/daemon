@@ -81,7 +81,7 @@ export function blockquote(colorName, text) {
 export function bqIconLabel(colorName, icon, label, text) {
   let t1 =
     indentIcon(`${icon} `,
-      color[colorName](color.bold(label)) + '\n' +
+      color[colorName](color.bold(label)) +
       text);
   let t2 = blockquote(colorName, t1);
   return t2;
@@ -416,19 +416,19 @@ export function spawnAsync(command, args = []) {
 
 export function logThought(text) {
   console.log('');
-  log('info', bqIconLabel('gray', '🧠', color.indigo('Thinking...'), text));
+  log('info', bqIconLabel('gray', '🧠', color.indigo('Thinking...'), '\n' + text));
   console.log('');
 }
 
 export function logAssistant(text) {
   console.log('');
-  log('info', bqIconLabel('cyan', '🤖', color.red('Assistant'), text));
+  log('info', bqIconLabel('cyan', '🤖', color.red('Assistant'), '\n' + text));
   console.log('');
 }
 
 export function logUser(text) {
   console.log('');
-  log('info', bqIconLabel('constructionYellow', '🧑', 'User', text));
+  log('info', bqIconLabel('constructionYellow', '🧑', 'User', '\n' + text));
   console.log('');
 }
 
@@ -440,14 +440,14 @@ export function logToolCall(tool_call) {
   } catch (e) {
   }
   log('info', bqIconLabel('grey', '🔧', color.white(`Tool Call: ${_.get(tool_call, 'function.name', 'unknown_name')}`) + color.grey(` #${_.get(tool_call, 'id', 'unknown_id')}`),
-    '' // yaml.dump(args).trim()
+    // yaml.dump(args).trim()
   ));
   // console.log('');
 }
 
 export function logShell(text) {
   console.log('');
-  log('info', bqIconLabel('moneyGreen', '🐚', ('Shell Execution'), `$ ${text}`));
+  log('info', bqIconLabel('moneyGreen', '🐚', ('Shell Execution'), `\n$ ${text}`));
   // log('info', blockquote('moneyGreen', `🐚 $ ${text}`));
   console.log('');
 }
@@ -472,7 +472,7 @@ export function logHumanApproval(toolName, details, approved = null) {
 
 export function logFetch(text) {
   console.log('');
-  log('info', bqIconLabel('gray', '🌍', color.brightBlue('Fetching URL'), text));
+  log('info', bqIconLabel('gray', '🌍', color.brightBlue('Fetching URL'), '\n' + text));
   console.log('');
 }
 

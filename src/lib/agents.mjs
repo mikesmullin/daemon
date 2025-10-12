@@ -157,17 +157,15 @@ export class Agent {
       const messages = [{ role: 'system', content: system_prompt }];
       let last_message = {};
 
-      // Get watch_last_read timestamp to avoid repeating already logged messages
-      const watchLastRead = await Session.getWatchLastRead(session_id);
+
+      // Get last_read timestamp to avoid repeating already logged messages
+      const lastRead = await Session.getLastRead(session_id);
 
       for (const message of (sessionContent.spec.messages || [])) {
         messages.push(_.omit(message, ['ts']));
 
-        // Only log messages that are newer than watch_last_read timestamp
-        // If no watch_last_read exists, log all messages (backward compatibility)
-        const shouldLog = !watchLastRead || !message.ts || new Date(message.ts) > new Date(watchLastRead);
-
-        if (shouldLog) {
+        // Only log messages that are newer than last_read timestamp
+        const shouldLog = !lastRead || !message.ts || new Date(message.ts) > new Date(lastRead); if (shouldLog) {
           if (message.role == 'user') utils.logUser(message.content);
           if (message.role == 'assistant' && message.content) utils.logAssistant(message.content);
           if (message.role == 'assistant' && message.tool_calls?.length > 0) {
@@ -291,9 +289,9 @@ export class Agent {
         }
       }
 
-      // Update watch_last_read timestamp to mark that logging is complete for this session
+      // Update last_read timestamp to mark that logging is complete for this session
       // This prevents repetitive output in watch mode on subsequent iterations
-      await Session.updateWatchLastRead(session_id);
+      await Session.updateLastRead(session_id);
 
       await Agent.state(session_id, finalState);
       return {

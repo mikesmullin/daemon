@@ -175,11 +175,11 @@ async function parseCliArgs() {
     }
   }
 
-  if (subcommand === 'log') {
+  if (subcommand === 'logs') {
     if (args.length < 2) {
       utils.abort(
-        `Error: log requires a session ID.\n` +
-        `Usage: d log <session_id>`);
+        `Error: logs requires a session ID.\n` +
+        `Usage: d logs <session_id>`);
     }
 
     try {
@@ -254,7 +254,7 @@ Subcommands:
   push          Append message to session: push <session_id> <prompt>
   fork          Fork an existing agent session: fork <session_id> [prompt]
   eval          Ask Copilot to evaluate a session: eval <session_id>
-  log           Display chat log for a session: log <session_id>
+  logs          Display chat log for a session: logs <session_id>
   tool          Execute an agent tool: tool <name> <json-args>
 
 Options:
@@ -314,7 +314,7 @@ Options:
   await getConfig();
   await parseCliArgs();
 
-  log('info', `👺🚀 ${color.bold('Multi-Agent Orchestrator Daemon')} starting`);
+  log('debug', `👺🚀 ${color.bold('Multi-Agent Orchestrator Daemon')} starting`);
 
   // Show session info for watch mode and debugging
   if ('watch' == _G.mode) {
@@ -352,7 +352,7 @@ Options:
       if (result.processed > 0) {
         log('info', `⛽ Pump completed. Processed ${result.processed}/${result.total} sessions.`);
       } else {
-        log('debug', '🥱 No pending sessions to process. 😴💤 Exiting.');
+        log('info', '🥱 No pending sessions to process. 😴💤 Exiting.');
       }
     } catch (error) {
       log('error', `❌ Pump failed: ${error.message}`);
