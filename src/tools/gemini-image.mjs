@@ -34,11 +34,11 @@ async function initGeminiClient() {
     geminiClient = new GoogleGenAI({
       apiKey: apiKey
     });
-    
+
     // Test the connection by trying to access the models
     const model = geminiClient.models;
     log('debug', '✅ Google GenAI client initialized successfully');
-    
+
     return geminiClient;
   } catch (error) {
     throw new Error(`Failed to initialize Google GenAI client: ${error.message}`);
@@ -134,7 +134,7 @@ _G.tools.generate_image_gemini = {
 
     try {
       const client = await initGeminiClient();
-      
+
       // Ensure output directory exists
       const fullOutputDir = path.resolve(output_dir);
       ensureOutputDir(fullOutputDir);
@@ -145,7 +145,7 @@ _G.tools.generate_image_gemini = {
       // Add input images if provided
       if (input_image_urls.length > 0) {
         log('debug', `   Including ${input_image_urls.length} input image(s)`);
-        
+
         for (const imageUrl of input_image_urls) {
           try {
             // Handle both file paths and URLs
@@ -159,13 +159,13 @@ _G.tools.generate_image_gemini = {
               if (!fs.existsSync(imagePath)) {
                 throw new Error(`Image file not found: ${imagePath}`);
               }
-              
+
               // Read image file and add to contents
               const imageBuffer = fs.readFileSync(imagePath);
-              const mimeType = imagePath.endsWith('.png') ? 'image/png' : 
-                              imagePath.endsWith('.jpg') || imagePath.endsWith('.jpeg') ? 'image/jpeg' :
-                              'image/png'; // default
-              
+              const mimeType = imagePath.endsWith('.png') ? 'image/png' :
+                imagePath.endsWith('.jpg') || imagePath.endsWith('.jpeg') ? 'image/jpeg' :
+                  'image/png'; // default
+
               contents.push({
                 inlineData: {
                   data: imageBuffer.toString('base64'),
@@ -203,15 +203,15 @@ _G.tools.generate_image_gemini = {
           log('debug', `📝 Received text response: "${part.text.slice(0, 100)}..."`);
         } else if (part.inlineData) {
           imageCount++;
-          
+
           // Generate filename and save image
           const filename = generateFilename(prompt, 'png');
           const imagePath = path.join(fullOutputDir, filename);
-          
+
           // Save the image
           const imageBuffer = Buffer.from(part.inlineData.data, 'base64');
           fs.writeFileSync(imagePath, imageBuffer);
-          
+
           const imageInfo = {
             path: imagePath,
             filename: filename,
@@ -219,7 +219,7 @@ _G.tools.generate_image_gemini = {
             aspect_ratio: aspect_ratio,
             mode: mode
           };
-          
+
           results.push(imageInfo);
           log('info', `🖼️  Image saved: ${imagePath} (${(imageBuffer.length / 1024).toFixed(1)} KB)`);
         }
@@ -253,7 +253,7 @@ _G.tools.generate_image_gemini = {
 
     } catch (error) {
       log('error', `❌ Error generating image with Gemini: ${error.message}`);
-      
+
       // Provide helpful error messages
       let errorMessage = error.message;
       if (error.message.includes('API key')) {
@@ -264,7 +264,7 @@ _G.tools.generate_image_gemini = {
       } else if (error.message.includes('safety')) {
         errorMessage = 'Content was blocked by safety filters. Please try a different prompt that complies with Google\'s content policies.';
       }
-      
+
       return {
         success: false,
         content: `Failed to generate image: ${errorMessage}`,
