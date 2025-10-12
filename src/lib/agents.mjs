@@ -17,6 +17,7 @@ import '../tools/shell.mjs';
 import '../tools/tasks.mjs';
 import '../tools/agent.mjs';
 import '../tools/web.mjs';
+import '../tools/gemini-image.mjs';
 
 export class Agent {
   // Agents follow BehaviorTree (BT) patterns

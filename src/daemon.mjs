@@ -7,11 +7,15 @@ process.removeAllListeners('warning'); // suppress node.js tls warnings etc.
 
 import fs from 'fs';
 import clipboardy from 'clipboardy';
+import dotenv from 'dotenv';
 import { _G } from './lib/globals.mjs';
 import utils, { log } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
 import { Session } from './lib/session.mjs';
 import color from './lib/colors.mjs';
+
+// Load environment variables
+dotenv.config();
 
 // clean up transient files in directories
 async function clean() {

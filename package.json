@@ -26,8 +26,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@google/genai": "^0.4.0",
     "chokidar": "^3.6.0",
     "clipboardy": "^5.0.0",
+    "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
     "js-yaml": "^4.1.0",
     "lodash": "^4.17.21",
