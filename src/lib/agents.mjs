@@ -180,7 +180,7 @@ export class Agent {
               utils.logToolCall(tool_call);
               for (const message2 of (sessionContent.spec.messages || [])) {
                 if (message2.role == 'tool' && message2.tool_call_id == tool_call.id && message2.content) {
-                  console.log(message2.content);
+                  utils.logToolResponse(message2.content);
                 }
               }
             }

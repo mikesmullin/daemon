@@ -257,11 +257,6 @@ export class Tool {
                 content,
               });
 
-              // Log the result for human visibility
-              if (content) {
-                console.log(content);
-              }
-
               if (result.success) {
                 log('info', `✅ Tool ${color.bold(toolCall.function.name)} succeeded. #${toolCall.id}`);
               } else {

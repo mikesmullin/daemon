@@ -494,6 +494,12 @@ export function logTask(text) {
   console.log('');
 }
 
+export function logToolResponse(text) {
+  console.log('');
+  log('info', bqIconLabel('brightBlue', '🔧', color.brightBlue('Tool Response'), '\n' + text));
+  console.log('');
+}
+
 // Read from stdin if available, returns null if no stdin
 export async function readStdin() {
   return new Promise((resolve) => {
@@ -552,5 +558,6 @@ export default {
   logFileSystem,
   logAgent,
   logTask,
+  logToolResponse,
   readStdin,
 };
