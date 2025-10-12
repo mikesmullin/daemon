@@ -3,7 +3,8 @@ apiVersion: daemon/v1
 kind: Agent
 metadata:
   name: solo
-  model: claude-sonnet-4
+  #model: claude-sonnet-4
+  model: grok-code-fast-1
   tools:
   - create_file
   - view_file
