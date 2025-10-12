@@ -220,13 +220,28 @@ async function parseCliArgs() {
         'Example: d agent @solo run command: whoami');
     }
 
-    const fullPrompt = args.slice(1).join(' ');
+    let fullPrompt = args.slice(1).join(' ');
+
+    // Handle stdin input (same logic as 'd new')
+    const stdinData = await utils.readStdin();
+
+    if (fullPrompt === '-') {
+      // Explicit stdin request
+      if (!stdinData) {
+        utils.abort('Error: No stdin provided when "-" specified for prompt');
+      }
+      fullPrompt = stdinData;
+    } else if (stdinData) {
+      // Append stdin to existing prompt or use as prompt if none provided
+      fullPrompt = fullPrompt ? `${fullPrompt} ${stdinData}` : stdinData;
+    }
 
     // Parse @<agent> from the beginning of the prompt
-    const agentMatch = fullPrompt.match(/^@(\w+)\s*(.*)$/);
+    const agentMatch = fullPrompt.match(/^@(\w+)\s*([\s\S]*)$/);
     if (!agentMatch) {
       utils.abort(
         'Error: agent prompt must start with @<agent>\n' +
+        `Received prompt: "${fullPrompt}"\n` +
         'Usage: d agent @<agent> <prompt>\n' +
         'Example: d agent @solo run command: whoami');
     }
@@ -283,7 +298,7 @@ async function parseCliArgs() {
               // Find the last assistant message with content
               for (let i = messages.length - 1; i >= 0; i--) {
                 if (messages[i].role === 'assistant' && messages[i].content && messages[i].content.trim()) {
-                  console.log(messages[i].content);
+                  console.log('\n\n' + messages[i].content);
                   break;
                 }
               }
