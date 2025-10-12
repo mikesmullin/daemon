@@ -156,16 +156,27 @@ export class Agent {
       const system_prompt = sessionContent.spec.system_prompt || 'You are a helpful assistant.';
       const messages = [{ role: 'system', content: system_prompt }];
       let last_message = {};
+
+      // Get watch_last_read timestamp to avoid repeating already logged messages
+      const watchLastRead = await Session.getWatchLastRead(session_id);
+
       for (const message of (sessionContent.spec.messages || [])) {
         messages.push(_.omit(message, ['ts']));
-        if (message.role == 'user') utils.logUser(message.content);
-        if (message.role == 'assistant' && message.content) utils.logAssistant(message.content);
-        if (message.role == 'assistant' && message.tool_calls?.length > 0) {
-          for (const tool_call of message.tool_calls) {
-            utils.logToolCall(tool_call);
-            for (const message2 of (sessionContent.spec.messages || [])) {
-              if (message2.role == 'tool' && message2.tool_call_id == tool_call.id && message2.content) {
-                console.log(message2.content);
+
+        // Only log messages that are newer than watch_last_read timestamp
+        // If no watch_last_read exists, log all messages (backward compatibility)
+        const shouldLog = !watchLastRead || !message.ts || new Date(message.ts) > new Date(watchLastRead);
+
+        if (shouldLog) {
+          if (message.role == 'user') utils.logUser(message.content);
+          if (message.role == 'assistant' && message.content) utils.logAssistant(message.content);
+          if (message.role == 'assistant' && message.tool_calls?.length > 0) {
+            for (const tool_call of message.tool_calls) {
+              utils.logToolCall(tool_call);
+              for (const message2 of (sessionContent.spec.messages || [])) {
+                if (message2.role == 'tool' && message2.tool_call_id == tool_call.id && message2.content) {
+                  console.log(message2.content);
+                }
               }
             }
           }
@@ -279,6 +290,10 @@ export class Agent {
           finalState = 'pending';
         }
       }
+
+      // Update watch_last_read timestamp to mark that logging is complete for this session
+      // This prevents repetitive output in watch mode on subsequent iterations
+      await Session.updateWatchLastRead(session_id);
 
       await Agent.state(session_id, finalState);
       return {

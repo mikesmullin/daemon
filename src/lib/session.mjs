@@ -137,6 +137,45 @@ export class Session {
   }
 
   /**
+   * Get the last watch read timestamp for a session
+   * Used to track which messages have already been logged to avoid repetition
+   */
+  static async getWatchLastRead(session_id) {
+    try {
+      const sessionContent = await Session.load(session_id);
+      return sessionContent.metadata?.watch_last_read || null;
+    } catch (error) {
+      log('debug', `Could not get watch_last_read for session ${session_id}: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Update the last watch read timestamp for a session
+   * This marks when the session was last processed for logging to avoid repetitive output
+   */
+  static async updateWatchLastRead(session_id, timestamp = null) {
+    try {
+      const sessionContent = await Session.load(session_id);
+
+      // Initialize metadata if it doesn't exist
+      if (!sessionContent.metadata) {
+        sessionContent.metadata = {};
+      }
+
+      // Use provided timestamp or current time
+      const watchTimestamp = timestamp || new Date().toISOString();
+      sessionContent.metadata.watch_last_read = watchTimestamp;
+
+      await Session.save(session_id, sessionContent);
+      return watchTimestamp;
+    } catch (error) {
+      log('debug', `Could not update watch_last_read for session ${session_id}: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Create a new session from an agent template
    */
   static async new(agent, prompt = null) {

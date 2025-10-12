@@ -10,6 +10,7 @@ import clipboardy from 'clipboardy';
 import { _G } from './lib/globals.mjs';
 import utils, { log } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
+import { Session } from './lib/session.mjs';
 import color from './lib/colors.mjs';
 
 // clean up transient files in directories
@@ -174,6 +175,32 @@ async function parseCliArgs() {
     }
   }
 
+  if (subcommand === 'log') {
+    if (args.length < 2) {
+      utils.abort(
+        `Error: log requires a session ID.\n` +
+        `Usage: d log <session_id>`);
+    }
+
+    try {
+      const session_id = args[1];
+      const sessionContent = await Session.load(session_id);
+
+      console.log(`\n👺 Session ${session_id} (${sessionContent.metadata.name}) Chat Log\n`);
+
+      // Use Session.logConversation to display all messages
+      if (sessionContent.spec.messages && sessionContent.spec.messages.length > 0) {
+        Session.logConversation(sessionContent.spec.messages);
+      } else {
+        console.log('No messages in this session yet.');
+      }
+
+      process.exit(0);
+    } catch (error) {
+      utils.abort(error.message);
+    }
+  }
+
   if (subcommand === 'tool') {
     if (args.length < 2) {
       const tools = Object.keys(_G.tools).map(name => {
@@ -227,6 +254,7 @@ Subcommands:
   push          Append message to session: push <session_id> <prompt>
   fork          Fork an existing agent session: fork <session_id> [prompt]
   eval          Ask Copilot to evaluate a session: eval <session_id>
+  log           Display chat log for a session: log <session_id>
   tool          Execute an agent tool: tool <name> <json-args>
 
 Options:
