@@ -6,6 +6,7 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // allow self-signed certs
 process.removeAllListeners('warning'); // suppress node.js tls warnings etc.
 
 import fs from 'fs';
+import path from 'path';
 import clipboardy from 'clipboardy';
 import dotenv from 'dotenv';
 import { _G } from './lib/globals.mjs';
@@ -211,6 +212,127 @@ async function parseCliArgs() {
     }
   }
 
+  if (subcommand === 'agent') {
+    if (args.length < 2) {
+      utils.abort(
+        'Error: agent requires a prompt starting with @<agent>\n' +
+        'Usage: d agent @<agent> <prompt>\n' +
+        'Example: d agent @solo run command: whoami');
+    }
+
+    const fullPrompt = args.slice(1).join(' ');
+
+    // Parse @<agent> from the beginning of the prompt
+    const agentMatch = fullPrompt.match(/^@(\w+)\s*(.*)$/);
+    if (!agentMatch) {
+      utils.abort(
+        'Error: agent prompt must start with @<agent>\n' +
+        'Usage: d agent @<agent> <prompt>\n' +
+        'Example: d agent @solo run command: whoami');
+    }
+
+    const agent = agentMatch[1];
+    const prompt = agentMatch[2].trim();
+
+    if (!prompt) {
+      utils.abort(
+        'Error: agent requires a prompt after @<agent>\n' +
+        'Usage: d agent @<agent> <prompt>\n' +
+        'Example: d agent @solo run command: whoami');
+    }
+
+    try {
+      await getConfig();
+
+      // Create new agent session
+      log('info', `🤖 Creating new ${agent} agent session with prompt: ${prompt}`);
+      const result = await Agent.fork({ agent, prompt });
+      const sessionId = result.session_id;
+
+      log('info', `✅ Created session ${sessionId}, now monitoring until completion...`);
+
+      // Enter focused watch mode for this specific session
+      const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
+      let lastIterationStart = 0;
+
+      const performAgentWatch = async () => {
+        try {
+          const iterationStart = Date.now();
+          log('debug', `👀 Checking session ${sessionId}...`);
+
+          // Check session state before pumping
+          const sessions = await Agent.list();
+          const targetSession = sessions.find(s => s.session_id === sessionId);
+
+          if (!targetSession) {
+            log('error', `❌ Session ${sessionId} not found`);
+            process.exit(1);
+          }
+
+          // If session is already in terminal state, we're done
+          if (['success', 'fail'].includes(targetSession.bt_state)) {
+            log('info', `✅ Session ${sessionId} completed with state: ${targetSession.bt_state}`);
+
+            // Output the final assistant response to console
+            try {
+              const sessionFileName = `${sessionId}.yaml`;
+              const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
+              const sessionContent = await utils.readYaml(sessionPath);
+              const messages = sessionContent.spec.messages || [];
+
+              // Find the last assistant message with content
+              for (let i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].role === 'assistant' && messages[i].content && messages[i].content.trim()) {
+                  console.log(messages[i].content);
+                  break;
+                }
+              }
+            } catch (error) {
+              log('debug', `Could not retrieve final response: ${error.message}`);
+            }
+
+            if (targetSession.bt_state === 'fail') {
+              process.exit(1);
+            } else {
+              process.exit(0);
+            }
+          }
+
+          // Process the session if it's pending
+          if (targetSession.bt_state === 'pending') {
+            log('info', `🔄 Processing session ${sessionId} (${targetSession.agent})`);
+            await Agent.eval(sessionId);
+          }
+
+          // Calculate timing for next iteration
+          const iterationEnd = Date.now();
+          const iterationDuration = iterationEnd - iterationStart;
+          const timeSinceLastStart = lastIterationStart ? iterationStart - lastIterationStart : 0;
+          lastIterationStart = iterationStart;
+
+          const remainingDelay = Math.max(0, watchIntervalMs - timeSinceLastStart);
+          log('debug', `⏱️ Iteration took ${iterationDuration}ms, next run in ${remainingDelay}ms`);
+
+          // Schedule next iteration
+          setTimeout(performAgentWatch, remainingDelay);
+
+        } catch (error) {
+          log('error', `❌ Agent watch failed: ${error.message}`);
+          process.exit(1);
+        }
+      };
+
+      // Start the focused watch loop
+      await performAgentWatch();
+
+    } catch (error) {
+      utils.abort(error.message);
+    }
+
+    // Agent command should not fall through to other modes
+    return;
+  }
+
   if (subcommand === 'tool') {
     if (args.length < 2) {
       const tools = Object.keys(_G.tools).map(name => {
@@ -261,6 +383,7 @@ Subcommands:
   watch         Run continuously, checking-in at intervals: watch [session_id]
   sessions      List all agent sessions
   new           Create a new agent session: new <agent> [prompt|-]
+  agent         Create agent session and run until completion: agent @<agent> <prompt>
   push          Append message to session: push <session_id> <prompt>
   fork          Fork an existing agent session: fork <session_id> [prompt]
   eval          Ask Copilot to evaluate a session: eval <session_id>
