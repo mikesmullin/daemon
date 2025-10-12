@@ -292,7 +292,7 @@ export class Session {
       const sessions = [];
 
       for (const session_id of session_ids) {
-        if ('_next' == session_id) continue;
+        if ('_next' == session_id || /_last_read$/.test(session_id)) continue;
         const bt_state = await Session.getState(session_id);
         if (bt_state) {
           // Read session file to get additional details

@@ -108,6 +108,14 @@ export class Agent {
   }
 
   static async prompt({ model, messages, tools = [], max_tokens, refreshedOnce = false }) {
+    // // Filter out messages that are missing role or content fields
+    // if (messages && Array.isArray(messages)) {
+    //   messages = messages.filter(message => message.role && (message.content || message.tool_calls || message.tool_call_id)); // drop invalid message objects
+    // }
+    // if (!messages || messages.length === 0) {
+    //   log('info', 'Skipping Copilot API request; prompt was empty.');
+    //   return;
+    // }
     await Copilot.init();
     log('debug', '🤖 Copilot API Request');
     let response = {};
@@ -117,11 +125,10 @@ export class Agent {
         messages: messages,
         tools: tools,
         // max_tokens, // ie. 300
-        max_tokens: 300
       });
     } catch (error) {
       if (error.message.includes('token expired') && !refreshedOnce) {
-        await Copilot.refreshToken();
+        await Copilot.init();
         return Agent.prompt({ model, messages, tools, max_tokens, refreshedOnce: true });
       }
       utils.abort(error);

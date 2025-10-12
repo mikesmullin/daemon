@@ -27,6 +27,16 @@ export class Tool {
     const tool = _G.tools[name];
     utils.assert(tool, `Unknown tool: ${name}`);
 
+    // Validate required fields before any processing
+    const validation = Tool.validateRequiredFields(args, tool.definition.function);
+    if (!validation.success) {
+      return {
+        content: validation.error,
+        metadata: { validation_error: true, missing_field: validation.field },
+        success: false
+      };
+    }
+
     try {
       // Set session context if available
       if (sessionId !== undefined) {
@@ -290,6 +300,50 @@ export class Tool {
 
   // =============================================================================
   // API COMPATIBILITY UTILITIES
+  // =============================================================================
+
+  // =============================================================================
+  // VALIDATION HELPERS
+  // =============================================================================
+
+  /**
+   * Validate required fields according to tool definition
+   * 
+   * @param {Object} args - Tool arguments from Copilot
+   * @param {Object} toolDefinition - Tool function definition with parameters schema
+   * @returns {Object} { success: boolean, error?: string, field?: string }
+   */
+  static validateRequiredFields(args, toolDefinition) {
+    const required = toolDefinition.parameters?.required || [];
+    const properties = toolDefinition.parameters?.properties || {};
+
+    for (const fieldName of required) {
+      const value = args[fieldName];
+
+      // Check if field is missing
+      if (value === undefined || value === null) {
+        return {
+          success: false,
+          error: `Required field '${fieldName}' was missing or null`,
+          field: fieldName
+        };
+      }
+
+      // Check if string field is empty
+      if (properties[fieldName]?.type === 'string' && (value === '' || (typeof value === 'string' && value.trim() === ''))) {
+        return {
+          success: false,
+          error: `Required field '${fieldName}' was empty or contains only whitespace`,
+          field: fieldName
+        };
+      }
+    }
+
+    return { success: true };
+  }
+
+  // =============================================================================
+  // TOOL API PREPARATION
   // =============================================================================
 
   /**

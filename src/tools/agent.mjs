@@ -1,11 +1,13 @@
 // Agent Operations
 //
-// - append_prompt(session_id, prompt) // Append a user message to another agent session prompt context
+// - list_sessions() // Get all active sub-agent sessions with IDs, types, and status
+// - new_session(agent, prompt) // Create and start a new specialized sub-agent for specific tasks
+// - append_prompt(session_id, prompt) // Send additional instructions to an active sub-agent
+// - fork_session(session_id, [prompt]) // Create a copy of an existing agent session for parallel work
+// - kill_session(session_id) // Terminate and clean up an active agent session
 //
 
 import { _G } from '../lib/globals.mjs';
-import { existsSync } from 'fs';
-import { join } from 'path';
 import { Agent } from '../lib/agents.mjs';
 
 _G.tools.list_sessions = {
@@ -13,7 +15,7 @@ _G.tools.list_sessions = {
     type: 'function',
     function: {
       name: 'list_sessions',
-      description: 'List all active agent sessions',
+      description: 'Get a list of all currently active sub-agent sessions with their IDs, types, and status. Use this to monitor your agent workforce, check which agents are available for new tasks, and get session IDs needed for append_prompt or fork_session operations.',
     }
   },
   execute: async () => {
@@ -36,17 +38,17 @@ _G.tools.append_prompt = {
     type: 'function',
     function: {
       name: 'append_prompt',
-      description: 'Append a user message to another agent session prompt context',
+      description: 'Send additional instructions or context to an active sub-agent. Use this when you need to provide new information, clarify requirements, or give follow-up tasks to an agent that is already working on something.',
       parameters: {
         type: 'object',
         properties: {
           session_id: {
             type: 'number',
-            description: 'Target session id (e.g. 2)'
+            description: 'The session ID of the active agent you want to communicate with (get this from list_sessions). Must be a valid active session.'
           },
           prompt: {
             type: 'string',
-            description: 'Message to append to the agent session'
+            description: 'Clear, specific instructions for the agent. Include concrete details about what you want done, any constraints, expected output format, or additional context. DO NOT send empty strings - always provide meaningful direction. Examples: "Please also check the error logs in /var/log", "Update the function to handle null values", "Generate a summary report of your findings".'
           }
         },
         required: ['session_id', 'prompt']
@@ -73,20 +75,20 @@ _G.tools.new_session = {
     type: 'function',
     function: {
       name: 'new_session',
-      description: 'Create a new agent session from an agent template',
+      description: 'Create and start a new specialized sub-agent to handle specific tasks. Use this when you need dedicated expertise (planning, execution, evaluation, etc.) or want to delegate a substantial piece of work. Each agent type has different capabilities - choose based on the task requirements.',
       parameters: {
         type: 'object',
         properties: {
           agent: {
             type: 'string',
-            description: 'Agent template to use for the new session (e.g. "planner")'
+            description: 'The specialized agent template to instantiate. Available types: "planner" (task decomposition, strategy), "executor" (file operations, system commands), "evaluator" (assessment, validation), "retriever" (information gathering), "solo" (general purpose). Choose based on the primary function needed.'
           },
           prompt: {
             type: 'string',
-            description: 'Optional new initial prompt for the forked session'
+            description: 'Comprehensive initial task description for the new agent. Must be specific and actionable - include the objective, context, constraints, expected deliverables, and success criteria. DO NOT use empty strings or generic prompts. Example: "Analyze the user authentication system in /src/auth/ and identify security vulnerabilities. Focus on input validation and session management. Provide a detailed report with specific recommendations."'
           }
         },
-        required: ['agent']
+        required: ['agent', 'prompt']
       }
     }
   },
@@ -110,17 +112,17 @@ _G.tools.fork_session = {
     type: 'function',
     function: {
       name: 'fork_session',
-      description: 'Fork an existing agent session',
+      description: 'Create a copy of an existing agent session to explore alternative approaches or run parallel tasks. Use this when you want to try different strategies, test multiple solutions, or delegate related sub-tasks while preserving the original agent\'s work.',
       parameters: {
         type: 'object',
         properties: {
           session_id: {
             type: 'number',
-            description: 'Target session id (e.g. 2)'
+            description: 'The session ID of the agent to fork (get this from list_sessions). The new agent will inherit the original agent\'s context, memory, and conversation history.'
           },
           prompt: {
             type: 'string',
-            description: 'Optional new initial prompt for the forked session'
+            description: 'Optional specific task or direction for the forked agent. If provided, this should be a clear instruction for what the new agent should do differently or additionally. If omitted, the forked agent continues from where the original left off. Example: "Take a different approach focusing on performance optimization instead of security".'
           }
         },
         required: ['session_id']
@@ -147,13 +149,13 @@ _G.tools.kill_session = {
     type: 'function',
     function: {
       name: 'kill_session',
-      description: 'Terminate an active agent session',
+      description: 'Terminate and clean up an active agent session. Use this when an agent has completed its task, is no longer needed, or is stuck/malfunctioning. This frees up system resources and removes the agent from the active sessions list.',
       parameters: {
         type: 'object',
         properties: {
           session_id: {
             type: 'number',
-            description: 'Target session id (e.g. 2)'
+            description: 'The session ID of the agent to terminate (get this from list_sessions). The agent will be immediately stopped and cannot be restarted - use carefully.'
           }
         },
         required: ['session_id']
