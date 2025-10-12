@@ -98,24 +98,42 @@ export class Agent {
       }
 
       // Auto-launch tmux pane if running in tmux and config allows
+      log('debug', `🖼️  Tmux auto-pane settings detected: TMUX=${process.env.TMUX}, config=${_G.CONFIG.daemon?.auto_tmux_panes}`);
+
       if (process.env.TMUX && _G.CONFIG.daemon?.auto_tmux_panes) {
         try {
           const { spawn } = await import('child_process');
           const command = `d watch ${new_session_id}`;
           const paneTitle = `${agent}-${new_session_id}`;
-          
-          spawn('tmux', [
-            'split-window', 
-            '-c', process.cwd(),
-            '-t', process.env.TMUX_PANE || '',
-            command,
-            '\\;',
-            'select-pane', '-T', paneTitle
-          ], { detached: true, stdio: 'ignore' });
-          
+
+          log('debug', `🖼️  Creating tmux pane: ${command}`);
+
+          // Split the current pane vertically and run the watch command
+          const result = spawn('tmux', [
+            'split-window',
+            '-v',  // vertical split
+            '-c', process.cwd(),  // set working directory
+            command  // command to run in new pane
+          ], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+
+          // Set pane title in a separate command
+          setTimeout(() => {
+            spawn('tmux', ['select-pane', '-T', paneTitle], {
+              detached: true,
+              stdio: 'ignore'
+            });
+          }, 100);
+
           log('info', `🖼️  Created tmux pane "${paneTitle}" for session ${new_session_id}`);
         } catch (error) {
           log('debug', `Could not create tmux pane: ${error.message}`);
+        }
+      } else {
+        if (!process.env.TMUX) {
+          log('debug', '🖼️  Not in tmux session - skipping auto-pane creation');
+        }
+        if (!_G.CONFIG.daemon?.auto_tmux_panes) {
+          log('debug', '🖼️  auto_tmux_panes disabled in config - skipping auto-pane creation');
         }
       }
 
@@ -362,7 +380,7 @@ export class Agent {
   static async pump() {
     const sessions = await Session.list();
     let pendingSessions = sessions.filter(s => s.bt_state === 'pending');
-    
+
     // If watching a specific session, filter to only that session
     if (_G.watchSessionId) {
       pendingSessions = pendingSessions.filter(s => s.session_id === _G.watchSessionId);
