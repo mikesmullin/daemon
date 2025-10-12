@@ -196,14 +196,14 @@ export class Agent {
         }
 
         sessionUpdated = true;
-        
+
         // IMPROVEMENT: Immediately process any tool calls from the response
         // This creates a seamless flow: get response → approve tools → execute → finish
         // Benefits: no need to persist approval state, better UX
-        const toolCallsAdded = response.choices.some(choice => 
+        const toolCallsAdded = response.choices.some(choice =>
           choice.message.tool_calls && choice.message.tool_calls.length > 0
         );
-        
+
         if (toolCallsAdded) {
           log('info', '🔄 Processing tool calls immediately...');
           const toolsExecuted = await Agent.processPendingToolCalls(sessionContent, session_id);
@@ -238,7 +238,7 @@ export class Agent {
             // Check if all tool calls have corresponding tool results
             let allToolsExecuted = true;
             for (const toolCall of lastMessage.tool_calls) {
-              const hasResult = sessionMessages.some(msg => 
+              const hasResult = sessionMessages.some(msg =>
                 msg.role === 'tool' && msg.tool_call_id === toolCall.id
               );
               if (!hasResult) {
@@ -246,7 +246,7 @@ export class Agent {
                 break;
               }
             }
-            
+
             if (allToolsExecuted) {
               // All tools executed, assistant may need to respond to results
               finalState = 'pending';

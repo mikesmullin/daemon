@@ -37,14 +37,14 @@ _G.tools.execute_shell = {
       // This determines if human approval is needed
       try {
         const checkResult = await checkCommand(args.command);
-        
+
         if (checkResult.approved) {
           return 'allow';  // Execute without approval
         } else {
           // Check if it's explicitly denied or just needs approval
-          const isDenied = checkResult.details?.fullLineCheck?.denied || 
-                          checkResult.details?.subCommandChecks?.some(c => c.denied);
-          
+          const isDenied = checkResult.details?.fullLineCheck?.denied ||
+            checkResult.details?.subCommandChecks?.some(c => c.denied);
+
           if (isDenied) {
             return 'deny';   // Block execution entirely
           } else {
@@ -55,7 +55,7 @@ _G.tools.execute_shell = {
         // If allowlist check fails, require approval as safety measure
         return 'approve';
       }
-    },    getApprovalPrompt: async (args, context) => {
+    }, getApprovalPrompt: async (args, context) => {
       return `Shell command: ${args.command}\n` +
         `Working directory: ${args.cwd || 'current'}\n` +
         `⚠️  This command may modify your system or files.`;
@@ -64,8 +64,37 @@ _G.tools.execute_shell = {
   execute: async (args, options = {}) => {
     utils.logShell(args.command);
 
-    // Use allowlist checker
-    const result = await executeCommandWithCheck(args.command);
-    return result;
+    // Authorization already handled by Tool.execute() preToolUse hook
+    // Execute command directly without additional authorization checks
+    try {
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      const result = await execAsync(args.command, {
+        cwd: args.cwd || process.cwd(),
+        timeout: 30000  // 30 second timeout
+      });
+
+      return {
+        success: true,
+        content: result.stdout + (result.stderr || ''),
+        metadata: {
+          command: args.command,
+          cwd: args.cwd || process.cwd(),
+          authorized: 'approved_by_preToolUse_hook'
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        content: `Command failed: ${error.message}`,
+        metadata: {
+          command: args.command,
+          error: error.message,
+          authorized: 'approved_by_preToolUse_hook'
+        }
+      };
+    }
   }
 };

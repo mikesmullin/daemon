@@ -1,9 +1,7 @@
 import { _G } from './globals.mjs';
 import utils, { log } from './utils.mjs';
 import color from './colors.mjs';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const { read } = require('read');
+import readline from 'readline';
 
 /**
  * Tool Management Class
@@ -143,10 +141,22 @@ export class Tool {
 
     while (true) {
       try {
+        // Use readline instead of read module for better reliability
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+
         const response = await new Promise((resolve, reject) => {
-          read({ prompt: color.bold('Your choice: '), silent: false }, (err, result) => {
-            if (err) reject(err);
-            else resolve(result);
+          const timeoutId = setTimeout(() => {
+            rl.close();
+            reject(new Error('Input timeout after 30 seconds'));
+          }, 30000);
+
+          rl.question(color.bold('Your choice: '), (answer) => {
+            clearTimeout(timeoutId);
+            rl.close();
+            resolve(answer);
           });
         });
 
@@ -168,14 +178,16 @@ export class Tool {
         if (trimmed.toLowerCase() === 'm') {
           console.log(color.yellow('📝 User wants to modify the request'));
 
-          // Get alternative prompt from user
+          // Get alternative prompt from user using readline
+          const rl2 = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+          });
+
           const userPrompt = await new Promise((resolve, reject) => {
-            read({
-              prompt: color.bold('Enter your alternative request: '),
-              silent: false
-            }, (err, result) => {
-              if (err) reject(err);
-              else resolve(result);
+            rl2.question(color.bold('Enter your alternative request: '), (answer) => {
+              rl2.close();
+              resolve(answer);
             });
           });
 
