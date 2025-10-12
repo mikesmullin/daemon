@@ -82,9 +82,53 @@ export function bqIconLabel(colorName, icon, label, text) {
   return t2;
 }
 
+// Parse LOG environment variable patterns and check if log type should be included
+function _shouldLog(type) {
+  const logEnv = process.env.LOG;
+
+  // Empty string means no logging
+  if (logEnv === '') return false;
+
+  // '*' means all logging
+  if (logEnv === '*') return true;
+
+  // Case-insensitive comparison
+  const logEnvLower = logEnv.toLowerCase();
+  const typeLower = type.toLowerCase();
+
+  // Check for explicit exclusions (patterns starting with -)
+  const excludePatterns = logEnvLower.split(',')
+    .map(p => p.trim())
+    .filter(p => p.startsWith('-'))
+    .map(p => p.slice(1)); // Remove the '-' prefix
+
+  // If this type is explicitly excluded, don't log
+  if (excludePatterns.includes(typeLower)) {
+    return false;
+  }
+
+  // Get include patterns (patterns not starting with -)
+  const includePatterns = logEnvLower.split(',')
+    .map(p => p.trim())
+    .filter(p => !p.startsWith('-'));
+
+  // If there are include patterns, only log if type is in the list
+  if (includePatterns.length > 0) {
+    return includePatterns.includes(typeLower);
+  }
+
+  // If only exclude patterns exist, include all except excluded ones
+  if (excludePatterns.length > 0) {
+    return true; // We already checked exclusions above
+  }
+
+  // Fallback: treat as exact match for backward compatibility
+  return logEnvLower === typeLower;
+}
+
 // Logging function with timestamp and color support
 export function log(type, message) {
-  if ('' == process.env.LOG || ('*' != process.env.LOG && process.env.LOG != type)) return;
+  if (!_shouldLog(type)) return;
 
   const elapsed = Date.now() - _G.startedAt;
   const seconds = Math.floor(elapsed / 1000);

@@ -266,7 +266,7 @@ export class Agent {
     const sessions = await Session.list();
     const pendingSessions = sessions.filter(s => s.bt_state === 'pending');
 
-    log('info', `Processing ${pendingSessions.length} pending session(s)`);
+    // log(0 == pendingSessions.length ? 'debug' : 'info', `Processing ${pendingSessions.length} pending session(s)`);
 
     let processed = 0;
     for (const session of pendingSessions) {

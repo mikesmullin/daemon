@@ -204,6 +204,16 @@ System configuration via `config.yaml`:
 
 See [config.yaml](config.yaml) for current settings.
 
+## Logging
+
+Filter using the `LOG` environment variable:
+
+```bash
+LOG=*                    # (default) Enable all logging (debug, info, warn, error)
+LOG=warn,error           # Only warnings and errors
+LOG=-debug               # Everything except debug messages
+```
+
 ## Development
 
 ```bash
