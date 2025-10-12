@@ -73,6 +73,12 @@ async function parseCliArgs() {
 
   if (['pump', 'watch'].includes(subcommand)) {
     _G.mode = subcommand;
+
+    // For watch mode, capture optional session_id argument
+    if (subcommand === 'watch' && args[1]) {
+      _G.watchSessionId = args[1];
+    }
+
     return;
   }
 
@@ -248,7 +254,7 @@ Subcommands:
   help          Show this help message (default)
   clean         Remove transient state (proc, sessions, workspaces)
   pump          Run one iteration and exit
-  watch         Run continuously, checking-in at intervals
+  watch         Run continuously, checking-in at intervals: watch [session_id]
   sessions      List all agent sessions
   new           Create a new agent session: new <agent> [prompt|-]
   push          Append message to session: push <session_id> <prompt>
@@ -318,7 +324,8 @@ Options:
 
   // Show session info for watch mode and debugging
   if ('watch' == _G.mode) {
-    log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump every ${_G.CONFIG.daemon.watch_poll_interval} seconds`);
+    const sessionInfo = _G.watchSessionId ? ` session ${_G.watchSessionId}` : ' all sessions';
+    log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump${sessionInfo} every ${_G.CONFIG.daemon.watch_poll_interval} seconds`);
 
     const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
     let lastIterationStart = 0;
@@ -327,13 +334,14 @@ Options:
     const performWatchPump = async () => {
       try {
         const iterationStart = Date.now();
-        log('debug', `👀 Checking for pending sessions...`);
+        const sessionInfo = _G.watchSessionId ? ` session ${_G.watchSessionId}` : ' sessions';
+        log('debug', `👀 Checking for pending${sessionInfo}...`);
         const result = await Agent.pump();
 
         if (result.processed > 0) {
-          log('info', `👀 Pump completed. Processed ${result.processed}/${result.total} sessions.`);
+          log('info', `👀 Pump completed. Processed ${result.processed}/${result.total}${sessionInfo}.`);
         } else {
-          log('debug', '👀 No pending sessions to process.');
+          log('debug', `👀 No pending${sessionInfo} to process.`);
         }
 
         // Calculate elapsed time for this iteration

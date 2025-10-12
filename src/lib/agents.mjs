@@ -97,6 +97,28 @@ export class Agent {
         await Agent.push(new_session_id, prompt);
       }
 
+      // Auto-launch tmux pane if running in tmux and config allows
+      if (process.env.TMUX && _G.CONFIG.daemon?.auto_tmux_panes) {
+        try {
+          const { spawn } = await import('child_process');
+          const command = `d watch ${new_session_id}`;
+          const paneTitle = `${agent}-${new_session_id}`;
+          
+          spawn('tmux', [
+            'split-window', 
+            '-c', process.cwd(),
+            '-t', process.env.TMUX_PANE || '',
+            command,
+            '\\;',
+            'select-pane', '-T', paneTitle
+          ], { detached: true, stdio: 'ignore' });
+          
+          log('info', `🖼️  Created tmux pane "${paneTitle}" for session ${new_session_id}`);
+        } catch (error) {
+          log('debug', `Could not create tmux pane: ${error.message}`);
+        }
+      }
+
       return {
         session_id: new_session_id,
         agent,
@@ -339,7 +361,12 @@ export class Agent {
   // perform one pump iteration - process all pending sessions
   static async pump() {
     const sessions = await Session.list();
-    const pendingSessions = sessions.filter(s => s.bt_state === 'pending');
+    let pendingSessions = sessions.filter(s => s.bt_state === 'pending');
+    
+    // If watching a specific session, filter to only that session
+    if (_G.watchSessionId) {
+      pendingSessions = pendingSessions.filter(s => s.session_id === _G.watchSessionId);
+    }
 
     // log(0 == pendingSessions.length ? 'debug' : 'info', `Processing ${pendingSessions.length} pending session(s)`);
 
