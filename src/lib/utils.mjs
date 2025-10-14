@@ -213,10 +213,10 @@ export function log(type, message, messageTimestamp = null) {
 
   let indented = indentIcon(color.grey(timestamp) + colorFn(' '), message)
   const logLine = indented + color.reset() + '\n';
-  
+
   // Write to stdout/stderr
   output.write(logLine);
-  
+
   // Also append to log file (async, don't await to avoid blocking)
   const logFilePath = path.join(__dirname, '..', '..', 'tmp', 'watch.log');
   appendFile(logFilePath, logLine).catch(err => {
@@ -259,6 +259,7 @@ export function initializeDirectories() {
   _G.TEMPLATES_DIR = relWS('agents', 'templates');
   _G.SESSIONS_DIR = relWS('agents', 'sessions');
   _G.WORKSPACES_DIR = relWS('agents', 'workspaces');
+  _G.MCP_DIR = relWS('agents', 'mcp');
   _G.STORAGE_DIR = relWS('storage');
   _G.TASKS_DIR = relWS('tasks');
 
@@ -273,6 +274,7 @@ export async function makeDirectories() {
   await mkdirp(_G.TEMPLATES_DIR);
   await mkdirp(_G.SESSIONS_DIR);
   await mkdirp(_G.WORKSPACES_DIR);
+  await mkdirp(_G.MCP_DIR);
   await mkdirp(_G.STORAGE_DIR);
   await mkdirp(_G.TASKS_DIR);
 }

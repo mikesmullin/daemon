@@ -1,26 +1,30 @@
 daemon:
-  watch_poll_interval: 5 # seconds
-  auto_tmux_panes: false # automatically create tmux panes for new sessions
-  tmux_session_name: "daemon" # tmux session to create panes in
-
+  watch_poll_interval: 5
+  auto_tmux_panes: false
+  tmux_session_name: daemon
+mcp:
+  servers:
+    chrome-devtools:
+      command: npx
+      args:
+        - "-y"
+        - chrome-devtools-mcp@latest
+        - "-u"
+        - http://localhost:9222
+      enabled: true
+      approval_policy: approve
+      env: {}
+      cwd: null
 github:
-  # GitHub OAuth API endpoints
-  device_code_url: "https://github.com/login/device/code"
-  access_token_url: "https://github.com/login/oauth/access_token"
-
-  # Masquerade as VSCode Copilot Chat extension
-  client_id: "Iv1.b507a08c87ecfe98"
-  user_agent: "GitHubCopilotChat/0.26.7"
-
+  device_code_url: https://github.com/login/device/code
+  access_token_url: https://github.com/login/oauth/access_token
+  client_id: Iv1.b507a08c87ecfe98
+  user_agent: GitHubCopilotChat/0.26.7
 copilot:
-  access_token_max_poll_timeout: 300000 # 5min
-
-  # GitHub Copilot API endpoint
-  api_key_url: "https://api.github.com/copilot_internal/v2/token"
-  default_api_url: "https://api.githubcopilot.com"
-
-  # Masquerade as VSCode Copilot Chat extension
-  user_agent: "GitHubCopilotChat/0.26.7"
-  editor_version: "vscode/1.99.3"
-  editor_plugin_version: "copilot-chat/0.26.7"
-  integration_id: "vscode-chat"
+  access_token_max_poll_timeout: 300000
+  api_key_url: https://api.github.com/copilot_internal/v2/token
+  default_api_url: https://api.githubcopilot.com
+  user_agent: GitHubCopilotChat/0.26.7
+  editor_version: vscode/1.99.3
+  editor_plugin_version: copilot-chat/0.26.7
+  integration_id: vscode-chat

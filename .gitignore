@@ -6,4 +6,5 @@ node_modules/
 /storage/*
 /agents/proc/
 /agents/sessions/
+/agents/mcp/
 /.env

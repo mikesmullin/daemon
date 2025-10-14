@@ -14,9 +14,25 @@ import utils, { log } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
 import { Session } from './lib/session.mjs';
 import color from './lib/colors.mjs';
+import { handleMcpCommand } from './cli/mcp.mjs';
+import { MCPClient } from './lib/mcp-client.mjs';
+import { registerMCPTools } from './tools/mcp.mjs';
 
 // Load environment variables
 dotenv.config();
+
+// Cleanup MCP servers on exit
+process.on('SIGINT', async () => {
+  log('info', '\n🛑 Shutting down...');
+  await MCPClient.stopAllServers();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  log('info', '\n🛑 Shutting down...');
+  await MCPClient.stopAllServers();
+  process.exit(0);
+});
 
 // clean up transient files in directories
 async function clean() {
@@ -91,6 +107,11 @@ async function parseCliArgs() {
     const sessions = await Agent.list();
     console.log(utils.outputAs(format, sessions, { truncate, flatten }));
     process.exit(0);
+  }
+
+  if (subcommand === 'mcp') {
+    await getConfig();
+    await handleMcpCommand(args, format, { truncate, flatten });
   }
 
   if (subcommand === 'new') {
@@ -404,6 +425,7 @@ Subcommands:
   eval          Ask Copilot to evaluate a session: eval <session_id>
   logs          Display chat log for a session: logs <session_id>
   tool          Execute an agent tool: tool <name> <json-args>
+  mcp           Manage MCP servers: mcp <list|start|stop|discover|add>
 
 Options:
   --format      Output format (table|json|yaml|csv) [default: table]
@@ -460,6 +482,7 @@ Options:
   utils.initializeDirectories();
   await utils.makeDirectories();
   await getConfig();
+  await registerMCPTools(); // Register MCP tools after config is loaded
   await parseCliArgs();
 
   log('debug', `👺🚀 ${color.bold('Multi-Agent Orchestrator Daemon')} starting`);

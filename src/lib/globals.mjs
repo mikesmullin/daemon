@@ -14,4 +14,7 @@ export let _G = {
 
   // agent tool registry
   tools: {},
+
+  // MCP server instances (lazy-loaded)
+  mcpServers: {},
 };

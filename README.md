@@ -14,7 +14,8 @@ We aim to be deterministic, testable, auditable, and composable.
 - 📄 **YAML-based agent templates** - Clean, structured agent definitions for reusable behaviors
 - 🔄 **Session-based workflows** - Persistent, stateful agent interactions with BehaviorTree state management
 - 🔒 **Security allowlist** - Safe terminal command execution with comprehensive approval controls
-- 🛠️ **Rich tool ecosystem** - File operations, shell execution, web fetching, agent coordination (future: MCP integration)
+- 🛠️ **Rich tool ecosystem** - File operations, shell execution, web fetching, agent coordination
+- 🔌 **MCP integration** - Extend capabilities with Model Context Protocol servers (Chrome DevTools, etc.)
 - 🔑 **GitHub Copilot integration** - Native GitHub OAuth with automatic token management
 - ⛽ **Pump mode** - Step-through debugging for development and external orchestration
 - 👀 **Watch mode** - Continuous background operation for daily workflows  
@@ -249,7 +250,6 @@ npm test                      # Run test suite
 
 **Near-term:**
 - Enhanced multi-agent collaboration workflows
-- Expanded tool ecosystem with MCP (Model Context Protocol) integration
 - Advanced session state management and recovery
 - Template sharing and versioning system
 
