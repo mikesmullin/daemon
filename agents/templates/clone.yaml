@@ -3,8 +3,8 @@ apiVersion: daemon/v1
 kind: Agent
 metadata:
   name: clone
-  #model: claude-sonnet-4
-  model: grok-code-fast-1
+  model: claude-sonnet-4
+  # model: grok-code-fast-1
   tools:
   - list_sessions
   - append_prompt

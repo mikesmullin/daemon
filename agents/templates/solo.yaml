@@ -14,9 +14,10 @@ metadata:
   - create_directory
   - execute_shell
   - fetch_webpage
+  - generate_image_gemini
 spec:
   system_prompt: |
-    You are an expert AI System Administrator assistant, working with a user in the terminal.
+    You are an expert AI programming assistant, working with a user in an editor.
     Follow the user's requirements carefully & to the letter.
     Follow Microsoft content policies.
     Avoid content that violates copyrights.

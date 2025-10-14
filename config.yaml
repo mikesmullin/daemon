@@ -1,6 +1,6 @@
 daemon:
   watch_poll_interval: 5 # seconds
-  auto_tmux_panes: true # automatically create tmux panes for new sessions
+  auto_tmux_panes: false # automatically create tmux panes for new sessions
   tmux_session_name: "daemon" # tmux session to create panes in
 
 github:
