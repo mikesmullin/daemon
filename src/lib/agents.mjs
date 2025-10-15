@@ -394,7 +394,7 @@ export class Agent {
     let processed = 0;
     for (const session of pendingSessions) {
       try {
-        log('info', `🔄 Processing session ${session.session_id} (${session.agent})`);
+        log('debug', `🔄 Processing session ${session.session_id} (${session.agent})`);
         await Agent.eval(session.session_id);
         processed++;
       } catch (error) {

@@ -281,11 +281,11 @@ async function parseCliArgs() {
       await getConfig();
 
       // Create new agent session
-      log('info', `🤖 Creating new ${agent} agent session with prompt: ${prompt}`);
+      log('debug', `🤖 Creating new ${agent} agent session with prompt: ${prompt}`);
       const result = await Agent.fork({ agent, prompt });
       const sessionId = result.session_id;
 
-      log('info', `✅ Created session ${sessionId}, now monitoring until completion...`);
+      log('debug', `✅ Created session ${sessionId}, now monitoring until completion...`);
 
       // Enter focused watch mode for this specific session
       const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
@@ -307,7 +307,7 @@ async function parseCliArgs() {
 
           // If session is already in terminal state, we're done
           if (['success', 'fail'].includes(targetSession.bt_state)) {
-            log('info', `✅ Session ${sessionId} completed with state: ${targetSession.bt_state}`);
+            log('debug', `✅ Session ${sessionId} completed with state: ${targetSession.bt_state}`);
 
             // Output the final assistant response to console
             try {
@@ -336,7 +336,7 @@ async function parseCliArgs() {
 
           // Process the session if it's pending
           if (targetSession.bt_state === 'pending') {
-            log('info', `🔄 Processing session ${sessionId} (${targetSession.agent})`);
+            log('debug', `🔄 Processing session ${sessionId} (${targetSession.agent})`);
             await Agent.eval(sessionId);
           }
 
@@ -504,15 +504,15 @@ Options:
         const result = await Agent.pump();
 
         if (result.processed > 0) {
-          log('info', `👀 Pump completed. Processed ${result.processed}/${result.total}${sessionInfo}.`);
+          log('debug', `👀 Pump completed. Processed ${result.processed}/${result.total}${sessionInfo}.`);
         } else {
           // If watching a specific session, check if it's completed
           if (_G.watchSessionId) {
             const sessions = await Agent.list();
             const targetSession = sessions.find(s => s.session_id === _G.watchSessionId);
             if (targetSession && ['success', 'fail'].includes(targetSession.bt_state)) {
-              log('info', `✅ Session ${_G.watchSessionId} completed with state: ${targetSession.bt_state}`);
-              log('info', `👀 Watch will continue monitoring for any state changes...`);
+              log('debug', `✅ Session ${_G.watchSessionId} completed with state: ${targetSession.bt_state}`);
+              log('debug', `👀 Watch will continue monitoring for any state changes...`);
             } else if (!targetSession) {
               log('warn', `⚠️  Session ${_G.watchSessionId} not found. Continuing to monitor...`);
             }
@@ -556,9 +556,9 @@ Options:
     try {
       const result = await Agent.pump();
       if (result.processed > 0) {
-        log('info', `⛽ Pump completed. Processed ${result.processed}/${result.total} sessions.`);
+        log('debug', `⛽ Pump completed. Processed ${result.processed}/${result.total} sessions.`);
       } else {
-        log('info', '🥱 No pending sessions to process. 😴💤 Exiting.');
+        log('debug', '🥱 No pending sessions to process. 😴💤 Exiting.');
       }
     } catch (error) {
       log('error', `❌ Pump failed: ${error.message}`);
