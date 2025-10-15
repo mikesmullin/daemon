@@ -112,6 +112,11 @@ d new executor "Deploy the application to staging"
 echo "System status check" | d new solo -
 todo next | d new planner
 
+# Quick agent execution (creates session, runs until completion, shows result)
+d agent @solo "Check if Redis is running with podman"
+d agent @executor "Deploy the application to staging"
+d agent --last @solo "What is the current time?"  # Only show final response
+
 # Interact with existing sessions
 d sessions                    # List all sessions
 d push 0 "Now check PostgreSQL as well"  # Add message to session

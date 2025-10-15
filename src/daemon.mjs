@@ -79,6 +79,14 @@ async function parseCliArgs() {
     args.splice(flattenIndex, 1); // Remove --flatten flag
   }
 
+  // Parse --last flag
+  let last = false;
+  const lastIndex = args.indexOf('--last');
+  if (lastIndex !== -1) {
+    last = true;
+    args.splice(lastIndex, 1); // Remove --last flag
+  }
+
   // Determine subcommand (first non-option arg after flags are removed) - default is 'help'
   let subcommand = '';
   if (args[0] && !args[0].startsWith('-')) {
@@ -239,6 +247,11 @@ async function parseCliArgs() {
         'Error: agent requires a prompt starting with @<agent>\n' +
         'Usage: d agent @<agent> <prompt>\n' +
         'Example: d agent @solo run command: whoami');
+    }
+
+    // If --last flag is set, suppress all logs except errors
+    if (last) {
+      process.env.LOG = 'error';
     }
 
     let fullPrompt = args.slice(1).join(' ');
@@ -431,6 +444,7 @@ Options:
   --format      Output format (table|json|yaml|csv) [default: table]
   --truncate    Truncate long text fields in output
   --flatten     Flatten nested object hierarchies in output
+  --last        (agent only) Suppress all logs except the final assistant message
 `);
     process.exit(0);
   }
