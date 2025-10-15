@@ -258,7 +258,7 @@ async function parseCliArgs() {
     }
 
     // Parse @<agent> from the beginning of the prompt
-    const agentMatch = fullPrompt.match(/^@(\w+)\s*([\s\S]*)$/);
+    const agentMatch = fullPrompt.match(/^@([\w-]+)\s*([\s\S]*)$/);
     if (!agentMatch) {
       utils.abort(
         'Error: agent prompt must start with @<agent>\n' +

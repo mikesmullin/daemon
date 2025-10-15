@@ -7,4 +7,5 @@ node_modules/
 /agents/proc/
 /agents/sessions/
 /agents/mcp/
+/agents/templates/
 /.env
