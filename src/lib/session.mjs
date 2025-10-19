@@ -302,6 +302,7 @@ export class Session {
           let agent = 'unknown';
           let model = 'unknown';
           let last_message = '';
+          let pid = null;
 
           try {
             const sessionContent = await fs.readFile(sessionPath, 'utf-8');
@@ -311,6 +312,7 @@ export class Session {
             if (sessionData.metadata) {
               agent = sessionData.metadata.name || 'unknown';
               model = sessionData.metadata.model || 'unknown';
+              pid = sessionData.metadata.pid || null;
             }
 
             // Extract last message
@@ -327,8 +329,10 @@ export class Session {
           sessions.push({
             session_id: session_id,
             bt_state,
+            state: bt_state, // Alias for compatibility
             agent,
             model,
+            pid,
             last_message
           });
         }

@@ -55,6 +55,47 @@ let logWasUndefined = false;
 async function parseCliArgs() {
   const args = process.argv.slice(2);
 
+  // Parse global flags
+  let timeout = null;
+  let lock = false;
+  let kill = false;
+
+  // Parse -t=<n> or --timeout=<n>
+  for (let i = 0; i < args.length; i++) {
+    if (args[i].startsWith('-t=')) {
+      timeout = parseInt(args[i].substring(3), 10);
+      args.splice(i, 1);
+      i--;
+    } else if (args[i].startsWith('--timeout=')) {
+      timeout = parseInt(args[i].substring(10), 10);
+      args.splice(i, 1);
+      i--;
+    } else if (args[i] === '-t' || args[i] === '--timeout') {
+      if (i + 1 < args.length) {
+        timeout = parseInt(args[i + 1], 10);
+        args.splice(i, 2);
+        i--;
+      }
+    }
+  }
+
+  // Parse -l or --lock
+  const lockIndex = args.findIndex(arg => arg === '-l' || arg === '--lock');
+  if (lockIndex !== -1) {
+    lock = true;
+    args.splice(lockIndex, 1);
+  }
+
+  // Parse -k or --kill
+  const killIndex = args.findIndex(arg => arg === '-k' || arg === '--kill');
+  if (killIndex !== -1) {
+    kill = true;
+    args.splice(killIndex, 1);
+  }
+
+  // Store global flags in _G for access throughout the app
+  _G.cliFlags = { timeout, lock, kill };
+
   // Parse --format flag
   let format = 'table';
   const formatIndex = args.indexOf('--format');
@@ -330,12 +371,84 @@ async function parseCliArgs() {
     try {
       await getConfig();
 
+      // Check for --lock flag: abort if another agent of same type is running
+      if (_G.cliFlags.lock) {
+        const sessions = await Agent.list();
+        const runningSession = sessions.find(s => 
+          s.agent === agent && 
+          s.state === 'running'
+        );
+        
+        if (runningSession) {
+          utils.abort(
+            `Error: Another ${agent} agent is already running (session ${runningSession.session_id}, PID ${runningSession.pid || 'unknown'}).\n` +
+            `Use --kill to terminate it first, or wait for it to complete.`
+          );
+        }
+      }      // Check for --kill flag: kill any running agent of same type
+      if (_G.cliFlags.kill) {
+        const sessions = await Agent.list();
+        const runningSessions = sessions.filter(s =>
+          s.agent === agent &&
+          s.state === 'running'
+        );
+
+        for (const runningSession of runningSessions) {
+          const pid = runningSession.pid;
+          if (pid) {
+            try {
+              log('info', `🔪 Killing existing ${agent} session ${runningSession.session_id} (PID ${pid})...`);
+              process.kill(pid, 'SIGKILL');
+
+              // Wait a moment and verify process is dead
+              await new Promise(resolve => setTimeout(resolve, 100));
+
+              try {
+                process.kill(pid, 0); // Check if process exists
+                utils.abort(`Error: Failed to kill process ${pid}. Process is still running.`);
+              } catch (e) {
+                // Process is dead (expected)
+                log('debug', `✅ Process ${pid} successfully terminated`);
+              }
+            } catch (error) {
+              if (error.code === 'ESRCH') {
+                // Process doesn't exist, that's fine
+                log('debug', `Process ${pid} not found (already terminated)`);
+              } else {
+                utils.abort(`Error: Failed to kill process ${pid}: ${error.message}`);
+              }
+            }
+          }
+        }
+      }
+
       // Create new agent session
       log('debug', `🤖 Creating new ${agent} agent session with prompt: ${prompt}`);
       const result = await Agent.fork({ agent, prompt });
       const sessionId = result.session_id;
 
+      // Store PID in session metadata
+      const sessionPath = path.join(_G.SESSIONS_DIR, `${sessionId}.yaml`);
+      const sessionContent = await utils.readYaml(sessionPath);
+      sessionContent.metadata.pid = process.pid;
+      if (_G.cliFlags.timeout) {
+        sessionContent.metadata.timeout = _G.cliFlags.timeout;
+        sessionContent.metadata.startTime = new Date().toISOString();
+      }
+      await utils.writeYaml(sessionPath, sessionContent);
+
       log('debug', `✅ Created session ${sessionId}, now monitoring until completion...`);
+
+      // Setup timeout handler if --timeout flag is set
+      let timeoutHandle = null;
+      if (_G.cliFlags.timeout) {
+        timeoutHandle = setTimeout(() => {
+          utils.abort(
+            `Error: Agent session ${sessionId} exceeded timeout of ${_G.cliFlags.timeout} seconds.\n` +
+            `The session was started at ${sessionContent.metadata.startTime}.`
+          );
+        }, _G.cliFlags.timeout * 1000);
+      }
 
       // Enter focused watch mode for this specific session
       const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
@@ -396,6 +509,11 @@ async function parseCliArgs() {
 
             if (updatedSession && ['success', 'fail'].includes(updatedSession.bt_state)) {
               log('debug', `✅ Session ${sessionId} completed with state: ${updatedSession.bt_state}`);
+
+              // Clear timeout if set
+              if (timeoutHandle) {
+                clearTimeout(timeoutHandle);
+              }
 
               // Output the final assistant response to console
               try {
@@ -511,7 +629,12 @@ Subcommands:
   tool          Execute an agent tool: tool <name> <json-args>
   mcp           Manage MCP servers: mcp <list|start|stop|discover|add>
 
-Options:
+Global Options:
+  -t=<n>, --timeout=<n>   Abort if session runs longer than <n> seconds
+  -l, --lock              Abort if another instance of this agent type is running
+  -k, --kill              Kill any running instance of this agent type before starting
+
+Format Options:
   --format      Output format (table|json|yaml|csv) [default: table]
   --truncate    Truncate long text fields in output
   --flatten     Flatten nested object hierarchies in output
