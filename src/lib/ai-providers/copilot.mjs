@@ -23,7 +23,7 @@ export class CopilotProvider extends BaseProvider {
   }
 
   static getName() {
-    return 'copilot';
+    return 'Copilot';
   }
 
   static getModelPatterns() {

@@ -22,7 +22,7 @@ export class XAIProvider extends BaseProvider {
   }
 
   static getName() {
-    return 'xai';
+    return 'xAI';
   }
 
   static getModelPatterns() {

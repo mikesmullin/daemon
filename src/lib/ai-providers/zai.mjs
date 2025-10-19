@@ -20,7 +20,7 @@ export class ZAIProvider extends BaseProvider {
   }
 
   static getName() {
-    return 'zai';
+    return 'Z.ai';
   }
 
   static getModelPatterns() {

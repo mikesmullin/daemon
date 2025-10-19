@@ -22,7 +22,7 @@ export class AnthropicProvider extends BaseProvider {
   }
 
   static getName() {
-    return 'anthropic';
+    return 'Anthropic';
   }
 
   static getModelPatterns() {

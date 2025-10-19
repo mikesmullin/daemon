@@ -20,7 +20,7 @@ export class GeminiProvider extends BaseProvider {
   }
 
   static getName() {
-    return 'gemini';
+    return 'Gemini';
   }
 
   static getModelPatterns() {

@@ -139,7 +139,7 @@ export class BaseProvider {
   logMetrics(response) {
     const metrics = this.formatMetrics(response);
     if (metrics) {
-      log('info', metrics);
+      log('debug', metrics);
     }
   }
 }

@@ -23,7 +23,7 @@ export class OllamaProvider extends BaseProvider {
   }
 
   static getName() {
-    return 'ollama';
+    return 'Ollama';
   }
 
   static getModelPatterns() {
@@ -142,7 +142,7 @@ export class OllamaProvider extends BaseProvider {
       // Normalize to OpenAI format
       return {
         id: `ollama-${Date.now()}`,
-        created: Math.floor(startTime / 1000),
+        created: Math.floor(endTime / 1000), // Use endTime when response completed, not startTime
         model: model,
         choices: [{
           index: 0,

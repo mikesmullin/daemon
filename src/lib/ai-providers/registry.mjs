@@ -22,7 +22,7 @@ class ProviderRegistry {
    */
   register(ProviderClass) {
     const name = ProviderClass.getName();
-    this.providers.set(name, ProviderClass);
+    this.providers.set(name.toLowerCase(), ProviderClass);
     log('debug', `📦 Registered provider: ${name}`);
   }
 
@@ -140,7 +140,7 @@ class ProviderRegistry {
     const potentialProvider = parts[0];
 
     // Only strip if it's a known provider prefix
-    if (this.providers.has(potentialProvider)) {
+    if (this.providers.has(potentialProvider.toLowerCase())) {
       return parts.slice(1).join(':');
     }
 

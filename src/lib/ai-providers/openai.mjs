@@ -22,7 +22,7 @@ export class OpenAIProvider extends BaseProvider {
   }
 
   static getName() {
-    return 'openai';
+    return 'OpenAI';
   }
 
   static getModelPatterns() {

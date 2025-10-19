@@ -481,9 +481,10 @@ export function logThought(text) {
   console.log('');
 }
 
-export function logAssistant(text, messageTimestamp = null) {
+export function logAssistant(text, messageTimestamp = null, provider = null) {
   console.log('');
-  log('info', bqIconLabel('cyan', '🤖', color.red('Assistant'), '\n' + text), messageTimestamp);
+  const providerLabel = provider ? `${provider + provider.slice(1)} Assistant` : 'Assistant';
+  log('info', bqIconLabel('cyan', '🤖', color.red(providerLabel), '\n' + text), messageTimestamp);
   console.log('');
 }
 

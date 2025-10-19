@@ -388,6 +388,39 @@ async function parseCliArgs() {
           if (targetSession.bt_state === 'pending') {
             log('debug', `🔄 Processing session ${sessionId} (${targetSession.agent})`);
             await Agent.eval(sessionId);
+
+            // Immediately re-check session state after processing
+            // This allows for immediate exit instead of waiting for next interval
+            const updatedSessions = await Agent.list();
+            const updatedSession = updatedSessions.find(s => s.session_id === sessionId);
+
+            if (updatedSession && ['success', 'fail'].includes(updatedSession.bt_state)) {
+              log('debug', `✅ Session ${sessionId} completed with state: ${updatedSession.bt_state}`);
+
+              // Output the final assistant response to console
+              try {
+                const sessionFileName = `${sessionId}.yaml`;
+                const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
+                const sessionContent = await utils.readYaml(sessionPath);
+                const messages = sessionContent.spec.messages || [];
+
+                // Find the last assistant message with content
+                for (let i = messages.length - 1; i >= 0; i--) {
+                  if (messages[i].role === 'assistant' && messages[i].content && messages[i].content.trim()) {
+                    console.log('\n\n' + messages[i].content);
+                    break;
+                  }
+                }
+              } catch (error) {
+                log('debug', `Could not retrieve final response: ${error.message}`);
+              }
+
+              if (updatedSession.bt_state === 'fail') {
+                process.exit(1);
+              } else {
+                process.exit(0);
+              }
+            }
           }
 
           // Calculate timing for next iteration

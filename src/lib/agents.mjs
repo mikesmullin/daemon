@@ -154,11 +154,13 @@ export class Agent {
   static async prompt({ model, messages, tools = [], max_tokens }) {
     const modelName = model || 'claude-sonnet-4';
 
-    log('debug', `🤖 AI API Request (model: ${modelName})`);
 
     try {
       // Get the appropriate provider for this model
       const provider = await registry.getProvider(modelName);
+      const providerName = provider.constructor.getName();
+
+      log('debug', `🤖 ${providerName} AI API Request (model: ${modelName})`);
 
       // Strip provider prefix from model name if present
       const cleanModelName = registry.stripProviderPrefix(modelName);
@@ -171,7 +173,10 @@ export class Agent {
         max_tokens: max_tokens,
       });
 
-      log('debug', '🤖 AI API Response: ' + JSON.stringify(response, null, 2));
+      // Add provider name to response metadata
+      response.provider = providerName;
+
+      log('debug', '🤖 ${providerName} AI API Response: ' + JSON.stringify(response, null, 2));
 
       // Log metrics if available
       provider.logMetrics(response);
@@ -181,9 +186,7 @@ export class Agent {
       log('error', `AI API error: ${error.message}`);
       utils.abort(error);
     }
-  }
-
-  // evaluate an agent session by sending its context to the LLM as a prompt
+  }  // evaluate an agent session by sending its context to the LLM as a prompt
   static async eval(session_id) {
     try {
       const state = await Agent.state(session_id);
@@ -226,7 +229,7 @@ export class Agent {
         // Only log messages that are newer than last_read timestamp
         const shouldLog = !lastRead || !message.ts || new Date(message.ts) > new Date(lastRead); if (shouldLog) {
           if (message.role == 'user') utils.logUser(message.content, message.ts);
-          if (message.role == 'assistant' && message.content) utils.logAssistant(message.content, message.ts);
+          if (message.role == 'assistant' && message.content) utils.logAssistant(message.content, message.ts, sessionContent.metadata.provider);
           if (message.role == 'assistant' && message.tool_calls?.length > 0) {
             for (const tool_call of message.tool_calls) {
               utils.logToolCall(tool_call, message.ts);
@@ -256,13 +259,16 @@ export class Agent {
         });
 
         sessionContent.metadata.usage = response.usage;
+        sessionContent.metadata.provider = response.provider; // Store provider name
+
         for (const choice of response.choices) {
           if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
-          choice.message.ts = utils.unixToIso(_.get(response, 'created', utils.unixTime()));
+          // choice.message.ts = utils.unixToIso(_.get(response, 'created', utils.unixTime()));
+          choice.message.ts = new Date().toISOString();
           choice.message.finish_reason = choice.finish_reason;
           const msg2 = _.pick(choice.message, ['ts', 'role', 'content', 'tool_calls', 'finish_reason']);
           if (msg2.role == 'user') utils.logUser(msg2.content, msg2.ts);
-          if (msg2.role == 'assistant' && msg2.content) utils.logAssistant(msg2.content, msg2.ts);
+          if (msg2.role == 'assistant' && msg2.content) utils.logAssistant(msg2.content, msg2.ts, response.provider);
           if (msg2.role == 'assistant' && msg2.tool_calls?.length > 0) {
             for (const tool_call of msg2.tool_calls) {
               utils.logToolCall(tool_call, msg2.ts);
@@ -270,8 +276,9 @@ export class Agent {
           }
           sessionContent.spec.messages.push(msg2);
 
-          // Set session first message time if this is the first message
-          if (sessionContent.spec.messages.length === 1 && msg2.ts) {
+          // Set session first message time ONLY if not already set
+          // This should only be set once for the very first message (user prompt)
+          if (!_G.sessionFirstMessageTime && msg2.ts) {
             _G.sessionFirstMessageTime = msg2.ts;
           }
         }
