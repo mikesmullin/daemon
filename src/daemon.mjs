@@ -117,6 +117,43 @@ async function parseCliArgs() {
     process.exit(0);
   }
 
+  if (subcommand === 'models') {
+    const { registry } = await import('./lib/ai-providers/registry.mjs');
+    log('info', '🔍 Listing available models from all configured providers...\n');
+
+    const results = await registry.listAllModels();
+
+    // Format output based on requested format
+    if (format === 'json') {
+      console.log(JSON.stringify(results, null, 2));
+    } else if (format === 'yaml') {
+      const yaml = await import('js-yaml');
+      console.log(yaml.dump(results));
+    } else {
+      // Table format (default)
+      for (const providerResult of results) {
+        const statusIcon = providerResult.configured ? '✅' : '❌';
+        console.log(`\n${statusIcon} ${color.bold(providerResult.provider.toUpperCase())}`);
+
+        if (!providerResult.configured) {
+          console.log(`   ${color.yellow('Not configured - missing API key or configuration')}`);
+        } else if (providerResult.error) {
+          console.log(`   ${color.red('Error: ' + providerResult.error)}`);
+        } else if (providerResult.models.length === 0) {
+          console.log(`   ${color.gray('No models available')}`);
+        } else {
+          console.log(`   ${color.gray(`${providerResult.count} models available:`)}`);
+          for (const model of providerResult.models) {
+            console.log(`   • ${color.cyan(model.id)} - ${model.description || model.name}`);
+          }
+        }
+      }
+      console.log('');
+    }
+
+    process.exit(0);
+  }
+
   if (subcommand === 'mcp') {
     await getConfig();
     await handleMcpCommand(args, format, { truncate, flatten });
@@ -431,6 +468,7 @@ Subcommands:
   pump          Run one iteration and exit
   watch         Run continuously, checking-in at intervals: watch [session_id]
   sessions      List all agent sessions
+  models        List available AI models from all configured providers
   new           Create a new agent session: new <agent> [prompt|-]
   agent         Create agent session and run until completion: agent @<agent> <prompt>
   push          Append message to session: push <session_id> <prompt>

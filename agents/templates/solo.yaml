@@ -4,7 +4,8 @@ kind: Agent
 metadata:
   name: solo
   #model: claude-sonnet-4
-  model: grok-code-fast-1
+  #model: xai:grok-code-fast-1
+  model: ollama:qwen3:8b
   tools:
   - create_file
   - view_file

@@ -12,7 +12,15 @@ mcp:
         - "-u"
         - http://localhost:9222
       enabled: true
-      approval_policy: approve
+      approval_policy: allow
+      env: {}
+      cwd: null
+    mock-server:
+      command: node
+      args:
+        - tmp/mock-mcp-server.mjs
+      enabled: true
+      approval_policy: allow
       env: {}
       cwd: null
 github:

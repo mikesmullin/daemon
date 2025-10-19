@@ -1,7 +1,7 @@
 # 👺 Daemon CLI
 
 A Multi-Agent Delegation (MAD) CLI 
-for orchestrating multiple AI agents using the GitHub Copilot API. 
+for orchestrating multiple AI agents with multi-provider AI support.
 Promotes Unix-philosophy over TUI.
 Built for advanced users who want to delegate complex tasks across specialized agents while maintaining simple, pipeable command-line interfaces.
 
@@ -10,25 +10,97 @@ We aim to be deterministic, testable, auditable, and composable.
 ## Features
 
 - 🤖 **Multi-agent orchestration** - Delegate tasks across specialized AI agents that collaborate autonomously
+- 🌐 **Multi-provider AI support** - Access models from Copilot, xAI, Gemini, Ollama, and more
 - ⚡ **Quick-prompt mode** - Get instant command suggestions with `d "your task"` 
 - 📄 **YAML-based agent templates** - Clean, structured agent definitions for reusable behaviors
 - 🔄 **Session-based workflows** - Persistent, stateful agent interactions with BehaviorTree state management
 - 🔒 **Security allowlist** - Safe terminal command execution with comprehensive approval controls
 - 🛠️ **Rich tool ecosystem** - File operations, shell execution, web fetching, agent coordination
 - 🔌 **MCP integration** - Extend capabilities with Model Context Protocol servers (Chrome DevTools, etc.)
-- 🔑 **GitHub Copilot integration** - Native GitHub OAuth with automatic token management
+- 🔑 **Flexible authentication** - GitHub OAuth for Copilot, API keys for other providers
 - ⛽ **Pump mode** - Step-through debugging for development and external orchestration
 - 👀 **Watch mode** - Continuous background operation for daily workflows  
 - �️ **Parallel execution** - Watch parallel processes, optionally with automatic tmux pane creation
 - �🔗 **Pipeline-friendly** - Designed for Unix-style stdin/stdout composition
 - 📊 **Multiple output formats** - JSON, YAML, CSV, and table output for scripting
+- 📈 **Usage metrics** - Track tokens/sec, time-to-first-token, and quota usage when available
+
+## AI Provider Support
+
+Daemon supports multiple AI providers, giving you flexibility to choose the best model for each task:
+
+### Supported Providers
+
+| Provider | Models | Configuration | Status |
+|----------|--------|---------------|--------|
+| **GitHub Copilot** | claude-sonnet-4, gpt-4o, o1-preview, o1-mini | GitHub OAuth (automatic) | ✅ Fully supported |
+| **xAI** | grok-code-fast-1, grok-beta | `XAI_API_KEY` | ✅ Fully supported |
+| **Google Gemini** | gemini-2.0-flash-exp, gemini-1.5-pro | `GOOGLE_AI_API_KEY` | ✅ Fully supported |
+| **Ollama** | qwen3:8b, llama3.3, mistral, codellama, etc. | `OLLAMA_BASE_URL` (default: localhost:11434) | ✅ Fully supported |
+| **Anthropic** | claude-sonnet-4.5, claude-opus-4 | `ANTHROPIC_API_KEY` | 🚧 Placeholder (use Copilot) |
+| **OpenAI** | gpt-5, gpt-4.5, o1 | `OPENAI_API_KEY` | 🚧 Placeholder (use Copilot) |
+| **z.ai** | GLM-4, GLM-3 | `ZAI_API_KEY` | 🚧 Placeholder |
+
+### Model Naming
+
+Models can be specified in two ways:
+
+1. **Auto-detection**: `model: grok-code-fast-1`
+2. **Explicit provider prefix** (recommended): `model: xai:grok-code-fast-1`
+
+Example in `agents/templates/solo.yaml`:
+```yaml
+metadata:
+  name: solo
+  model: grok-code-fast-1  # Auto-detects xAI provider
+  # OR
+  model: claude-sonnet-4   # Auto-detects Copilot provider
+  # OR  
+  model: gemini-2.0-flash-exp  # Auto-detects Gemini provider
+  # OR
+  model: qwen3:8b          # Auto-detects Ollama provider
+```
+
+### Configuration
+
+1. Copy `.env.example` to `.env`
+2. Add your API keys for the providers you want to use
+3. List available models: `d models`
+
+```bash
+# Example .env configuration
+XAI_API_KEY=xai-your-api-key-here
+GOOGLE_AI_API_KEY=your-google-api-key-here
+OLLAMA_BASE_URL=http://localhost:11434  # If using Ollama
+```
+
+See [.env.example](.env.example) for complete configuration options.
+
+#### Ollama
+
+If you're like me running Daemon in WSL2 Ubuntu but hostin Ollama from Windows 11,
+you need to expose the service like so.
+
+On Windows (cmd.exe):
+```
+set OLLAMA_HOST="0.0.0.0"
+ollama serve
+```
+
+In WSL2 Ubuntu:
+```
+export OLLAMA_HOST=http://172.24.0.1:11434
+```
 
 ## Architecture
 
 The system uses a **file-based multi-agent architecture** with YAML configuration:
 
 Code built with Node.js ES6 module syntax, with dependencies:
-- **OpenAI SDK** for Copilot API compatibility
+- **OpenAI SDK** for Copilot and xAI API compatibility
+- **Google Generative AI** for Gemini models
+- **Ollama SDK** for local model inference
+- Provider-agnostic abstraction layer for easy extensibility
 
 ### Agent Templates (`agents/templates/*.yaml`)
 Reusable agent blueprints that define specialized behaviors:
