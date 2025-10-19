@@ -134,7 +134,7 @@ function _shouldLog(type) {
 // Format relative time duration in human-readable format
 function formatRelativeTime(startTime, endTime) {
   const diffMs = new Date(endTime) - new Date(startTime);
-  const diffSeconds = Math.floor(diffMs / 1000);
+  const diffSeconds = Math.ceil(diffMs / 1000);
 
   if (diffSeconds < 60) {
     return `${diffSeconds}s`;
@@ -481,9 +481,16 @@ export function logThought(text) {
   console.log('');
 }
 
-export function logAssistant(text, messageTimestamp = null, provider = null) {
+export function logAssistant(text, messageTimestamp = null, provider = null, model = null, agentName = null) {
   console.log('');
-  const providerLabel = provider ? `${provider + provider.slice(1)} Assistant` : 'Assistant';
+  let providerLabel = '';
+  if (agentName) {
+    providerLabel += `@${agentName} `;
+  }
+  providerLabel += provider ? `${provider} Assistant` : 'Assistant';
+  if (model) {
+    providerLabel += ` (${model})`;
+  }
   log('info', bqIconLabel('cyan', '🤖', color.red(providerLabel), '\n' + text), messageTimestamp);
   console.log('');
 }

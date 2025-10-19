@@ -229,7 +229,7 @@ export class Agent {
         // Only log messages that are newer than last_read timestamp
         const shouldLog = !lastRead || !message.ts || new Date(message.ts) > new Date(lastRead); if (shouldLog) {
           if (message.role == 'user') utils.logUser(message.content, message.ts);
-          if (message.role == 'assistant' && message.content) utils.logAssistant(message.content, message.ts, sessionContent.metadata.provider);
+          if (message.role == 'assistant' && message.content) utils.logAssistant(message.content, message.ts, sessionContent.metadata.provider, sessionContent.metadata.model, sessionContent.metadata.name);
           if (message.role == 'assistant' && message.tool_calls?.length > 0) {
             for (const tool_call of message.tool_calls) {
               utils.logToolCall(tool_call, message.ts);
@@ -263,12 +263,11 @@ export class Agent {
 
         for (const choice of response.choices) {
           if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
-          // choice.message.ts = utils.unixToIso(_.get(response, 'created', utils.unixTime()));
-          choice.message.ts = new Date().toISOString();
+          choice.message.ts = utils.unixToIso(_.get(response, 'created', utils.unixTime()));
           choice.message.finish_reason = choice.finish_reason;
           const msg2 = _.pick(choice.message, ['ts', 'role', 'content', 'tool_calls', 'finish_reason']);
           if (msg2.role == 'user') utils.logUser(msg2.content, msg2.ts);
-          if (msg2.role == 'assistant' && msg2.content) utils.logAssistant(msg2.content, msg2.ts, response.provider);
+          if (msg2.role == 'assistant' && msg2.content) utils.logAssistant(msg2.content, msg2.ts, response.provider, response.model, sessionContent.metadata.name);
           if (msg2.role == 'assistant' && msg2.tool_calls?.length > 0) {
             for (const tool_call of msg2.tool_calls) {
               utils.logToolCall(tool_call, msg2.ts);

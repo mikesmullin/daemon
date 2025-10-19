@@ -70,7 +70,7 @@ class ProviderRegistry {
 
     // Check for explicit provider prefix (e.g., "ollama:qwen3:8b")
     if (modelName.includes(':')) {
-      const prefix = modelName.split(':')[0];
+      const prefix = modelName.split(':')[0].toLowerCase();
       if (this.providers.has(prefix)) {
         return prefix;
       }

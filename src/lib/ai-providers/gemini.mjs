@@ -161,7 +161,7 @@ export class GeminiProvider extends BaseProvider {
       // Normalize to OpenAI format
       return {
         id: `gemini-${Date.now()}`,
-        created: Math.floor(startTime / 1000),
+        created: Math.floor(endTime / 1000), // Use endTime when response completed, not startTime
         model: model,
         choices: [{
           index: 0,
