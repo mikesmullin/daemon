@@ -80,6 +80,7 @@ export class TextAreaInput {
     this.selectedCommandIndex = 0;
     this.commandScrollOffset = 0;
     this.maxVisibleCommands = 10;
+    this.lastRenderedLines = 0; // Track how many lines were rendered last time
   }
 
   /**
@@ -211,14 +212,33 @@ export class TextAreaInput {
    * Render the entire prompt interface
    */
   render() {
+    // Calculate how many lines we need for current content
+    const inputLines = this.lines.length;
+    const borderLines = 3; // top border, bottom border, padding line
+    const helpLines = this.helpMode ? this.renderHelpText().split('\n').length : 1;
+    const totalLines = borderLines + inputLines + helpLines;
+    
     // Clear screen only on first render
     if (!this.hasRendered) {
       process.stdout.write('\x1b[2J\x1b[H');
       this.hasRendered = true;
     } else {
-      // Move to home position without clearing
+      // Move to home position
+      process.stdout.write('\x1b[H');
+      
+      // Clear all previously rendered lines to handle terminal resize and content changes
+      // We need to clear at least as many lines as we rendered last time
+      const linesToClear = Math.max(this.lastRenderedLines, totalLines, this.terminalHeight);
+      for (let i = 0; i < linesToClear; i++) {
+        process.stdout.write('\x1b[K\n'); // Clear line and move down
+      }
+      
+      // Move back to home position
       process.stdout.write('\x1b[H');
     }
+    
+    // Store how many lines we're rendering
+    this.lastRenderedLines = totalLines;
 
     // Add padding line above prompt
     process.stdout.write('\n');
@@ -326,7 +346,7 @@ export class TextAreaInput {
         this.render();
         return;
       }
-      
+
       // If in command menu and a command is selected, insert it
       if (this.helpMode === 'commands' && this.selectedCommandIndex >= 0) {
         const allCommands = [
@@ -339,7 +359,7 @@ export class TextAreaInput {
           { text: 'placeholder3', description: 'Coming soon...' },
           { text: 'placeholder4', description: 'Coming soon...' }
         ];
-        
+
         if (this.selectedCommandIndex < allCommands.length) {
           const selectedCmd = allCommands[this.selectedCommandIndex];
           // Don't insert placeholder commands
@@ -430,12 +450,12 @@ export class TextAreaInput {
           this.render();
           return;
         }
-        
+
         // Close shortcuts help on any other character
         if (this.helpMode === 'shortcuts') {
           this.helpMode = null;
         }
-        
+
         this.insertChar(key);
 
         // Update help mode based on input
@@ -500,15 +520,15 @@ export class TextAreaInput {
     this.cursorCol = 0;
   }
 
-    /**
-   * Delete character at cursor
-   */
+  /**
+ * Delete character at cursor
+ */
   deleteChar() {
     if (this.cursorCol > 0) {
       const line = this.lines[this.cursorLine];
       this.lines[this.cursorLine] = line.substring(0, this.cursorCol - 1) + line.substring(this.cursorCol);
       this.cursorCol--;
-      
+
       // Close command menu if we backspaced the '/' completely
       if (this.helpMode === 'commands' && !this.lines[0].startsWith('/')) {
         this.helpMode = null;
@@ -575,17 +595,17 @@ export class TextAreaInput {
   updateHelpMode() {
     const text = this.getCurrentText();
     const firstLine = this.lines[0];
-    
+
     // Only activate shortcuts mode for '?' as the very first character
     if (text === '?' && this.cursorLine === 0 && this.cursorCol === 1) {
       this.helpMode = 'shortcuts';
-    } 
+    }
     // Only activate commands mode for '/' as the first character
     else if (firstLine.startsWith('/') && firstLine.length > 0) {
       this.helpMode = 'commands';
       this.selectedCommandIndex = 0;
       this.commandScrollOffset = 0;
-    } 
+    }
     // Clear help mode when input is empty
     else if (text === '') {
       this.helpMode = null;
@@ -657,6 +677,7 @@ export class TextAreaInput {
       // Handle resize
       process.stdout.on('resize', () => {
         this.terminalWidth = process.stdout.columns || 80;
+        this.terminalHeight = process.stdout.rows || 24;
         if (!this.closed) {
           this.render();
         }
