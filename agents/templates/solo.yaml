@@ -13,6 +13,7 @@ metadata:
   - apply_patch
   - list_directory
   - create_directory
+  - grep_search
   - execute_shell
   - fetch_webpage
   - generate_image_gemini

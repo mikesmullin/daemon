@@ -4,6 +4,7 @@
 // - create_file(filePath, content) // Create a new file with the specified content
 // - list_directory(path) // List files and folders in a directory
 // - create_directory(dirPath) // Create a new directory
+// - grep_search(query, isRegexp, includePattern, maxResults) // Search for files matching regexp
 //
 // Safe File Editing Tools:
 // - view_file(filePath, lineStart?, lineEnd?) // Safely view file contents with read tracking
@@ -13,10 +14,12 @@
 
 import { _G } from '../lib/globals.mjs';
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSync, appendFileSync, openSync, readSync, closeSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, relative } from 'path';
 import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
 import utils from '../lib/utils.mjs';
+import minimatchPkg from 'minimatch';
+const { Minimatch } = minimatchPkg;
 
 // File tracking system for safety (persistent across daemon restarts)
 const fileVersions = new Map();
@@ -303,13 +306,21 @@ _G.tools.list_directory = {
     type: 'function',
     function: {
       name: 'list_directory',
-      description: 'List files and folders in a directory',
+      description: 'List files and folders in a directory with optional glob pattern matching and recursive depth',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
             description: 'Path to the directory'
+          },
+          glob_pattern: {
+            type: 'string',
+            description: 'Optional glob pattern to filter results (e.g., "*.js", "**/*.md"). Supports wildcards: * (any chars), ** (recursive dirs), ? (single char)'
+          },
+          depth: {
+            type: 'number',
+            description: 'Optional recursion depth. 0 = current directory only (default), 1 = one level deep, -1 = unlimited depth'
           }
         },
         required: ['path']
@@ -318,39 +329,93 @@ _G.tools.list_directory = {
   },
   execute: async (args) => {
     try {
-      if (!existsSync(args.path)) {
+      const basePath = args.path;
+      const globPattern = args.glob_pattern;
+      const maxDepth = args.depth !== undefined ? args.depth : 0;
+
+      if (!existsSync(basePath)) {
         return {
           success: false,
           content: 'Directory not found',
           metadata: {
-            path: args.path,
+            path: basePath,
             error: 'directory_not_found',
             operation: 'list_directory'
           }
         };
       }
 
-      const entries = readdirSync(args.path).map(name => {
-        const fullPath = join(args.path, name);
-        const stats = statSync(fullPath);
-        return {
-          name,
-          type: stats.isDirectory() ? 'directory' : 'file',
-          size: stats.size,
-          modified: stats.mtime
-        };
-      });
+      // Recursive directory listing function
+      const listRecursive = (dirPath, currentDepth = 0) => {
+        const entries = [];
+
+        // Create minimatch matcher if glob pattern provided
+        const matcher = globPattern ? new Minimatch(globPattern, { dot: true }) : null;
+
+        try {
+          const items = readdirSync(dirPath);
+
+          for (const name of items) {
+            const fullPath = join(dirPath, name);
+            const relativePath = relative(basePath, fullPath);
+
+            try {
+              const stats = statSync(fullPath);
+              const isDirectory = stats.isDirectory();
+
+              // Check if matches glob pattern (if provided)
+              // Match against both relative path and just the name for flexibility
+              const matchesGlob = !matcher ||
+                matcher.match(relativePath) ||
+                matcher.match(name);
+
+              if (matchesGlob || isDirectory) {
+                const entry = {
+                  name: relativePath || name,
+                  type: isDirectory ? 'directory' : 'file',
+                  size: stats.size,
+                  modified: stats.mtime
+                };
+
+                // Only add to results if it matches the glob (or no glob provided)
+                if (matchesGlob) {
+                  entries.push(entry);
+                }
+
+                // Recurse into directories if depth allows
+                if (isDirectory && (maxDepth === -1 || currentDepth < maxDepth)) {
+                  const subEntries = listRecursive(fullPath, currentDepth + 1);
+                  entries.push(...subEntries);
+                }
+              }
+            } catch (statError) {
+              // Skip files we can't stat (permission issues, etc.)
+              continue;
+            }
+          }
+        } catch (readError) {
+          // Skip directories we can't read
+        }
+
+        return entries;
+      };
+
+      const entries = listRecursive(basePath);
 
       // Log the operation
-      utils.logFileSystem(`Listed directory: ${args.path} (${entries.length} entries)`);
+      const depthInfo = maxDepth === -1 ? 'unlimited depth' : maxDepth === 0 ? 'non-recursive' : `depth ${maxDepth}`;
+      const globInfo = globPattern ? ` matching "${globPattern}"` : '';
+      utils.logFileSystem(`Listed directory: ${basePath} (${depthInfo}${globInfo}, ${entries.length} entries)`);
 
       return {
         success: true,
-        content: `Listed ${entries.length} entries in ${args.path}:\n${entries.map(e => `${e.type === 'directory' ? '📁' : '📄'} ${e.name}`).join('\n')}`,
+        content: `Listed ${entries.length} entries in ${basePath}${globInfo}:\n${entries.map(e => `${e.type === 'directory' ? '📁' : '📄'} ${e.name}`).join('\n')}`,
         metadata: {
-          path: args.path,
+          path: basePath,
           entries: entries,
           count: entries.length,
+          glob_pattern: globPattern,
+          depth: maxDepth,
           operation: 'list_directory'
         }
       };
@@ -409,6 +474,193 @@ _G.tools.create_directory = {
           path: args.dirPath,
           error: error.message,
           operation: 'create_directory'
+        }
+      };
+    }
+  }
+};
+
+_G.tools.grep_search = {
+  definition: {
+    type: 'function',
+    function: {
+      name: 'grep_search',
+      description: 'Do a fast text search in the workspace. Use this tool when you want to search with an exact string or regex. If you are not sure what words will appear in the workspace, prefer using regex patterns with alternation (|) or character classes to search for multiple potential words at once instead of making separate searches. For example, use \'function|method|procedure\' to look for all of those words at once. Use includePattern to search within files matching a specific pattern, or in a specific file, using a relative path. Use this tool when you want to see an overview of a particular file, instead of using read_file many times to look for code within a file.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'The pattern to search for in files in the workspace. Use regex with alternation (e.g., \'word1|word2|word3\') or character classes to find multiple potential words in a single search. Be sure to set the isRegexp property properly to declare whether it\'s a regex or plain text pattern. Is case-insensitive.'
+          },
+          isRegexp: {
+            type: 'boolean',
+            description: 'Whether the pattern is a regex.'
+          },
+          includePattern: {
+            type: 'string',
+            description: 'Search files matching this glob pattern. Will be applied to the relative path of files within the workspace. To search recursively inside a folder, use a proper glob pattern like "src/folder/**". Do not use | in includePattern.'
+          },
+          maxResults: {
+            type: 'number',
+            description: 'The maximum number of results to return. Do not use this unless necessary, it can slow things down. By default, only some matches are returned. If you use this and don\'t see what you\'re looking for, you can try again with a more specific query or a larger maxResults.'
+          }
+        },
+        required: ['query', 'isRegexp']
+      }
+    }
+  },
+  execute: async (args) => {
+    try {
+      const { query, isRegexp, includePattern, maxResults } = args;
+      const workspacePath = process.cwd();
+      const defaultMaxResults = 20;
+      const limit = maxResults || defaultMaxResults;
+
+      // Build the search pattern
+      let searchPattern;
+      if (isRegexp) {
+        try {
+          searchPattern = new RegExp(query, 'i'); // Case-insensitive
+        } catch (regexError) {
+          return {
+            success: false,
+            content: `Invalid regex pattern: ${regexError.message}`,
+            metadata: {
+              error: 'invalid_regex',
+              query,
+              operation: 'grep_search'
+            }
+          };
+        }
+      } else {
+        // Escape special regex characters for literal search
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        searchPattern = new RegExp(escapedQuery, 'i'); // Case-insensitive
+      }
+
+      const matches = [];
+      let totalMatches = 0;
+      let filesSearched = 0;
+
+      // Create minimatch matcher if includePattern provided
+      const includeMatcher = includePattern ? new Minimatch(includePattern, { dot: true }) : null;
+
+      // Recursive file search function
+      const searchInDirectory = (dirPath) => {
+        if (totalMatches >= limit) return;
+
+        try {
+          const items = readdirSync(dirPath);
+
+          for (const name of items) {
+            if (totalMatches >= limit) break;
+
+            const fullPath = join(dirPath, name);
+            const relativePath = relative(workspacePath, fullPath);
+
+            // Skip common ignore patterns
+            if (name === 'node_modules' || name === '.git' || name === '.vscode' ||
+              name.startsWith('.') && name !== '.env') {
+              continue;
+            }
+
+            try {
+              const stats = statSync(fullPath);
+
+              if (stats.isDirectory()) {
+                searchInDirectory(fullPath);
+              } else if (stats.isFile()) {
+                // Check if file matches includePattern (if provided)
+                if (includeMatcher && !includeMatcher.match(relativePath)) {
+                  continue;
+                }
+
+                // Skip binary files (simple heuristic based on extension)
+                const skipExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg',
+                  '.pdf', '.zip', '.tar', '.gz', '.exe', '.dll', '.so',
+                  '.bin', '.dat', '.db', '.sqlite', '.woff', '.woff2', '.ttf', '.eot'];
+                if (skipExtensions.some(ext => name.endsWith(ext))) {
+                  continue;
+                }
+
+                // Skip very large files (> 1MB)
+                if (stats.size > 1024 * 1024) {
+                  continue;
+                }
+
+                filesSearched++;
+
+                try {
+                  const content = readFileSync(fullPath, 'utf8');
+                  const lines = content.split('\n');
+
+                  for (let i = 0; i < lines.length; i++) {
+                    if (totalMatches >= limit) break;
+
+                    const line = lines[i];
+                    if (searchPattern.test(line)) {
+                      totalMatches++;
+                      matches.push({
+                        path: relativePath,
+                        line: i + 1,
+                        content: line
+                      });
+                    }
+                  }
+                } catch (readError) {
+                  // Skip files we can't read (binary, permission issues, etc.)
+                }
+              }
+            } catch (statError) {
+              // Skip files we can't stat
+              continue;
+            }
+          }
+        } catch (readDirError) {
+          // Skip directories we can't read
+        }
+      };
+
+      // Start search from workspace root
+      searchInDirectory(workspacePath);
+
+      const hasMoreResults = totalMatches >= limit;
+      const resultSummary = `${totalMatches} match${totalMatches !== 1 ? 'es' : ''}${hasMoreResults ? ' (more results are available)' : ''}`;
+
+      // Format matches similar to the example
+      let formattedMatches = '';
+      if (matches.length > 0) {
+        formattedMatches = matches.map(m =>
+          `<match path="${join(workspacePath, m.path)}" line=${m.line}>\n    ${m.content.trim()}\n</match>`
+        ).join('\n');
+      }
+
+      const searchInfo = includePattern ? ` in "${includePattern}"` : '';
+      utils.logFileSystem(`Grep search: "${query}" (${isRegexp ? 'regex' : 'literal'}${searchInfo}, ${filesSearched} files searched, ${totalMatches} matches)`);
+
+      return {
+        success: true,
+        content: `${resultSummary}\n${formattedMatches}`,
+        metadata: {
+          query,
+          isRegexp,
+          includePattern: includePattern || null,
+          totalMatches,
+          matchesReturned: matches.length,
+          filesSearched,
+          hasMoreResults,
+          operation: 'grep_search'
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        content: `Search error: ${error.message}`,
+        metadata: {
+          error: error.message,
+          query: args.query,
+          operation: 'grep_search'
         }
       };
     }

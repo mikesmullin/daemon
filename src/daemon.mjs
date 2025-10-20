@@ -254,6 +254,9 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
     // Start the focused watch loop
     performAgentWatch();
 
+    // Keep the process alive - the watch loop will exit via process.exit() when done
+    await new Promise(() => { }); // Never resolves
+
   } catch (error) {
     log('error', `❌ Failed to execute agent: ${error.message}`);
     process.exit(1);
@@ -592,7 +595,7 @@ async function parseCliArgs() {
 
       // Jump to agent execution logic (same as below)
       await executeAgent(agent, prompt, last);
-      return;
+      // Note: executeAgent never returns - it exits the process when done
     }
 
     // Non-interactive mode (original logic)
@@ -639,7 +642,7 @@ async function parseCliArgs() {
 
     // Execute the agent
     await executeAgent(agent, prompt, last);
-    return;
+    // Note: executeAgent never returns - it exits the process when done
   }
 
   if (subcommand === 'tool') {
