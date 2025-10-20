@@ -75,6 +75,7 @@ export class TextAreaInput {
     this.terminalWidth = process.stdout.columns || 80;
     this.terminalHeight = process.stdout.rows || 24;
     this.closed = false;
+    this.hasRendered = false;
     this.selectedCommandIndex = 0;
     this.commandScrollOffset = 0;
     this.maxVisibleCommands = 10;
@@ -149,7 +150,7 @@ export class TextAreaInput {
     if (this.helpMode === 'commands') {
       // Build command list with placeholders
       const allCommands = [];
-      
+
       for (const [cmd, info] of commands) {
         const aliases = info.aliases.length > 0 ? ` (${info.aliases.join(', ')})` : '';
         allCommands.push({
@@ -171,7 +172,7 @@ export class TextAreaInput {
       const maxVisible = Math.min(this.maxVisibleCommands, allCommands.length);
       const availableHeight = this.getTerminalHeight() - 6; // Reserve space for prompt and borders
       const actualMaxVisible = Math.min(maxVisible, availableHeight);
-      
+
       // Adjust scroll offset if needed
       if (this.selectedCommandIndex < this.commandScrollOffset) {
         this.commandScrollOffset = this.selectedCommandIndex;
@@ -209,16 +210,25 @@ export class TextAreaInput {
    * Render the entire prompt interface
    */
   render() {
-    // Clear screen
-    process.stdout.write('\x1b[2J\x1b[H');
+    // Clear screen only on first render
+    if (!this.hasRendered) {
+      process.stdout.write('\x1b[2J\x1b[H');
+      this.hasRendered = true;
+    } else {
+      // Move to home position without clearing
+      process.stdout.write('\x1b[H');
+    }
+
+    // Add padding line above prompt
+    process.stdout.write('\n');
 
     // Draw top border
     process.stdout.write(this.drawLine() + '\n');
 
     // Draw input area with lines
     if (this.lines.length === 1 && this.lines[0] === '') {
-      // Empty input
-      process.stdout.write(this.promptText + '\x1b[7m \x1b[0m\n');
+      // Empty input with colored cursor
+      process.stdout.write(this.promptText + colors.inputText + '\x1b[7m \x1b[0m' + '\n');
     } else {
       for (let i = 0; i < this.lines.length; i++) {
         const prefix = i === 0 ? this.promptText : '  ';
@@ -231,9 +241,15 @@ export class TextAreaInput {
           const cursor = after.length > 0 ? after[0] : ' ';
           const rest = after.substring(1);
 
-          process.stdout.write(prefix + before + '\x1b[7m' + cursor + '\x1b[0m' + rest + '\n');
+          process.stdout.write(
+            prefix +
+            colors.inputText + before +
+            '\x1b[7m' + cursor + '\x1b[0m' +
+            colors.inputText + rest + colors.reset +
+            '\n'
+          );
         } else {
-          process.stdout.write(prefix + line + '\n');
+          process.stdout.write(prefix + colors.inputText + line + colors.reset + '\n');
         }
       }
     }
@@ -317,11 +333,29 @@ export class TextAreaInput {
 
     // Arrow keys
     if (key === '\x1b[A') { // Up
+      if (this.helpMode === 'commands') {
+        // Navigate command menu
+        if (this.selectedCommandIndex > 0) {
+          this.selectedCommandIndex--;
+        }
+        this.render();
+        return;
+      }
       this.moveCursorUp();
       this.render();
       return;
     }
     if (key === '\x1b[B') { // Down
+      if (this.helpMode === 'commands') {
+        // Navigate command menu
+        // Count total commands
+        let totalCommands = commands.size + 4; // +4 for placeholder commands
+        if (this.selectedCommandIndex < totalCommands - 1) {
+          this.selectedCommandIndex++;
+        }
+        this.render();
+        return;
+      }
       this.moveCursorDown();
       this.render();
       return;
