@@ -91,8 +91,8 @@ export function bqIconLabel(colorName, icon, label, text) {
 function _shouldLog(type) {
   const logEnv = process.env.LOG;
 
-  // Empty string means no logging
-  if (logEnv === '') return false;
+  // Undefined or empty string means no logging
+  if (!logEnv || logEnv === '') return false;
 
   // '*' means all logging
   if (logEnv === '*') return true;

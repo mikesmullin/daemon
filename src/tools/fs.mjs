@@ -2,12 +2,12 @@
 //
 // Basic File Operations:
 // - create_file(filePath, content) // Create a new file with the specified content
-// - list_directory(path) // List files and folders in a directory
+// - list_directory(path, glob_pattern?, depth?) // List files/folders with optional glob filtering and recursion depth
 // - create_directory(dirPath) // Create a new directory
-// - grep_search(query, isRegexp, includePattern, maxResults) // Search for files matching regexp
+// - grep_search(query, isRegexp, includePattern?, maxResults?) // Search for text in files (literal or regex)
 //
 // Safe File Editing Tools:
-// - view_file(filePath, lineStart?, lineEnd?) // Safely view file contents with read tracking
+// - view_file(filePath, lineStart?, lineEnd?) // Safely view file contents with read tracking (supports negative line indices)
 // - edit_file(filePath, oldString, newString?) // Precisely edit files with safety validation
 // - apply_patch(filePath, patch, dryRun?) // Apply unified diff patches with validation
 //
@@ -672,7 +672,7 @@ _G.tools.view_file = {
     type: 'function',
     function: {
       name: 'view_file',
-      description: 'Safely view file contents with read tracking for edit safety. This tool must be used before any file editing operations to establish read timestamps and enable safe editing.',
+      description: 'Safely view file contents with read tracking for edit safety. This tool must be used before any file editing operations to establish read timestamps and enable safe editing. Supports both absolute (1-based) and relative (negative) line numbers.',
       parameters: {
         type: 'object',
         properties: {
@@ -682,11 +682,11 @@ _G.tools.view_file = {
           },
           lineStart: {
             type: 'number',
-            description: 'Starting line number (1-based, optional)'
+            description: 'Starting line number. Positive numbers are 1-based from start (e.g., 1 = first line). Negative numbers count from end (e.g., -1 = last line, -5 = fifth from last). Optional, defaults to 1 (first line).'
           },
           lineEnd: {
             type: 'number',
-            description: 'Ending line number (1-based, optional)'
+            description: 'Ending line number (inclusive). Positive numbers are 1-based from start. Negative numbers count from end (e.g., -1 = last line, -2 = second from last). Optional, defaults to last line. Examples: lineStart=1, lineEnd=10 (first 10 lines); lineStart=-5, lineEnd=-1 (last 5 lines); lineStart=-10, lineEnd=-5 (lines 10-5 from end).'
           }
         },
         required: ['filePath']
@@ -722,18 +722,37 @@ _G.tools.view_file = {
 
       const content = readFileSync(args.filePath, 'utf8');
       const lines = content.split('\n');
+      const totalLines = lines.length;
 
       // Record read time for safety tracking
       recordFileRead(args.filePath);
 
       let displayContent = content;
       let startLine = 1;
-      let endLine = lines.length;
+      let endLine = totalLines;
 
       // Handle line range if specified
-      if (args.lineStart || args.lineEnd) {
-        startLine = Math.max(1, args.lineStart || 1);
-        endLine = Math.min(lines.length, args.lineEnd || lines.length);
+      if (args.lineStart !== undefined || args.lineEnd !== undefined) {
+        // Convert negative indices to positive (ruby-style)
+        let rawStart = args.lineStart !== undefined ? args.lineStart : 1;
+        let rawEnd = args.lineEnd !== undefined ? args.lineEnd : totalLines;
+
+        // Handle negative indices: -1 is last line, -2 is second-to-last, etc.
+        if (rawStart < 0) {
+          rawStart = totalLines + rawStart + 1; // +1 because we use 1-indexed
+        }
+        if (rawEnd < 0) {
+          rawEnd = totalLines + rawEnd + 1;
+        }
+
+        // Clamp to valid range
+        startLine = Math.max(1, Math.min(totalLines, rawStart));
+        endLine = Math.max(1, Math.min(totalLines, rawEnd));
+
+        // Ensure startLine <= endLine
+        if (startLine > endLine) {
+          [startLine, endLine] = [endLine, startLine];
+        }
 
         const selectedLines = lines.slice(startLine - 1, endLine);
         displayContent = selectedLines.join('\n');
