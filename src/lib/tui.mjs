@@ -209,7 +209,7 @@ export class TextAreaInput {
     if (this.getCurrentText() === '') {
       return colors.menuText + '  ? for shortcuts' + colors.reset;
     }
-    
+
     return '';
   }
 
@@ -392,7 +392,7 @@ export class TextAreaInput {
         this.render();
         return;
       }
-      
+
       this.deleteChar();
       this.render();
       return;

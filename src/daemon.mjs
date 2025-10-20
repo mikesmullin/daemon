@@ -271,6 +271,7 @@ async function parseCliArgs() {
   let lock = false;
   let kill = false;
   let interactive = false;
+  let noHumans = false;
 
   // Parse -t=<n> or --timeout=<n>
   for (let i = 0; i < args.length; i++) {
@@ -312,8 +313,15 @@ async function parseCliArgs() {
     args.splice(interactiveIndex, 1);
   }
 
+  // Parse --no-humans
+  const noHumansIndex = args.findIndex(arg => arg === '--no-humans');
+  if (noHumansIndex !== -1) {
+    noHumans = true;
+    args.splice(noHumansIndex, 1);
+  }
+
   // Store global flags in _G for access throughout the app
-  _G.cliFlags = { timeout, lock, kill, interactive };
+  _G.cliFlags = { timeout, lock, kill, interactive, noHumans };
 
   // Parse --format flag
   let format = 'table';
@@ -698,6 +706,7 @@ Global Options:
   -l, --lock              Abort if another instance of this agent type is running
   -k, --kill              Kill any running instance of this agent type before starting
   -i, --interactive       (agent only) Prompt for input using multi-line text editor
+  --no-humans             Auto-reject tool requests not on allowlist (unattended mode)
 
 Format Options:
   --format      Output format (table|json|yaml|csv) [default: table]

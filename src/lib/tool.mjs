@@ -59,9 +59,17 @@ export class Tool {
           const approval = await Tool.askHuman(name, args, sessionId);
 
           if (approval.action === 'rejected') {
+            // Use custom message if auto-rejected (--no-humans mode)
+            const message = approval.autoRejected && approval.message 
+              ? approval.message 
+              : "The user refused to run the tool. You may try alternatives, or ask them to explain.";
+            
             return {
-              content: "The user refused to run the tool. You may try alternatives, or ask them to explain.",
-              metadata: { rejected: true, reason: 'user_rejection' },
+              content: message,
+              metadata: { 
+                rejected: true, 
+                reason: approval.autoRejected ? 'auto_rejection_no_humans' : 'user_rejection'
+              },
               success: false
             };
           }
@@ -128,6 +136,17 @@ export class Tool {
    */
   static async askHuman(name, args, sessionId) {
     const tool = _G.tools[name];
+
+    // Check if --no-humans flag is set (unattended mode)
+    if (_G.cliFlags?.noHumans) {
+      console.log(color.yellow('🤖 --no-humans mode: Auto-rejecting tool request'));
+      utils.logHumanApproval(name, 'Auto-rejected (--no-humans)', false);
+      return { 
+        action: 'rejected',
+        autoRejected: true,
+        message: 'The human is not present at the console, and your tool request did not match the allowlist, so it was automatically rejected. Use simpler and safer tools that are more likely to be on the allowlist.'
+      };
+    }
 
     // Get tool-specific context for the approval prompt
     let toolContext = '';
