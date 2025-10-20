@@ -205,7 +205,12 @@ export class TextAreaInput {
       return commandLines.join('\n');
     }
 
-    return colors.menuText + '  ? for shortcuts' + colors.reset;
+    // Only show "? for shortcuts" hint when input is completely empty
+    if (this.getCurrentText() === '') {
+      return colors.menuText + '  ? for shortcuts' + colors.reset;
+    }
+    
+    return '';
   }
 
   /**
@@ -217,7 +222,7 @@ export class TextAreaInput {
     const borderLines = 3; // top border, bottom border, padding line
     const helpLines = this.helpMode ? this.renderHelpText().split('\n').length : 1;
     const totalLines = borderLines + inputLines + helpLines;
-    
+
     // Clear screen only on first render
     if (!this.hasRendered) {
       process.stdout.write('\x1b[2J\x1b[H');
@@ -225,18 +230,18 @@ export class TextAreaInput {
     } else {
       // Move to home position
       process.stdout.write('\x1b[H');
-      
+
       // Clear all previously rendered lines to handle terminal resize and content changes
       // We need to clear at least as many lines as we rendered last time
       const linesToClear = Math.max(this.lastRenderedLines, totalLines, this.terminalHeight);
       for (let i = 0; i < linesToClear; i++) {
         process.stdout.write('\x1b[K\n'); // Clear line and move down
       }
-      
+
       // Move back to home position
       process.stdout.write('\x1b[H');
     }
-    
+
     // Store how many lines we're rendering
     this.lastRenderedLines = totalLines;
 
@@ -381,6 +386,13 @@ export class TextAreaInput {
 
     // Backspace
     if (key === '\x7f' || key === '\b') {
+      // Close shortcuts help mode on backspace
+      if (this.helpMode === 'shortcuts') {
+        this.helpMode = null;
+        this.render();
+        return;
+      }
+      
       this.deleteChar();
       this.render();
       return;
