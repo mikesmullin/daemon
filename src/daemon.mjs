@@ -49,6 +49,217 @@ async function getConfig() {
   _G.CONFIG = await utils.readYaml(_G.CONFIG_PATH);
 }
 
+// Execute an agent with the given prompt
+async function executeAgent(agent, prompt, suppressLogs = false) {
+  if (!prompt) {
+    utils.abort(
+      'Error: agent requires a prompt after @<agent>\n' +
+      'Usage: d agent @<agent> <prompt>\n' +
+      'Example: d agent @solo run command: whoami');
+  }
+
+  try {
+    await getConfig();
+
+    // Check for --lock flag: abort if another agent of same type is running
+    if (_G.cliFlags.lock) {
+      const sessions = await Agent.list();
+      const runningSession = sessions.find(s =>
+        s.agent === agent &&
+        s.state === 'running'
+      );
+
+      if (runningSession) {
+        utils.abort(
+          `Error: Another ${agent} agent is already running (session ${runningSession.session_id}, PID ${runningSession.pid || 'unknown'}).\n` +
+          `Use --kill to terminate it first, or wait for it to complete.`
+        );
+      }
+    }
+
+    // Check for --kill flag: kill any running agent of same type
+    if (_G.cliFlags.kill) {
+      const sessions = await Agent.list();
+      const runningSessions = sessions.filter(s =>
+        s.agent === agent &&
+        s.state === 'running'
+      );
+
+      for (const runningSession of runningSessions) {
+        const pid = runningSession.pid;
+        if (pid) {
+          try {
+            log('info', `🔪 Killing existing ${agent} session ${runningSession.session_id} (PID ${pid})...`);
+            process.kill(pid, 'SIGKILL');
+
+            // Wait a moment and verify process is dead
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            try {
+              process.kill(pid, 0); // Check if process exists
+              utils.abort(`Error: Failed to kill process ${pid}. Process is still running.`);
+            } catch (e) {
+              // Process is dead (expected)
+              log('debug', `✅ Process ${pid} successfully terminated`);
+            }
+          } catch (error) {
+            if (error.code === 'ESRCH') {
+              // Process doesn't exist, that's fine
+              log('debug', `Process ${pid} not found (already terminated)`);
+            } else {
+              utils.abort(`Error: Failed to kill process ${pid}: ${error.message}`);
+            }
+          }
+        }
+      }
+    }
+
+    // Create new agent session
+    log('debug', `🤖 Creating new ${agent} agent session with prompt: ${prompt}`);
+    const result = await Agent.fork({ agent, prompt });
+    const sessionId = result.session_id;
+
+    // Store PID in session metadata
+    const sessionPath = path.join(_G.SESSIONS_DIR, `${sessionId}.yaml`);
+    const sessionContent = await utils.readYaml(sessionPath);
+    sessionContent.metadata.pid = process.pid;
+    if (_G.cliFlags.timeout) {
+      sessionContent.metadata.timeout = _G.cliFlags.timeout;
+      sessionContent.metadata.startTime = new Date().toISOString();
+    }
+    await utils.writeYaml(sessionPath, sessionContent);
+
+    log('debug', `✅ Created session ${sessionId}, now monitoring until completion...`);
+
+    // Setup timeout handler if --timeout flag is set
+    let timeoutHandle = null;
+    if (_G.cliFlags.timeout) {
+      timeoutHandle = setTimeout(() => {
+        utils.abort(
+          `Error: Agent session ${sessionId} exceeded timeout of ${_G.cliFlags.timeout} seconds.\n` +
+          `The session was started at ${sessionContent.metadata.startTime}.`
+        );
+      }, _G.cliFlags.timeout * 1000);
+    }
+
+    // Enter focused watch mode for this specific session
+    const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
+    let lastIterationStart = 0;
+
+    const performAgentWatch = async () => {
+      try {
+        const iterationStart = Date.now();
+        log('debug', `👀 Checking session ${sessionId}...`);
+
+        // Check session state before pumping
+        const sessions = await Agent.list();
+        const targetSession = sessions.find(s => s.session_id === sessionId);
+
+        if (!targetSession) {
+          log('error', `❌ Session ${sessionId} not found`);
+          process.exit(1);
+        }
+
+        // If session is already in terminal state, we're done
+        if (['success', 'fail'].includes(targetSession.bt_state)) {
+          log('debug', `✅ Session ${sessionId} completed with state: ${targetSession.bt_state}`);
+
+          // Output the final assistant response to console
+          try {
+            const sessionFileName = `${sessionId}.yaml`;
+            const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
+            const sessionContent = await utils.readYaml(sessionPath);
+            const messages = sessionContent.spec.messages || [];
+
+            // Find the last assistant message with content
+            for (let i = messages.length - 1; i >= 0; i--) {
+              if (messages[i].role === 'assistant' && messages[i].content && messages[i].content.trim()) {
+                console.log('\n\n' + messages[i].content);
+                break;
+              }
+            }
+          } catch (error) {
+            log('debug', `Could not retrieve final response: ${error.message}`);
+          }
+
+          if (targetSession.bt_state === 'fail') {
+            process.exit(1);
+          } else {
+            process.exit(0);
+          }
+        }
+
+        // Process the session if it's pending
+        if (targetSession.bt_state === 'pending') {
+          log('debug', `🔄 Processing session ${sessionId} (${targetSession.agent})`);
+          await Agent.eval(sessionId);
+
+          // Immediately re-check session state after processing
+          // This allows for immediate exit instead of waiting for next interval
+          const updatedSessions = await Agent.list();
+          const updatedSession = updatedSessions.find(s => s.session_id === sessionId);
+
+          if (updatedSession && ['success', 'fail'].includes(updatedSession.bt_state)) {
+            log('debug', `✅ Session ${sessionId} completed with state: ${updatedSession.bt_state}`);
+
+            // Clear timeout if set
+            if (timeoutHandle) {
+              clearTimeout(timeoutHandle);
+            }
+
+            // Output the final assistant response to console
+            try {
+              const sessionFileName = `${sessionId}.yaml`;
+              const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
+              const sessionContent = await utils.readYaml(sessionPath);
+              const messages = sessionContent.spec.messages || [];
+
+              // Find the last assistant message with content
+              for (let i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].role === 'assistant' && messages[i].content && messages[i].content.trim()) {
+                  console.log('\n\n' + messages[i].content);
+                  break;
+                }
+              }
+            } catch (error) {
+              log('debug', `Could not retrieve final response: ${error.message}`);
+            }
+
+            if (updatedSession.bt_state === 'fail') {
+              process.exit(1);
+            } else {
+              process.exit(0);
+            }
+          }
+        }
+
+        // Calculate timing for next iteration
+        const iterationEnd = Date.now();
+        const iterationDuration = iterationEnd - iterationStart;
+        const timeSinceLastStart = lastIterationStart ? iterationStart - lastIterationStart : 0;
+        lastIterationStart = iterationStart;
+
+        const remainingDelay = Math.max(0, watchIntervalMs - timeSinceLastStart);
+        log('debug', `⏱️ Iteration took ${iterationDuration}ms, next run in ${remainingDelay}ms`);
+
+        // Schedule next iteration
+        setTimeout(performAgentWatch, remainingDelay);
+
+      } catch (error) {
+        log('error', `❌ Agent watch failed: ${error.message}`);
+        process.exit(1);
+      }
+    };
+
+    // Start the focused watch loop
+    performAgentWatch();
+
+  } catch (error) {
+    log('error', `❌ Failed to execute agent: ${error.message}`);
+    process.exit(1);
+  }
+}
+
 let logWasUndefined = false;
 
 // parse and route command line arguments
@@ -59,6 +270,7 @@ async function parseCliArgs() {
   let timeout = null;
   let lock = false;
   let kill = false;
+  let interactive = false;
 
   // Parse -t=<n> or --timeout=<n>
   for (let i = 0; i < args.length; i++) {
@@ -93,8 +305,15 @@ async function parseCliArgs() {
     args.splice(killIndex, 1);
   }
 
+  // Parse -i or --interactive
+  const interactiveIndex = args.findIndex(arg => arg === '-i' || arg === '--interactive');
+  if (interactiveIndex !== -1) {
+    interactive = true;
+    args.splice(interactiveIndex, 1);
+  }
+
   // Store global flags in _G for access throughout the app
-  _G.cliFlags = { timeout, lock, kill };
+  _G.cliFlags = { timeout, lock, kill, interactive };
 
   // Parse --format flag
   let format = 'table';
@@ -320,6 +539,55 @@ async function parseCliArgs() {
   }
 
   if (subcommand === 'agent') {
+    // Handle interactive mode
+    if (_G.cliFlags.interactive) {
+      // Interactive mode: @agent is required, prompt is optional (will be collected)
+      if (args.length < 2) {
+        utils.abort(
+          'Error: agent requires @<agent> in interactive mode\n' +
+          'Usage: d agent -i @<agent>\n' +
+          'Example: d agent -i @solo');
+      }
+
+      const agentArg = args[1];
+      const agentMatch = agentArg.match(/^@([\w-]+)$/);
+
+      if (!agentMatch) {
+        utils.abort(
+          'Error: agent must start with @<agent> in interactive mode\n' +
+          `Received: "${agentArg}"\n` +
+          'Usage: d agent -i @<agent>\n' +
+          'Example: d agent -i @solo');
+      }
+
+      const agent = agentMatch[1];
+
+      // Import TUI module and prompt for input
+      const { prompt: tuiPrompt } = await import('./lib/tui.mjs');
+
+      log('debug', `🤖 Interactive mode: collecting prompt for ${agent} agent...`);
+      const collectedPrompt = await tuiPrompt('> ');
+
+      if (!collectedPrompt || !collectedPrompt.trim()) {
+        utils.abort('Error: No prompt provided');
+      }
+
+      // Continue with the collected prompt
+      const fullPrompt = `@${agent} ${collectedPrompt}`;
+
+      // If --last flag is set, suppress all logs except errors
+      if (last) {
+        process.env.LOG = 'error';
+      }
+
+      const prompt = collectedPrompt.trim();
+
+      // Jump to agent execution logic (same as below)
+      await executeAgent(agent, prompt, last);
+      return;
+    }
+
+    // Non-interactive mode (original logic)
     if (args.length < 2) {
       utils.abort(
         'Error: agent requires a prompt starting with @<agent>\n' +
@@ -361,212 +629,8 @@ async function parseCliArgs() {
     const agent = agentMatch[1];
     const prompt = agentMatch[2].trim();
 
-    if (!prompt) {
-      utils.abort(
-        'Error: agent requires a prompt after @<agent>\n' +
-        'Usage: d agent @<agent> <prompt>\n' +
-        'Example: d agent @solo run command: whoami');
-    }
-
-    try {
-      await getConfig();
-
-      // Check for --lock flag: abort if another agent of same type is running
-      if (_G.cliFlags.lock) {
-        const sessions = await Agent.list();
-        const runningSession = sessions.find(s => 
-          s.agent === agent && 
-          s.state === 'running'
-        );
-        
-        if (runningSession) {
-          utils.abort(
-            `Error: Another ${agent} agent is already running (session ${runningSession.session_id}, PID ${runningSession.pid || 'unknown'}).\n` +
-            `Use --kill to terminate it first, or wait for it to complete.`
-          );
-        }
-      }      // Check for --kill flag: kill any running agent of same type
-      if (_G.cliFlags.kill) {
-        const sessions = await Agent.list();
-        const runningSessions = sessions.filter(s =>
-          s.agent === agent &&
-          s.state === 'running'
-        );
-
-        for (const runningSession of runningSessions) {
-          const pid = runningSession.pid;
-          if (pid) {
-            try {
-              log('info', `🔪 Killing existing ${agent} session ${runningSession.session_id} (PID ${pid})...`);
-              process.kill(pid, 'SIGKILL');
-
-              // Wait a moment and verify process is dead
-              await new Promise(resolve => setTimeout(resolve, 100));
-
-              try {
-                process.kill(pid, 0); // Check if process exists
-                utils.abort(`Error: Failed to kill process ${pid}. Process is still running.`);
-              } catch (e) {
-                // Process is dead (expected)
-                log('debug', `✅ Process ${pid} successfully terminated`);
-              }
-            } catch (error) {
-              if (error.code === 'ESRCH') {
-                // Process doesn't exist, that's fine
-                log('debug', `Process ${pid} not found (already terminated)`);
-              } else {
-                utils.abort(`Error: Failed to kill process ${pid}: ${error.message}`);
-              }
-            }
-          }
-        }
-      }
-
-      // Create new agent session
-      log('debug', `🤖 Creating new ${agent} agent session with prompt: ${prompt}`);
-      const result = await Agent.fork({ agent, prompt });
-      const sessionId = result.session_id;
-
-      // Store PID in session metadata
-      const sessionPath = path.join(_G.SESSIONS_DIR, `${sessionId}.yaml`);
-      const sessionContent = await utils.readYaml(sessionPath);
-      sessionContent.metadata.pid = process.pid;
-      if (_G.cliFlags.timeout) {
-        sessionContent.metadata.timeout = _G.cliFlags.timeout;
-        sessionContent.metadata.startTime = new Date().toISOString();
-      }
-      await utils.writeYaml(sessionPath, sessionContent);
-
-      log('debug', `✅ Created session ${sessionId}, now monitoring until completion...`);
-
-      // Setup timeout handler if --timeout flag is set
-      let timeoutHandle = null;
-      if (_G.cliFlags.timeout) {
-        timeoutHandle = setTimeout(() => {
-          utils.abort(
-            `Error: Agent session ${sessionId} exceeded timeout of ${_G.cliFlags.timeout} seconds.\n` +
-            `The session was started at ${sessionContent.metadata.startTime}.`
-          );
-        }, _G.cliFlags.timeout * 1000);
-      }
-
-      // Enter focused watch mode for this specific session
-      const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
-      let lastIterationStart = 0;
-
-      const performAgentWatch = async () => {
-        try {
-          const iterationStart = Date.now();
-          log('debug', `👀 Checking session ${sessionId}...`);
-
-          // Check session state before pumping
-          const sessions = await Agent.list();
-          const targetSession = sessions.find(s => s.session_id === sessionId);
-
-          if (!targetSession) {
-            log('error', `❌ Session ${sessionId} not found`);
-            process.exit(1);
-          }
-
-          // If session is already in terminal state, we're done
-          if (['success', 'fail'].includes(targetSession.bt_state)) {
-            log('debug', `✅ Session ${sessionId} completed with state: ${targetSession.bt_state}`);
-
-            // Output the final assistant response to console
-            try {
-              const sessionFileName = `${sessionId}.yaml`;
-              const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-              const sessionContent = await utils.readYaml(sessionPath);
-              const messages = sessionContent.spec.messages || [];
-
-              // Find the last assistant message with content
-              for (let i = messages.length - 1; i >= 0; i--) {
-                if (messages[i].role === 'assistant' && messages[i].content && messages[i].content.trim()) {
-                  console.log('\n\n' + messages[i].content);
-                  break;
-                }
-              }
-            } catch (error) {
-              log('debug', `Could not retrieve final response: ${error.message}`);
-            }
-
-            if (targetSession.bt_state === 'fail') {
-              process.exit(1);
-            } else {
-              process.exit(0);
-            }
-          }
-
-          // Process the session if it's pending
-          if (targetSession.bt_state === 'pending') {
-            log('debug', `🔄 Processing session ${sessionId} (${targetSession.agent})`);
-            await Agent.eval(sessionId);
-
-            // Immediately re-check session state after processing
-            // This allows for immediate exit instead of waiting for next interval
-            const updatedSessions = await Agent.list();
-            const updatedSession = updatedSessions.find(s => s.session_id === sessionId);
-
-            if (updatedSession && ['success', 'fail'].includes(updatedSession.bt_state)) {
-              log('debug', `✅ Session ${sessionId} completed with state: ${updatedSession.bt_state}`);
-
-              // Clear timeout if set
-              if (timeoutHandle) {
-                clearTimeout(timeoutHandle);
-              }
-
-              // Output the final assistant response to console
-              try {
-                const sessionFileName = `${sessionId}.yaml`;
-                const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-                const sessionContent = await utils.readYaml(sessionPath);
-                const messages = sessionContent.spec.messages || [];
-
-                // Find the last assistant message with content
-                for (let i = messages.length - 1; i >= 0; i--) {
-                  if (messages[i].role === 'assistant' && messages[i].content && messages[i].content.trim()) {
-                    console.log('\n\n' + messages[i].content);
-                    break;
-                  }
-                }
-              } catch (error) {
-                log('debug', `Could not retrieve final response: ${error.message}`);
-              }
-
-              if (updatedSession.bt_state === 'fail') {
-                process.exit(1);
-              } else {
-                process.exit(0);
-              }
-            }
-          }
-
-          // Calculate timing for next iteration
-          const iterationEnd = Date.now();
-          const iterationDuration = iterationEnd - iterationStart;
-          const timeSinceLastStart = lastIterationStart ? iterationStart - lastIterationStart : 0;
-          lastIterationStart = iterationStart;
-
-          const remainingDelay = Math.max(0, watchIntervalMs - timeSinceLastStart);
-          log('debug', `⏱️ Iteration took ${iterationDuration}ms, next run in ${remainingDelay}ms`);
-
-          // Schedule next iteration
-          setTimeout(performAgentWatch, remainingDelay);
-
-        } catch (error) {
-          log('error', `❌ Agent watch failed: ${error.message}`);
-          process.exit(1);
-        }
-      };
-
-      // Start the focused watch loop
-      await performAgentWatch();
-
-    } catch (error) {
-      utils.abort(error.message);
-    }
-
-    // Agent command should not fall through to other modes
+    // Execute the agent
+    await executeAgent(agent, prompt, last);
     return;
   }
 
@@ -633,6 +697,7 @@ Global Options:
   -t=<n>, --timeout=<n>   Abort if session runs longer than <n> seconds
   -l, --lock              Abort if another instance of this agent type is running
   -k, --kill              Kill any running instance of this agent type before starting
+  -i, --interactive       (agent only) Prompt for input using multi-line text editor
 
 Format Options:
   --format      Output format (table|json|yaml|csv) [default: table]
