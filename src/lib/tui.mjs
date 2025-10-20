@@ -15,6 +15,7 @@ const colors = {
   menuText: '\x1b[38;2;105;107;103m',   // #696b67
   error: '\x1b[38;2;255;135;175m',      // #ff87af
   greyHighlight: '\x1b[38;2;248;248;248;48;2;58;58;58m', // fg #f8f8f8 bg #3a3a3a
+  selectedCommand: '\x1b[38;2;175;215;255m', // #afd7ff - light blue for selected items
   reset: '\x1b[0m',
 };
 
@@ -194,7 +195,7 @@ export class TextAreaInput {
         const isSelected = actualIndex === this.selectedCommandIndex;
 
         if (isSelected) {
-          commandLines.push(colors.greyHighlight + '  ' + cmdText + cmd.description + colors.reset);
+          commandLines.push(colors.selectedCommand + '  ' + cmdText + cmd.description + colors.reset);
         } else {
           commandLines.push(colors.menuText + '  ' + cmdText + cmd.description + colors.reset);
         }
@@ -228,7 +229,7 @@ export class TextAreaInput {
     // Draw input area with lines
     if (this.lines.length === 1 && this.lines[0] === '') {
       // Empty input with colored cursor
-      process.stdout.write(this.promptText + colors.inputText + '\x1b[7m \x1b[0m' + '\n');
+      process.stdout.write(this.promptText + colors.inputText + '\x1b[7m \x1b[0m' + '\x1b[K\n');
     } else {
       for (let i = 0; i < this.lines.length; i++) {
         const prefix = i === 0 ? this.promptText : '  ';
@@ -246,10 +247,10 @@ export class TextAreaInput {
             colors.inputText + before +
             '\x1b[7m' + cursor + '\x1b[0m' +
             colors.inputText + rest + colors.reset +
-            '\n'
+            '\x1b[K\n'
           );
         } else {
-          process.stdout.write(prefix + colors.inputText + line + colors.reset + '\n');
+          process.stdout.write(prefix + colors.inputText + line + colors.reset + '\x1b[K\n');
         }
       }
     }
@@ -317,6 +318,40 @@ export class TextAreaInput {
         this.insertNewline();
         this.render();
         return;
+      }
+
+      // Close shortcuts help mode on Enter
+      if (this.helpMode === 'shortcuts') {
+        this.helpMode = null;
+        this.render();
+        return;
+      }
+      
+      // If in command menu and a command is selected, insert it
+      if (this.helpMode === 'commands' && this.selectedCommandIndex >= 0) {
+        const allCommands = [
+          ...Array.from(commands.entries()).map(([name, data]) => ({
+            text: name,
+            description: data.description
+          })),
+          { text: 'placeholder1', description: 'Coming soon...' },
+          { text: 'placeholder2', description: 'Coming soon...' },
+          { text: 'placeholder3', description: 'Coming soon...' },
+          { text: 'placeholder4', description: 'Coming soon...' }
+        ];
+        
+        if (this.selectedCommandIndex < allCommands.length) {
+          const selectedCmd = allCommands[this.selectedCommandIndex];
+          // Don't insert placeholder commands
+          if (!selectedCmd.text.startsWith('placeholder')) {
+            this.lines[0] = '/' + selectedCmd.text + ' ';
+            this.cursorCol = this.lines[0].length;
+            this.helpMode = null;
+            this.selectedCommandIndex = 0;
+            this.render();
+            return;
+          }
+        }
       }
 
       // Normal enter - submit
@@ -389,6 +424,18 @@ export class TextAreaInput {
       if (key.length > 1) {
         this.handlePaste(key);
       } else {
+        // Handle '?' as first character to show shortcuts
+        if (key === '?' && this.getCurrentText() === '' && this.cursorLine === 0 && this.cursorCol === 0) {
+          this.helpMode = 'shortcuts';
+          this.render();
+          return;
+        }
+        
+        // Close shortcuts help on any other character
+        if (this.helpMode === 'shortcuts') {
+          this.helpMode = null;
+        }
+        
         this.insertChar(key);
 
         // Update help mode based on input
@@ -453,17 +500,21 @@ export class TextAreaInput {
     this.cursorCol = 0;
   }
 
-  /**
-   * Delete character before cursor
+    /**
+   * Delete character at cursor
    */
   deleteChar() {
     if (this.cursorCol > 0) {
-      // Delete within line
-      const currentLine = this.lines[this.cursorLine];
-      this.lines[this.cursorLine] =
-        currentLine.substring(0, this.cursorCol - 1) +
-        currentLine.substring(this.cursorCol);
+      const line = this.lines[this.cursorLine];
+      this.lines[this.cursorLine] = line.substring(0, this.cursorCol - 1) + line.substring(this.cursorCol);
       this.cursorCol--;
+      
+      // Close command menu if we backspaced the '/' completely
+      if (this.helpMode === 'commands' && !this.lines[0].startsWith('/')) {
+        this.helpMode = null;
+        this.selectedCommandIndex = 0;
+        this.commandScrollOffset = 0;
+      }
     } else if (this.cursorLine > 0) {
       // Merge with previous line
       const currentLine = this.lines[this.cursorLine];
@@ -472,8 +523,6 @@ export class TextAreaInput {
       this.lines[this.cursorLine] += currentLine;
       this.lines.splice(this.cursorLine + 1, 1);
     }
-
-    this.updateHelpMode();
   }
 
   /**
@@ -525,12 +574,26 @@ export class TextAreaInput {
    */
   updateHelpMode() {
     const text = this.getCurrentText();
-
-    if (text === '?') {
+    const firstLine = this.lines[0];
+    
+    // Only activate shortcuts mode for '?' as the very first character
+    if (text === '?' && this.cursorLine === 0 && this.cursorCol === 1) {
       this.helpMode = 'shortcuts';
-    } else if (text.startsWith('/')) {
+    } 
+    // Only activate commands mode for '/' as the first character
+    else if (firstLine.startsWith('/') && firstLine.length > 0) {
       this.helpMode = 'commands';
-    } else if (text === '') {
+      this.selectedCommandIndex = 0;
+      this.commandScrollOffset = 0;
+    } 
+    // Clear help mode when input is empty
+    else if (text === '') {
+      this.helpMode = null;
+      this.selectedCommandIndex = 0;
+      this.commandScrollOffset = 0;
+    }
+    // Close shortcuts mode on any other input
+    else if (this.helpMode === 'shortcuts' && text !== '?') {
       this.helpMode = null;
     }
   }
