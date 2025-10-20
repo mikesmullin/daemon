@@ -4,8 +4,8 @@ kind: Agent
 metadata:
   name: solo
   #model: claude-sonnet-4
-  #model: xai:grok-code-fast-1
-  model: ollama:qwen3:8b
+  model: xai:grok-code-fast-1
+  # model: ollama:qwen3:8b
   tools:
   - create_file
   - view_file
@@ -16,6 +16,8 @@ metadata:
   - execute_shell
   - fetch_webpage
   - generate_image_gemini
+  - speak_to_human
+  - list_voice_presets
 spec:
   system_prompt: |
     You are an expert AI programming assistant, working with a user in an editor.
