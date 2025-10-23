@@ -83,6 +83,62 @@ export class OllamaProvider extends BaseProvider {
     }));
   }
 
+  /**
+   * Convert OpenAI-style messages to Ollama format
+   * 
+   * Key differences:
+   * 1. Assistant messages with tool_calls keep them in the message object
+   * 2. Tool role messages need proper format with content as string
+   */
+  convertMessagesToOllama(messages) {
+    return messages.map(msg => {
+      // System and user messages pass through as-is
+      if (msg.role === 'system' || msg.role === 'user') {
+        return msg;
+      }
+
+      // Assistant messages with tool_calls
+      if (msg.role === 'assistant' && msg.tool_calls) {
+        // Ollama expects tool_calls in assistant message
+        // Convert tool_calls arguments from string to object if needed
+        const convertedToolCalls = msg.tool_calls.map(tc => ({
+          function: {
+            name: tc.function.name,
+            // Ollama expects arguments as an object, not a string
+            arguments: typeof tc.function.arguments === 'string'
+              ? JSON.parse(tc.function.arguments)
+              : tc.function.arguments,
+          }
+        }));
+
+        return {
+          role: 'assistant',
+          content: msg.content || '',
+          tool_calls: convertedToolCalls,
+        };
+      }
+
+      // Assistant messages without tool_calls
+      if (msg.role === 'assistant') {
+        return {
+          role: 'assistant',
+          content: msg.content || '',
+        };
+      }
+
+      // Tool role messages - format content as string
+      if (msg.role === 'tool') {
+        return {
+          role: 'tool',
+          content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+        };
+      }
+
+      // Fallback for any other message types
+      return msg;
+    });
+  }
+
   async createChatCompletion({ model, messages, tools = [], max_tokens }) {
     const startTime = Date.now();
     let firstTokenTime = null;
@@ -91,9 +147,13 @@ export class OllamaProvider extends BaseProvider {
     try {
       const ollamaTools = this.convertToolsToOllama(tools);
 
+      // Convert messages to Ollama format
+      // Ollama expects tool_calls in assistant messages, not as separate fields
+      const ollamaMessages = this.convertMessagesToOllama(messages);
+
       const options = {
         model: model,
-        messages: messages,
+        messages: ollamaMessages,
         stream: false,
         options: {}
       };

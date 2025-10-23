@@ -5,7 +5,7 @@ metadata:
   name: solo
   #model: claude-sonnet-4
   model: xai:grok-code-fast-1
-  # model: ollama:qwen3:8b
+  # model: ollama:mistral:7b
   tools:
   - create_file
   - view_file
