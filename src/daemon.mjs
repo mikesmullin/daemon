@@ -16,7 +16,6 @@ import { Session } from './lib/session.mjs';
 import color from './lib/colors.mjs';
 import { handleMcpCommand } from './cli/mcp.mjs';
 import { MCPClient } from './lib/mcp-client.mjs';
-import { registerMCPTools } from './tools/mcp.mjs';
 
 // Load environment variables
 dotenv.config();
@@ -767,7 +766,6 @@ Format Options:
   utils.initializeDirectories();
   await utils.makeDirectories();
   await getConfig();
-  await registerMCPTools(); // Register MCP tools after config is loaded
   await parseCliArgs();
 
   log('debug', `👺🚀 ${color.bold('Multi-Agent Orchestrator Daemon')} starting`);

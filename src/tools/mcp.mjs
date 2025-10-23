@@ -10,8 +10,22 @@ import { MCPClient } from '../lib/mcp-client.mjs';
 import { log } from '../lib/utils.mjs';
 
 /**
+ * Ensure MCP tools are initialized (call this before using MCP)
+ * This is idempotent - safe to call multiple times
+ */
+export async function ensureMCPInitialized() {
+  if (_G.mcpInitialized) {
+    return; // Already initialized
+  }
+
+  log('debug', '🔌 Initializing MCP tools...');
+  await registerMCPTools();
+  _G.mcpInitialized = true;
+}
+
+/**
  * Register all MCP tools from configured servers
- * This runs at startup to make tools available to agents
+ * This runs lazily when first needed by an agent
  */
 export async function registerMCPTools() {
   if (!_G.CONFIG?.mcp?.servers) {

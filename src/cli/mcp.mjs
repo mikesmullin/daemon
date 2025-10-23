@@ -7,9 +7,12 @@
 import { MCPClient } from '../lib/mcp-client.mjs';
 import { _G } from '../lib/globals.mjs';
 import utils, { log } from '../lib/utils.mjs';
-import { discoverAndRegisterTools } from '../tools/mcp.mjs';
+import { discoverAndRegisterTools, ensureMCPInitialized } from '../tools/mcp.mjs';
 
 export async function handleMcpCommand(args, format, options) {
+  // Initialize MCP for mcp-specific commands
+  await ensureMCPInitialized();
+
   const subcommand = args[1] || 'list';
 
   switch (subcommand) {

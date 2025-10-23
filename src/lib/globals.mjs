@@ -17,4 +17,7 @@ export let _G = {
 
   // MCP server instances (lazy-loaded)
   mcpServers: {},
+
+  // Track if MCP tools have been initialized
+  mcpInitialized: false,
 };

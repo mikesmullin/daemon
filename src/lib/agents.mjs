@@ -201,6 +201,22 @@ export class Agent {
       const sessionContent = await utils.readYaml(sessionPath);
 
       const capabilities = sessionContent.metadata.tools || [];
+
+      // Smart MCP initialization: only load if agent needs MCP tools
+      if (capabilities.length === 0) {
+        // No tools specified - load all tools including MCP (backwards compat)
+        const { ensureMCPInitialized } = await import('../tools/mcp.mjs');
+        await ensureMCPInitialized();
+      } else {
+        // Check if any MCP tools are needed
+        const needsMCP = capabilities.some(tool => tool.startsWith('mcp_'));
+        if (needsMCP) {
+          const { ensureMCPInitialized } = await import('../tools/mcp.mjs');
+          await ensureMCPInitialized();
+        }
+        // else: Skip MCP entirely for better performance
+      }
+
       const availableTools = [];
       for (const name in _G.tools) {
         if (capabilities.includes(name)) {
