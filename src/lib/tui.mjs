@@ -223,23 +223,23 @@ export class TextAreaInput {
     const helpLines = this.helpMode ? this.renderHelpText().split('\n').length : 1;
     const totalLines = borderLines + inputLines + helpLines;
 
-    // Clear screen only on first render
+    // Don't clear screen on first render to preserve any text printed above (like questions)
     if (!this.hasRendered) {
-      process.stdout.write('\x1b[2J\x1b[H');
       this.hasRendered = true;
+      // Just add some spacing but don't clear existing content
     } else {
-      // Move to home position
-      process.stdout.write('\x1b[H');
+      // Move cursor up to overwrite previous render
+      const linesToMoveUp = this.lastRenderedLines || totalLines;
+      process.stdout.write(`\x1b[${linesToMoveUp}A`);
 
       // Clear all previously rendered lines to handle terminal resize and content changes
-      // We need to clear at least as many lines as we rendered last time
-      const linesToClear = Math.max(this.lastRenderedLines, totalLines, this.terminalHeight);
+      const linesToClear = Math.max(this.lastRenderedLines, totalLines);
       for (let i = 0; i < linesToClear; i++) {
         process.stdout.write('\x1b[K\n'); // Clear line and move down
       }
 
-      // Move back to home position
-      process.stdout.write('\x1b[H');
+      // Move cursor back up to start position
+      process.stdout.write(`\x1b[${linesToClear}A`);
     }
 
     // Store how many lines we're rendering

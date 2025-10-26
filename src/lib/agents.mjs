@@ -20,7 +20,7 @@ import '../tools/agent.mjs';
 import '../tools/web.mjs';
 import '../tools/gemini-image.mjs';
 import '../tools/mcp.mjs';
-import '../tools/voice.mjs';
+import '../tools/human.mjs';
 
 export class Agent {
   // Agents follow BehaviorTree (BT) patterns
@@ -278,25 +278,43 @@ export class Agent {
         sessionContent.metadata.usage = response.usage;
         sessionContent.metadata.provider = response.provider; // Store provider name
 
-        for (const choice of response.choices) {
+        // Check if response has no choices (empty response from LLM)
+        // This indicates the conversation is complete - the LLM has nothing more to say
+        const emptyResponse = !response.choices || response.choices.length === 0;
+
+        if (emptyResponse) {
+          log('debug', '🏁 LLM returned empty response - conversation complete');
+          // Add a marker message to indicate LLM chose not to respond
           if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
-          choice.message.ts = utils.unixToIso(_.get(response, 'created', utils.unixTime()));
-          choice.message.finish_reason = choice.finish_reason;
-          const msg2 = _.pick(choice.message, ['ts', 'role', 'content', 'tool_calls', 'finish_reason']);
-          if (msg2.role == 'user') utils.logUser(msg2.content, msg2.ts);
-          if (msg2.role == 'assistant' && msg2.content) utils.logAssistant(msg2.content, msg2.ts, response.provider, response.model, sessionContent.metadata.name);
-          if (msg2.role == 'assistant' && msg2.tool_calls?.length > 0) {
-            for (const tool_call of msg2.tool_calls) {
-              utils.logToolCall(tool_call, msg2.ts);
+          sessionContent.spec.messages.push({
+            ts: utils.unixToIso(_.get(response, 'created', utils.unixTime())),
+            role: 'assistant',
+            content: '',
+            finish_reason: 'empty'  // Custom finish reason: LLM was given a chance but chose not to respond
+          });
+          sessionUpdated = true;
+        } else {
+          for (const choice of response.choices) {
+            if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
+            choice.message.ts = utils.unixToIso(_.get(response, 'created', utils.unixTime()));
+            choice.message.finish_reason = choice.finish_reason;
+            const msg2 = _.pick(choice.message, ['ts', 'role', 'content', 'tool_calls', 'finish_reason']);
+            if (msg2.role == 'user') utils.logUser(msg2.content, msg2.ts);
+            if (msg2.role == 'assistant' && msg2.content) utils.logAssistant(msg2.content, msg2.ts, response.provider, response.model, sessionContent.metadata.name);
+            if (msg2.role == 'assistant' && msg2.tool_calls?.length > 0) {
+              for (const tool_call of msg2.tool_calls) {
+                utils.logToolCall(tool_call, msg2.ts);
+              }
+            }
+            sessionContent.spec.messages.push(msg2);
+
+            // Set session first message time ONLY if not already set
+            // This should only be set once for the very first message (user prompt)
+            if (!_G.sessionFirstMessageTime && msg2.ts) {
+              _G.sessionFirstMessageTime = msg2.ts;
             }
           }
-          sessionContent.spec.messages.push(msg2);
-
-          // Set session first message time ONLY if not already set
-          // This should only be set once for the very first message (user prompt)
-          if (!_G.sessionFirstMessageTime && msg2.ts) {
-            _G.sessionFirstMessageTime = msg2.ts;
-          }
+          sessionUpdated = true;
         }
 
         sessionUpdated = true;
@@ -339,6 +357,10 @@ export class Agent {
           if (lastMessage.finish_reason === 'stop' && (!lastMessage.tool_calls || lastMessage.tool_calls.length === 0)) {
             finalState = 'success';
           }
+          // If assistant message has finish_reason: empty, LLM chose not to respond - conversation complete
+          else if (lastMessage.finish_reason === 'empty') {
+            finalState = 'success';
+          }
           // If assistant message has tool_calls, check if they were executed
           else if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
             // Check if all tool calls have corresponding tool results
@@ -354,8 +376,28 @@ export class Agent {
             }
 
             if (allToolsExecuted) {
-              // All tools executed, assistant may need to respond to results
-              finalState = 'pending';
+              // All tools executed. Check if the last tool result was followed by another assistant message
+              // Find the index of the last tool result for this set of tool calls
+              let lastToolResultIndex = -1;
+              for (let i = sessionMessages.length - 1; i >= 0; i--) {
+                if (sessionMessages[i].role === 'tool') {
+                  const toolCallId = sessionMessages[i].tool_call_id;
+                  const belongsToLastAssistant = lastMessage.tool_calls.some(tc => tc.id === toolCallId);
+                  if (belongsToLastAssistant) {
+                    lastToolResultIndex = i;
+                    break;
+                  }
+                }
+              }
+
+              // If there's a tool result and it's the last message, give assistant a chance to respond
+              if (lastToolResultIndex === sessionMessages.length - 1) {
+                finalState = 'pending';
+              } else {
+                // Tool results were processed and assistant already responded (or chose not to)
+                // This means the conversation is complete
+                finalState = 'success';
+              }
             } else {
               // Tools still need execution (shouldn't happen with new flow, but safety)
               finalState = 'pending';

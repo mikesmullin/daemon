@@ -1,6 +1,7 @@
-// Voice Operations
+// Human Interaction Operations
 //
 // - speak_to_human(text, preset?, output_file?) // Use text-to-speech to vocalize information to get human's attention
+// - ask_human(question?) // Prompt the human for input via an interactive text prompt
 //
 
 import { _G } from '../lib/globals.mjs';
@@ -127,6 +128,84 @@ _G.tools.speak_to_human = {
         });
       });
     });
+  }
+};
+
+// Ask human for input using interactive text prompt
+_G.tools.ask_human = {
+  definition: {
+    type: 'function',
+    function: {
+      name: 'ask_human',
+      description: 'Prompt the human for input using an interactive text prompt. Displays a prompt to stdout and waits indefinitely for the human to type their response and press enter. Use this when you need clarification, input, or decisions from the human. This is blocking - the agent will wait until the human responds.',
+      parameters: {
+        type: 'object',
+        properties: {
+          question: {
+            type: 'string',
+            description: 'Optional question or context to display before the prompt. If provided, this will be shown to help the human understand what input is needed.'
+          }
+        },
+        required: []
+      }
+    }
+  },
+  metadata: {
+    requiresHumanApproval: false,  // This tool itself IS human interaction
+    preToolUse: () => 'allow'  // No approval needed - the human IS the approver
+  },
+  execute: async (args, options = {}) => {
+    const { question } = args;
+
+    try {
+      // Display the question if provided (before the prompt)
+      if (question && question.trim()) {
+        console.log(`\n${question}`);
+      }
+
+      // Import TUI prompt module
+      const { prompt: tuiPrompt } = await import('../lib/tui.mjs');
+
+      // Show interactive prompt and wait for human response
+      const response = await tuiPrompt('> ');
+
+      if (!response || !response.trim()) {
+        return {
+          success: false,
+          content: 'No input received from human',
+          metadata: {
+            error: 'empty_response',
+            question: question || null
+          }
+        };
+      }
+
+      const trimmedResponse = response.trim();
+
+      log('info', `✅ Received human input: "${trimmedResponse}"`);
+
+      return {
+        success: true,
+        content: `Human responded: "${trimmedResponse}"`,
+        metadata: {
+          response: trimmedResponse,
+          question: question || null,
+          response_length: trimmedResponse.length
+        }
+      };
+
+    } catch (error) {
+      log('error', `❌ Failed to get human input: ${error.message}`);
+
+      return {
+        success: false,
+        content: `Failed to get human input: ${error.message}`,
+        metadata: {
+          error: error.message,
+          question: question || null
+        }
+      };
+    }
   }
 };
 
