@@ -23,31 +23,7 @@ _G.tools.available_agents = {
   },
   execute: async () => {
     try {
-      const fs = await import('fs/promises');
-      const templates = [];
-
-      // Read all yaml files from templates directory
-      const files = await fs.readdir(_G.TEMPLATES_DIR);
-
-      for (const file of files) {
-        if (file.endsWith('.yaml')) {
-          const agentName = path.basename(file, '.yaml');
-          const templatePath = path.join(_G.TEMPLATES_DIR, file);
-
-          try {
-            const templateContent = await utils.readYaml(templatePath);
-
-            templates.push({
-              name: agentName,
-              description: templateContent.metadata?.description || '',
-              model: templateContent.metadata?.model || 'unknown',
-              tools: templateContent.metadata?.tools || []
-            });
-          } catch (error) {
-            utils.logAgent(`Warning: Could not read template ${file}: ${error.message}`);
-          }
-        }
-      }
+      const templates = await Agent.listAvailable();
 
       // Log the operation
       utils.logAgent(`Listed ${templates.length} available agent templates`);
@@ -56,10 +32,7 @@ _G.tools.available_agents = {
         success: true,
         content: `Found ${templates.length} available agent templates`,
         metadata: {
-          intent: 'available_agents',
-          agents: templates,
-          count: templates.length,
-          operation: 'available_agents'
+          agents: templates
         }
       };
     } catch (error) {
@@ -67,15 +40,12 @@ _G.tools.available_agents = {
         success: false,
         content: error.message,
         metadata: {
-          error: error.message,
-          operation: 'available_agents'
+          error: error.message
         }
       };
     }
   }
-};
-
-_G.tools.running_agents = {
+}; _G.tools.running_agents = {
   definition: {
     type: 'function',
     function: {
@@ -85,15 +55,7 @@ _G.tools.running_agents = {
   },
   execute: async () => {
     try {
-      const allSessions = await Agent.list();
-
-      // Filter to only include sessions with 'subagent' label and not deleted
-      const result = allSessions.filter(session => {
-        // Check if session has subagent label and is not deleted
-        return session.labels &&
-          session.labels.includes('subagent') &&
-          (!session.labels.includes('deleted'));
-      });
+      const result = await Agent.listRunning();
 
       // Log the operation
       utils.logAgent(`Listed ${result.length} running subagent sessions`);
@@ -102,10 +64,7 @@ _G.tools.running_agents = {
         success: true,
         content: `Found ${result.length} running subagent sessions`,
         metadata: {
-          intent: 'running_agents',
-          agents: result,
-          count: result.length,
-          operation: 'running_agents'
+          agents: result
         }
       };
     } catch (error) {
@@ -113,8 +72,7 @@ _G.tools.running_agents = {
         success: false,
         content: error.message,
         metadata: {
-          error: error.message,
-          operation: 'running_agents'
+          error: error.message
         }
       };
     }
@@ -154,11 +112,9 @@ _G.tools.create_agent = {
         success: true,
         content: `Successfully created new ${args.agent} subagent ${result.session_id}`,
         metadata: {
-          intent: 'create_agent',
           agent: args.agent,
           session_id: result.session_id,
-          result: result,
-          operation: 'create_agent'
+          result: result
         }
       };
     } catch (error) {
@@ -167,8 +123,7 @@ _G.tools.create_agent = {
         content: error.message,
         metadata: {
           error: error.message,
-          agent: args.agent,
-          operation: 'create_agent'
+          agent: args.agent
         }
       };
     }
@@ -209,8 +164,7 @@ _G.tools.command_agent = {
           content: `Session ${args.session_id} not found`,
           metadata: {
             error: 'session_not_found',
-            session_id: args.session_id,
-            operation: 'command_agent'
+            session_id: args.session_id
           }
         };
       }
@@ -221,8 +175,7 @@ _G.tools.command_agent = {
           content: `Session ${args.session_id} is not a subagent. command_agent only works with subagent sessions.`,
           metadata: {
             error: 'not_a_subagent',
-            session_id: args.session_id,
-            operation: 'command_agent'
+            session_id: args.session_id
           }
         };
       }
@@ -233,8 +186,7 @@ _G.tools.command_agent = {
           content: `Session ${args.session_id} has been deleted`,
           metadata: {
             error: 'session_deleted',
-            session_id: args.session_id,
-            operation: 'command_agent'
+            session_id: args.session_id
           }
         };
       }
@@ -248,10 +200,8 @@ _G.tools.command_agent = {
         success: true,
         content: `Successfully sent command to subagent ${args.session_id}`,
         metadata: {
-          intent: 'command_agent',
           session_id: args.session_id,
-          result: result,
-          operation: 'command_agent'
+          result: result
         }
       };
     } catch (error) {
@@ -260,8 +210,7 @@ _G.tools.command_agent = {
         content: error.message,
         metadata: {
           error: error.message,
-          session_id: args.session_id,
-          operation: 'command_agent'
+          session_id: args.session_id
         }
       };
     }
@@ -298,8 +247,7 @@ _G.tools.check_agent_response = {
           content: `Session ${args.session_id} not found`,
           metadata: {
             error: 'session_not_found',
-            session_id: args.session_id,
-            operation: 'check_agent_response'
+            session_id: args.session_id
           }
         };
       }
@@ -310,8 +258,7 @@ _G.tools.check_agent_response = {
           content: `Session ${args.session_id} is not a subagent. check_agent_response only works with subagent sessions.`,
           metadata: {
             error: 'not_a_subagent',
-            session_id: args.session_id,
-            operation: 'check_agent_response'
+            session_id: args.session_id
           }
         };
       }
@@ -322,8 +269,7 @@ _G.tools.check_agent_response = {
           content: `Session ${args.session_id} has been deleted`,
           metadata: {
             error: 'session_deleted',
-            session_id: args.session_id,
-            operation: 'check_agent_response'
+            session_id: args.session_id
           }
         };
       }
@@ -350,8 +296,7 @@ _G.tools.check_agent_response = {
           metadata: {
             session_id: args.session_id,
             agent: session.agent,
-            has_response: false,
-            operation: 'check_agent_response'
+            has_response: false
           }
         };
       }
@@ -363,14 +308,12 @@ _G.tools.check_agent_response = {
         success: true,
         content: `Subagent ${args.session_id} (${session.agent}) last response:\n${lastAssistantMessage.content || '(no content)'}`,
         metadata: {
-          intent: 'check_agent_response',
           session_id: args.session_id,
           agent: session.agent,
           has_response: true,
           last_response: lastAssistantMessage.content || '',
           timestamp: lastAssistantMessage.ts,
-          finish_reason: lastAssistantMessage.finish_reason,
-          operation: 'check_agent_response'
+          finish_reason: lastAssistantMessage.finish_reason
         }
       };
     } catch (error) {
@@ -379,8 +322,7 @@ _G.tools.check_agent_response = {
         content: error.message,
         metadata: {
           error: error.message,
-          session_id: args.session_id,
-          operation: 'check_agent_response'
+          session_id: args.session_id
         }
       };
     }
@@ -417,8 +359,7 @@ _G.tools.delete_agent = {
           content: `Session ${args.session_id} not found`,
           metadata: {
             error: 'session_not_found',
-            session_id: args.session_id,
-            operation: 'delete_agent'
+            session_id: args.session_id
           }
         };
       }
@@ -429,8 +370,7 @@ _G.tools.delete_agent = {
           content: `Session ${args.session_id} is not a subagent. delete_agent only works with subagent sessions.`,
           metadata: {
             error: 'not_a_subagent',
-            session_id: args.session_id,
-            operation: 'delete_agent'
+            session_id: args.session_id
           }
         };
       }
@@ -441,8 +381,7 @@ _G.tools.delete_agent = {
           content: `Session ${args.session_id} is already deleted`,
           metadata: {
             error: 'already_deleted',
-            session_id: args.session_id,
-            operation: 'delete_agent'
+            session_id: args.session_id
           }
         };
       }
@@ -469,10 +408,8 @@ _G.tools.delete_agent = {
         success: true,
         content: `Successfully marked subagent ${args.session_id} as deleted. Run 'd clean' to remove the file.`,
         metadata: {
-          intent: 'delete_agent',
           session_id: args.session_id,
-          agent: session.agent,
-          operation: 'delete_agent'
+          agent: session.agent
         }
       };
     } catch (error) {
@@ -481,8 +418,7 @@ _G.tools.delete_agent = {
         content: error.message,
         metadata: {
           error: error.message,
-          session_id: args.session_id,
-          operation: 'delete_agent'
+          session_id: args.session_id
         }
       };
     }

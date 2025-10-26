@@ -660,18 +660,49 @@ async function parseCliArgs() {
       process.exit(0);
     }
 
-    if (args.length < 3) {
-      utils.abort(
-        `Error: tool requires a tool name and JSON arguments.\n` +
-        `Usage: daemon.mjs tool <name> <json-args>`);
-    }
-
     try {
       const toolName = args[1];
-      const jsonArgs = args.slice(2).join(' ');
+      // Default to '{}' if no JSON arguments supplied
+      const jsonArgs = args.length >= 3 ? args.slice(2).join(' ') : '{}';
       const toolArgs = JSON.parse(jsonArgs);
       const result = await Agent.tool(toolName, toolArgs);
-      console.log(utils.outputAs(format, result, { truncate, flatten }));
+
+      // Check if result has the standard tool response shape
+      if (result && typeof result === 'object' && 'success' in result && 'content' in result && 'metadata' in result) {
+        // Print success status with emoji and color
+        const successEmoji = result.success ? '✅' : '❌';
+        const successColor = result.success ? color.green : color.red;
+        console.log(successColor(successEmoji + ' ' + (result.success ? 'Success' : 'Failed')));
+
+        // Print content verbatim
+        if (result.content) {
+          console.log(result.content + "\n");
+        }
+
+        // Smart metadata output - if metadata contains an array, display it directly
+        // This makes tabular data display properly instead of showing the wrapper object
+        if (result.metadata && Object.keys(result.metadata).length > 0) {
+          let dataToDisplay = result.metadata;
+
+          // Check if metadata has a single array field - if so, display the array directly
+          const metadataKeys = Object.keys(result.metadata);
+          if (metadataKeys.length > 0) {
+            // Find array fields in metadata
+            const arrayFields = metadataKeys.filter(key => Array.isArray(result.metadata[key]));
+
+            // If there's exactly one array field, display it directly for better table formatting
+            if (arrayFields.length === 1 && result.metadata[arrayFields[0]].length > 0) {
+              dataToDisplay = result.metadata[arrayFields[0]];
+            }
+          }
+
+          console.log(utils.outputAs(format, dataToDisplay, { truncate, flatten }));
+        }
+      } else {
+        // Fallback for tools that don't follow the standard shape
+        console.log(utils.outputAs(format, result, { truncate, flatten }));
+      }
+
       process.exit(0);
     } catch (error) {
       utils.abort(error.message);

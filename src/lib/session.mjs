@@ -336,8 +336,7 @@ export class Session {
 
           sessions.push({
             session_id: session_id,
-            bt_state,
-            state: bt_state, // Alias for compatibility
+            state: bt_state,
             agent,
             model,
             pid,

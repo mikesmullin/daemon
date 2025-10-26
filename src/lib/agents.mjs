@@ -46,6 +46,58 @@ export class Agent {
     return Session.list();
   }
 
+  // list available agent templates from agents/templates/*.yaml
+  static async listAvailable() {
+    try {
+      const templates = [];
+
+      // Read all yaml files from templates directory
+      const files = await fs.readdir(_G.TEMPLATES_DIR);
+
+      for (const file of files) {
+        if (file.endsWith('.yaml')) {
+          const agentName = path.basename(file, '.yaml');
+          const templatePath = path.join(_G.TEMPLATES_DIR, file);
+
+          try {
+            const templateContent = await utils.readYaml(templatePath);
+
+            templates.push({
+              name: agentName,
+              description: templateContent.metadata?.description || '',
+              model: templateContent.metadata?.model || 'unknown',
+              tools: templateContent.metadata?.tools || []
+            });
+          } catch (error) {
+            log('debug', `Warning: Could not read template ${file}: ${error.message}`);
+          }
+        }
+      }
+
+      return templates;
+    } catch (error) {
+      throw new Error(`Failed to list available agents: ${error.message}`);
+    }
+  }
+
+  // list running subagent sessions (with 'subagent' label, not deleted)
+  static async listRunning() {
+    try {
+      const allSessions = await Agent.list();
+
+      // Filter to only include sessions with 'subagent' label and not deleted
+      const result = allSessions.filter(session => {
+        return session.labels &&
+          session.labels.includes('subagent') &&
+          (!session.labels.includes('deleted'));
+      });
+
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to list running agents: ${error.message}`);
+    }
+  }
+
   // generate the next agent session ID (a monotonically increasing integer)
   static async nextId() {
     return Session.nextId();
