@@ -381,13 +381,13 @@ async function parseCliArgs() {
     return;
   }
 
-  if (subcommand === 'sessions') {
-    const sessions = await Agent.list();
+  if (subcommand === 'session' || subcommand === 'sessions') {
+    const sessions = await Session.list();
     console.log(utils.outputAs(format, sessions, { truncate, flatten }));
     process.exit(0);
   }
 
-  if (subcommand === 'models') {
+  if (subcommand === 'model' || subcommand === 'models') {
     const { registry } = await import('./lib/ai-providers/registry.mjs');
     log('info', '🔍 Listing available models from all configured providers...\n');
 
@@ -644,7 +644,7 @@ async function parseCliArgs() {
     // Note: executeAgent never returns - it exits the process when done
   }
 
-  if (subcommand === 'tool') {
+  if (subcommand === 'tool' || subcommand === 'tools') {
     if (args.length < 2) {
       const tools = Object.keys(_G.tools).map(name => {
         return {
@@ -731,7 +731,7 @@ Subcommands:
   fork          Fork an existing agent session: fork <session_id> [prompt]
   eval          Ask Copilot to evaluate a session: eval <session_id>
   logs          Display chat log for a session: logs <session_id>
-  tool          Execute an agent tool: tool <name> <json-args>
+  tools         Execute an agent tool: tool <name> [json-args]
   mcp           Manage MCP servers: mcp <list|start|stop|discover|add>
 
 Global Options:
