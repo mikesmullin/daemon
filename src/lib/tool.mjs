@@ -373,7 +373,7 @@ export class Tool {
     return tools.map(tool => {
       // Clone the definition to avoid mutating the original
       const definition = JSON.parse(JSON.stringify(tool.definition));
-      
+
       // Ensure function has parameters field (required by OpenAI-compatible APIs)
       if (definition.type === 'function' && definition.function) {
         if (!definition.function.parameters) {
@@ -384,7 +384,7 @@ export class Tool {
           };
         }
       }
-      
+
       return definition;
     });
   }

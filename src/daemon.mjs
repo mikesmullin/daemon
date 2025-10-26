@@ -322,8 +322,25 @@ async function parseCliArgs() {
     args.splice(noHumansIndex, 1);
   }
 
+  // Parse --session <session_id> (for watch/pump modes)
+  let session = null;
+  const sessionIndex = args.indexOf('--session');
+  if (sessionIndex !== -1 && sessionIndex + 1 < args.length) {
+    session = args[sessionIndex + 1];
+    args.splice(sessionIndex, 2); // Remove --session and its value
+  }
+
+  // Parse --labels <label1,label2,...> (for watch/pump modes)
+  let labels = [];
+  const labelsIndex = args.indexOf('--labels');
+  if (labelsIndex !== -1 && labelsIndex + 1 < args.length) {
+    const labelsStr = args[labelsIndex + 1];
+    labels = labelsStr.split(',').map(l => l.trim()).filter(l => l.length > 0);
+    args.splice(labelsIndex, 2); // Remove --labels and its value
+  }
+
   // Store global flags in _G for access throughout the app
-  _G.cliFlags = { timeout, lock, kill, interactive, noHumans };
+  _G.cliFlags = { timeout, lock, kill, interactive, noHumans, session, labels };
 
   // Parse --format flag
   let format = 'table';
@@ -372,12 +389,6 @@ async function parseCliArgs() {
 
   if (['pump', 'watch'].includes(subcommand)) {
     _G.mode = subcommand;
-
-    // For watch mode, capture optional session_id argument
-    if (subcommand === 'watch' && args[1]) {
-      _G.watchSessionId = args[1];
-    }
-
     return;
   }
 
@@ -722,7 +733,7 @@ Subcommands:
   help          Show this help message (default)
   clean         Remove transient state (proc, sessions, workspaces)
   pump          Run one iteration and exit
-  watch         Run continuously, checking-in at intervals: watch [session_id]
+  watch         Run continuously, checking-in at intervals
   sessions      List all agent sessions
   models        List available AI models from all configured providers
   new           Create a new agent session: new <agent> [prompt|-]
@@ -740,6 +751,10 @@ Global Options:
   -k, --kill              Kill any running instance of this agent type before starting
   -i, --interactive       (agent only) Prompt for input using multi-line text editor
   --no-humans             Auto-reject tool requests not on allowlist (unattended mode)
+
+Watch/Pump Options:
+  --session <id>          Only process the specified session
+  --labels <a,b,c>        Only process sessions with ALL specified labels (comma-separated)
 
 Format Options:
   --format      Output format (table|json|yaml|csv) [default: table]
@@ -803,8 +818,9 @@ Format Options:
 
   // Show session info for watch mode and debugging
   if ('watch' == _G.mode) {
-    const sessionInfo = _G.watchSessionId ? ` session ${_G.watchSessionId}` : ' all sessions';
-    log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump${sessionInfo} every ${_G.CONFIG.daemon.watch_poll_interval} seconds`);
+    const sessionInfo = _G.cliFlags.session ? ` session ${_G.cliFlags.session}` : '';
+    const labelsInfo = _G.cliFlags.labels && _G.cliFlags.labels.length > 0 ? ` --labels ${_G.cliFlags.labels.join(',')}` : '';
+    log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump${sessionInfo}${labelsInfo} every ${_G.CONFIG.daemon.watch_poll_interval} seconds`);
 
     const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
     let lastIterationStart = 0;
@@ -813,25 +829,26 @@ Format Options:
     const performWatchPump = async () => {
       try {
         const iterationStart = Date.now();
-        const sessionInfo = _G.watchSessionId ? ` session ${_G.watchSessionId}` : ' sessions';
-        log('debug', `👀 Checking for pending${sessionInfo}...`);
+        const sessionInfo = _G.cliFlags.session ? ` session ${_G.cliFlags.session}` : '';
+        const labelsInfo = _G.cliFlags.labels && _G.cliFlags.labels.length > 0 ? ` --labels ${_G.cliFlags.labels.join(',')}` : '';
+        log('debug', `👀 Checking for pending${sessionInfo}${labelsInfo}...`);
         const result = await Agent.pump();
 
         if (result.processed > 0) {
-          log('debug', `👀 Pump completed. Processed ${result.processed}/${result.total}${sessionInfo}.`);
+          log('debug', `👀 Pump completed. Processed ${result.processed}/${result.total}${sessionInfo}${labelsInfo}.`);
         } else {
           // If watching a specific session, check if it's completed
-          if (_G.watchSessionId) {
+          if (_G.cliFlags.session) {
             const sessions = await Agent.list();
-            const targetSession = sessions.find(s => s.session_id === _G.watchSessionId);
+            const targetSession = sessions.find(s => s.session_id === _G.cliFlags.session);
             if (targetSession && ['success', 'fail'].includes(targetSession.bt_state)) {
-              log('debug', `✅ Session ${_G.watchSessionId} completed with state: ${targetSession.bt_state}`);
+              log('debug', `✅ Session ${_G.cliFlags.session} completed with state: ${targetSession.bt_state}`);
               log('debug', `👀 Watch will continue monitoring for any state changes...`);
             } else if (!targetSession) {
-              log('warn', `⚠️  Session ${_G.watchSessionId} not found. Continuing to monitor...`);
+              log('warn', `⚠️  Session ${_G.cliFlags.session} not found. Continuing to monitor...`);
             }
           }
-          log('debug', `👀 No pending${sessionInfo} to process.`);
+          log('debug', `👀 No pending${sessionInfo}${labelsInfo} to process.`);
         }
 
         // Calculate elapsed time for this iteration

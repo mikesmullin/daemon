@@ -524,11 +524,24 @@ export class Agent {
   // perform one pump iteration - process all pending sessions
   static async pump() {
     const sessions = await Session.list();
-    let pendingSessions = sessions.filter(s => s.bt_state === 'pending');
+    let pendingSessions = sessions.filter(s => s.state === 'pending');
 
     // If watching a specific session, filter to only that session
-    if (_G.watchSessionId) {
-      pendingSessions = pendingSessions.filter(s => s.session_id === _G.watchSessionId);
+    if (_G.cliFlags?.session) {
+      pendingSessions = pendingSessions.filter(s => s.session_id === _G.cliFlags.session);
+    }
+
+    // If filtering by labels, ensure session has all required labels
+    if (_G.cliFlags?.labels && _G.cliFlags.labels.length > 0) {
+      pendingSessions = pendingSessions.filter(s => {
+        // Session must have labels array
+        if (!s.labels || !Array.isArray(s.labels)) {
+          return false;
+        }
+        
+        // Session must contain ALL required labels (AND logic)
+        return _G.cliFlags.labels.every(requiredLabel => s.labels.includes(requiredLabel));
+      });
     }
 
     // log(0 == pendingSessions.length ? 'debug' : 'info', `Processing ${pendingSessions.length} pending session(s)`);
