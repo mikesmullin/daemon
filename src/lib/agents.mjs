@@ -538,7 +538,7 @@ export class Agent {
         if (!s.labels || !Array.isArray(s.labels)) {
           return false;
         }
-        
+
         // Session must contain ALL required labels (AND logic)
         return _G.cliFlags.labels.every(requiredLabel => s.labels.includes(requiredLabel));
       });

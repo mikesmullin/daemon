@@ -283,7 +283,7 @@ export function outputAs(type, data, options = {}) {
   const kind = String(type || '').toLowerCase();
   const { truncate = false, truncateLength = 50, flatten = false } = options;
 
-  // Apply truncation to data if requested
+  // Apply truncation to data if requested (only for table format)
   const truncateValue = (value) => {
     if (!truncate || typeof value !== 'string') return value;
     return value.length > truncateLength ? value.substring(0, truncateLength - 3) + '...' : value;
@@ -345,7 +345,8 @@ export function outputAs(type, data, options = {}) {
   };
 
   let processedData = data;
-  if (truncate) processedData = truncateData(processedData);
+  // Only apply truncation for table format
+  if (kind === 'table' && truncate) processedData = truncateData(processedData);
   if (flatten) processedData = flattenData(processedData);
 
   if (kind === 'json') {
