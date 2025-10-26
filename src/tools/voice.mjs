@@ -5,10 +5,7 @@
 
 import { _G } from '../lib/globals.mjs';
 import utils, { log } from '../lib/utils.mjs';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { spawn } from 'child_process';
 
 // Path to voice executable (Windows executable accessible from WSL)
 const VOICE_PATH = '/mnt/c/Users/mikes/.local/bin/voice.exe';
@@ -56,65 +53,80 @@ _G.tools.speak_to_human = {
       };
     }
 
-    try {
-      // Build command
-      let command = VOICE_PATH;
+    // Build command arguments
+    const cmdArgs = [];
 
-      // Add flags
-      if (no_transform) {
-        command += ' --no-transform';
-      }
+    // Add flags
+    if (no_transform) {
+      cmdArgs.push('--no-transform');
+    }
 
-      if (output_file) {
-        command += ` -o "${output_file}"`;
-      }
+    if (output_file) {
+      cmdArgs.push('-o', output_file);
+    }
 
-      // Add preset (required by voice command, default to 'neutral')
-      const voicePreset = preset || 'neutral';
-      command += ` "${voicePreset}"`;
+    // Add preset (required by voice command, default to 'neutral')
+    const voicePreset = preset || 'neutral';
+    cmdArgs.push(voicePreset);
 
-      // Add text (properly escaped)
-      const escapedText = text.replace(/"/g, '\\"');
-      command += ` "${escapedText}"`;
+    // Add text
+    cmdArgs.push(text);
 
-      log('debug', `🔊 Speaking: "${text}" with preset: ${voicePreset}`);
-      utils.logShell(command);
+    log('debug', `🔊 Speaking: "${text}" with preset: ${voicePreset}`);
+    utils.logShell(`${VOICE_PATH} ${cmdArgs.map(a => `"${a}"`).join(' ')}`);
 
-      // Execute voice command
-      const { stdout, stderr } = await execAsync(command, {
-        timeout: 30000  // 30 second timeout
+    // Execute voice command using spawn with stdio inherit for immediate execution
+    // This avoids the blocking behavior of execAsync with Windows executables
+    return new Promise((resolve) => {
+      const child = spawn(VOICE_PATH, cmdArgs, {
+        stdio: 'inherit'  // Pass through stdio - no buffering, immediate execution
       });
 
-      const outputInfo = output_file
-        ? `Audio saved to: ${output_file}`
-        : 'Audio played through speakers';
+      child.on('close', (code) => {
+        if (code === 0) {
+          const outputInfo = output_file
+            ? `Audio saved to: ${output_file}`
+            : 'Audio played through speakers';
 
-      return {
-        success: true,
-        content: `Successfully vocalized: "${text}"\n${outputInfo}`,
-        metadata: {
-          text,
-          preset: voicePreset,
-          output_file: output_file || null,
-          no_transform,
-          stdout: stdout.trim(),
-          stderr: stderr.trim()
+          resolve({
+            success: true,
+            content: `Successfully vocalized: "${text}"\n${outputInfo}`,
+            metadata: {
+              text,
+              preset: voicePreset,
+              output_file: output_file || null,
+              no_transform: no_transform || false,
+              exit_code: code
+            }
+          });
+        } else {
+          log('error', `❌ Voice command failed with exit code: ${code}`);
+          resolve({
+            success: false,
+            content: `Failed to vocalize text: voice command exited with code ${code}`,
+            metadata: {
+              error: `exit_code_${code}`,
+              exit_code: code,
+              text,
+              preset: voicePreset
+            }
+          });
         }
-      };
+      });
 
-    } catch (error) {
-      log('error', `❌ Voice command failed: ${error.message}`);
-
-      return {
-        success: false,
-        content: `Failed to vocalize text: ${error.message}`,
-        metadata: {
-          error: error.message,
-          text,
-          preset: preset || 'neutral'
-        }
-      };
-    }
+      child.on('error', (error) => {
+        log('error', `❌ Voice command failed: ${error.message}`);
+        resolve({
+          success: false,
+          content: `Failed to vocalize text: ${error.message}`,
+          metadata: {
+            error: error.message,
+            text,
+            preset: voicePreset
+          }
+        });
+      });
+    });
   }
 };
 
