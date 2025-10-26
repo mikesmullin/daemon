@@ -71,6 +71,7 @@ export class Agent {
 
       let sessionContent = {};
       if (null != session_id) {
+        // Forking from an existing session
         const existingSessionFileName = `${session_id}.yaml`;
         const existingSessionPath = path.join(_G.SESSIONS_DIR, existingSessionFileName);
         sessionContent = await utils.readYaml(existingSessionPath);
@@ -78,10 +79,12 @@ export class Agent {
         utils.assert(sessionContent.kind == 'Agent');
 
         if (null == agent) {
-          agent = sessionContent.name;
+          // Get agent name from the session's metadata.name
+          agent = sessionContent.metadata?.name || 'unknown';
         }
       }
       else {
+        // Creating from a template
         const templateFileName = `${agent}.yaml`;
         const templatePath = path.join(_G.TEMPLATES_DIR, templateFileName);
         sessionContent = await utils.readYaml(templatePath);
@@ -92,14 +95,24 @@ export class Agent {
             os,
           });
         }
-      }
 
-      // Add labels to metadata
-      if (labels && labels.length > 0) {
+        // Store the template name in metadata.name for session tracking
         if (!sessionContent.metadata) {
           sessionContent.metadata = {};
         }
-        sessionContent.metadata.labels = labels;
+        sessionContent.metadata.name = agent;
+      }
+
+      // Merge labels: start with template labels (if any), then add new labels
+      if (!sessionContent.metadata) {
+        sessionContent.metadata = {};
+      }
+
+      const templateLabels = sessionContent.metadata.labels || [];
+      const mergedLabels = [...new Set([...templateLabels, ...labels])]; // Use Set to avoid duplicates
+
+      if (mergedLabels.length > 0) {
+        sessionContent.metadata.labels = mergedLabels;
       }
 
       const newgSessionFileName = `${new_session_id}.yaml`;

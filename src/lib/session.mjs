@@ -195,6 +195,12 @@ export class Session {
         });
       }
 
+      // Store the template name in metadata.name for session tracking
+      if (!sessionContent.metadata) {
+        sessionContent.metadata = {};
+      }
+      sessionContent.metadata.name = agent;
+
       await Session.save(new_session_id, sessionContent);
 
       if (prompt) {
@@ -234,7 +240,7 @@ export class Session {
 
       return {
         session_id: new_session_id,
-        agent: sessionContent.metadata.name,
+        agent: sessionContent.metadata?.name || 'unknown',
         prompt,
       };
     } catch (error) {

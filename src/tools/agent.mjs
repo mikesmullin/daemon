@@ -1,9 +1,10 @@
 // Agent Operations
 //
-// - list_agents() // Get all active subagent sessions with IDs, types, and status
+// - available_agents() // Get all available agent templates that can be instantiated
+// - running_agents() // Get all active subagent sessions with IDs, types, and status
 // - create_agent(agent, prompt) // Create and start a new specialized subagent for specific tasks
 // - command_agent(session_id, prompt) // Send additional instructions to an active subagent
-// - check_agent_result(session_id) // Get the last response from a subagent
+// - check_agent_response(session_id) // Get the last response from a subagent
 // - delete_agent(session_id) // Soft-delete an active agent session (mark as deleted, file removed on `d clean`)
 //
 
@@ -12,12 +13,74 @@ import { Agent } from '../lib/agents.mjs';
 import utils from '../lib/utils.mjs';
 import path from 'path';
 
-_G.tools.list_agents = {
+_G.tools.available_agents = {
   definition: {
     type: 'function',
     function: {
-      name: 'list_agents',
-      description: 'Get a list of all currently active subagent sessions with their IDs, agent types, and status. Use this to monitor your subagent workforce, check which agents are available for new tasks, and get session IDs needed for command_agent or check_agent_result operations. Only shows subagents (excludes the main orchestrator and soft-deleted agents).',
+      name: 'available_agents',
+      description: 'Get a list of all available agent templates that can be instantiated. This shows what types of agents you can create using create_agent. Returns template details including agent name (from filename), description, model, and available tools.',
+    }
+  },
+  execute: async () => {
+    try {
+      const fs = await import('fs/promises');
+      const templates = [];
+
+      // Read all yaml files from templates directory
+      const files = await fs.readdir(_G.TEMPLATES_DIR);
+
+      for (const file of files) {
+        if (file.endsWith('.yaml')) {
+          const agentName = path.basename(file, '.yaml');
+          const templatePath = path.join(_G.TEMPLATES_DIR, file);
+
+          try {
+            const templateContent = await utils.readYaml(templatePath);
+
+            templates.push({
+              name: agentName,
+              description: templateContent.metadata?.description || '',
+              model: templateContent.metadata?.model || 'unknown',
+              tools: templateContent.metadata?.tools || []
+            });
+          } catch (error) {
+            utils.logAgent(`Warning: Could not read template ${file}: ${error.message}`);
+          }
+        }
+      }
+
+      // Log the operation
+      utils.logAgent(`Listed ${templates.length} available agent templates`);
+
+      return {
+        success: true,
+        content: `Found ${templates.length} available agent templates`,
+        metadata: {
+          intent: 'available_agents',
+          agents: templates,
+          count: templates.length,
+          operation: 'available_agents'
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          error: error.message,
+          operation: 'available_agents'
+        }
+      };
+    }
+  }
+};
+
+_G.tools.running_agents = {
+  definition: {
+    type: 'function',
+    function: {
+      name: 'running_agents',
+      description: 'Get a list of all currently running subagent sessions with their IDs, agent types, and status. Use this to monitor your active subagent workforce, check which agents are currently working, and get session IDs needed for command_agent or check_agent_response operations. Only shows subagents that are not soft-deleted.',
     }
   },
   execute: async () => {
@@ -33,16 +96,16 @@ _G.tools.list_agents = {
       });
 
       // Log the operation
-      utils.logAgent(`Listed ${result.length} active subagent sessions`);
+      utils.logAgent(`Listed ${result.length} running subagent sessions`);
 
       return {
         success: true,
-        content: `Found ${result.length} active subagent sessions`,
+        content: `Found ${result.length} running subagent sessions`,
         metadata: {
-          intent: 'list_agents',
+          intent: 'running_agents',
           agents: result,
           count: result.length,
-          operation: 'list_agents'
+          operation: 'running_agents'
         }
       };
     } catch (error) {
@@ -51,7 +114,7 @@ _G.tools.list_agents = {
         content: error.message,
         metadata: {
           error: error.message,
-          operation: 'list_agents'
+          operation: 'running_agents'
         }
       };
     }
@@ -123,7 +186,7 @@ _G.tools.command_agent = {
         properties: {
           session_id: {
             type: 'number',
-            description: 'The session ID of the active subagent you want to communicate with (get this from list_agents). Must be a valid active subagent session.'
+            description: 'The session ID of the active subagent you want to communicate with (get this from running_agents). Must be a valid active subagent session.'
           },
           prompt: {
             type: 'string',
@@ -205,18 +268,18 @@ _G.tools.command_agent = {
   }
 };
 
-_G.tools.check_agent_result = {
+_G.tools.check_agent_response = {
   definition: {
     type: 'function',
     function: {
-      name: 'check_agent_result',
+      name: 'check_agent_response',
       description: 'Get the last response from a subagent. Use this to check what the agent has reported, what it has accomplished, or what it is currently working on. Only works with subagents.',
       parameters: {
         type: 'object',
         properties: {
           session_id: {
             type: 'number',
-            description: 'The session ID of the subagent you want to check (get this from list_agents). Must be a valid active subagent session.'
+            description: 'The session ID of the subagent you want to check (get this from running_agents). Must be a valid active subagent session.'
           }
         },
         required: ['session_id']
@@ -236,7 +299,7 @@ _G.tools.check_agent_result = {
           metadata: {
             error: 'session_not_found',
             session_id: args.session_id,
-            operation: 'check_agent_result'
+            operation: 'check_agent_response'
           }
         };
       }
@@ -244,11 +307,11 @@ _G.tools.check_agent_result = {
       if (!session.labels || !session.labels.includes('subagent')) {
         return {
           success: false,
-          content: `Session ${args.session_id} is not a subagent. check_agent_result only works with subagent sessions.`,
+          content: `Session ${args.session_id} is not a subagent. check_agent_response only works with subagent sessions.`,
           metadata: {
             error: 'not_a_subagent',
             session_id: args.session_id,
-            operation: 'check_agent_result'
+            operation: 'check_agent_response'
           }
         };
       }
@@ -260,7 +323,7 @@ _G.tools.check_agent_result = {
           metadata: {
             error: 'session_deleted',
             session_id: args.session_id,
-            operation: 'check_agent_result'
+            operation: 'check_agent_response'
           }
         };
       }
@@ -288,26 +351,26 @@ _G.tools.check_agent_result = {
             session_id: args.session_id,
             agent: session.agent,
             has_response: false,
-            operation: 'check_agent_result'
+            operation: 'check_agent_response'
           }
         };
       }
 
       // Log the operation
-      utils.logAgent(`Checked result from subagent session ${args.session_id}`);
+      utils.logAgent(`Checked response from subagent session ${args.session_id}`);
 
       return {
         success: true,
         content: `Subagent ${args.session_id} (${session.agent}) last response:\n${lastAssistantMessage.content || '(no content)'}`,
         metadata: {
-          intent: 'check_agent_result',
+          intent: 'check_agent_response',
           session_id: args.session_id,
           agent: session.agent,
           has_response: true,
           last_response: lastAssistantMessage.content || '',
           timestamp: lastAssistantMessage.ts,
           finish_reason: lastAssistantMessage.finish_reason,
-          operation: 'check_agent_result'
+          operation: 'check_agent_response'
         }
       };
     } catch (error) {
@@ -317,7 +380,7 @@ _G.tools.check_agent_result = {
         metadata: {
           error: error.message,
           session_id: args.session_id,
-          operation: 'check_agent_result'
+          operation: 'check_agent_response'
         }
       };
     }
@@ -335,7 +398,7 @@ _G.tools.delete_agent = {
         properties: {
           session_id: {
             type: 'number',
-            description: 'The session ID of the subagent to delete (get this from list_agents). Must be a valid subagent session.'
+            description: 'The session ID of the subagent to delete (get this from running_agents). Must be a valid subagent session.'
           }
         },
         required: ['session_id']
