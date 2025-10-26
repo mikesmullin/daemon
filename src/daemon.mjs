@@ -333,12 +333,12 @@ async function parseCliArgs() {
     args.splice(formatIndex, 2); // Remove --format and its value
   }
 
-  // Parse --truncate flag
-  let truncate = false;
-  const truncateIndex = args.indexOf('--truncate');
-  if (truncateIndex !== -1) {
-    truncate = true;
-    args.splice(truncateIndex, 1); // Remove --truncate flag
+  // Parse truncate flag - default to true, use --all to disable
+  let truncate = true;
+  const allIndex = args.indexOf('--all');
+  if (allIndex !== -1) {
+    truncate = false;
+    args.splice(allIndex, 1); // Remove --all flag
   }
 
   // Parse --flatten flag
@@ -743,7 +743,7 @@ Global Options:
 
 Format Options:
   --format      Output format (table|json|yaml|csv) [default: table]
-  --truncate    Truncate long text fields in output
+  --all         Show full untruncated text fields in output
   --flatten     Flatten nested object hierarchies in output
   --last        (agent only) Suppress all logs except the final assistant message
 `);
