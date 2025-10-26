@@ -160,8 +160,8 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
         }
 
         // If session is already in terminal state, we're done
-        if (['success', 'fail'].includes(targetSession.bt_state)) {
-          log('debug', `✅ Session ${sessionId} completed with state: ${targetSession.bt_state}`);
+        if (['success', 'fail'].includes(targetSession.state)) {
+          log('debug', `✅ Session ${sessionId} completed with state: ${targetSession.state}`);
 
           // Output the final assistant response to console
           try {
@@ -181,7 +181,7 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
             log('debug', `Could not retrieve final response: ${error.message}`);
           }
 
-          if (targetSession.bt_state === 'fail') {
+          if (targetSession.state === 'fail') {
             process.exit(1);
           } else {
             process.exit(0);
@@ -189,7 +189,7 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
         }
 
         // Process the session if it's pending
-        if (targetSession.bt_state === 'pending') {
+        if (targetSession.state === 'pending') {
           log('debug', `🔄 Processing session ${sessionId} (${targetSession.agent})`);
           await Agent.eval(sessionId);
 
@@ -198,8 +198,8 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
           const updatedSessions = await Agent.list();
           const updatedSession = updatedSessions.find(s => s.session_id === sessionId);
 
-          if (updatedSession && ['success', 'fail'].includes(updatedSession.bt_state)) {
-            log('debug', `✅ Session ${sessionId} completed with state: ${updatedSession.bt_state}`);
+          if (updatedSession && ['success', 'fail'].includes(updatedSession.state)) {
+            log('debug', `✅ Session ${sessionId} completed with state: ${updatedSession.state}`);
 
             // Clear timeout if set
             if (timeoutHandle) {
@@ -224,7 +224,7 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
               log('debug', `Could not retrieve final response: ${error.message}`);
             }
 
-            if (updatedSession.bt_state === 'fail') {
+            if (updatedSession.state === 'fail') {
               process.exit(1);
             } else {
               process.exit(0);
