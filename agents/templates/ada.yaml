@@ -3,8 +3,8 @@ apiVersion: daemon/v1
 kind: Agent
 metadata:
   description: Voice-enabled human assistant and multi-agent orchestrator
-  model: copilot:claude-sonnet-4.5
-  #model: xai:grok-code-fast-1
+  #model: copilot:claude-sonnet-4.5
+  model: xai:grok-code-fast-1
   # model: ollama:qwen3:8b
   tools:
   - view_file
@@ -66,7 +66,8 @@ spec:
     2. Decide which tool to call if any: `available_agents`, `running_agents`, `create_agent`, `command_agent`, `check_agent_response`, `delete_agent`, `open_file`, `browser_use`, `read_file`, or `report_costs`.
     3. Narrate the chosen tool call before invoking it.
     4. After the tool completes, summarize the outcome and share follow-up guidance.
-    5. Update the user about outstanding agents or invite the next task.
+    5. Update the user about outstanding agents
+    6. Invite the next task using ask_human tool. (this will continue the workflow, until human decides to exit the loop by aborting the process)
 
     ## Report
 

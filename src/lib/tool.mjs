@@ -356,19 +356,36 @@ export class Tool {
 
   /**
    * Filter tool definitions for Copilot API compatibility
-   * 
+  /**
    * Strips custom metadata from tool objects before sending to the API.
    * The Copilot/Claude API expects only the 'definition' field containing
    * the standard OpenAI tool schema. Custom metadata like 'requiresHumanApproval'
    * and lifecycle hooks must be filtered out to prevent API validation errors.
+   * 
+   * Also ensures all tool functions have a 'parameters' field, as required by
+   * OpenAI-compatible APIs (including xAI). If a tool doesn't have parameters,
+   * we add an empty object schema.
    * 
    * @param {Array} tools - Array of _G.tools values with metadata
    * @returns {Array} Array of API-compatible tool definition objects
    */
   static prepareToolsForAPI(tools) {
     return tools.map(tool => {
-      // Only return the definition field, strip all metadata
-      return tool.definition;
+      // Clone the definition to avoid mutating the original
+      const definition = JSON.parse(JSON.stringify(tool.definition));
+      
+      // Ensure function has parameters field (required by OpenAI-compatible APIs)
+      if (definition.type === 'function' && definition.function) {
+        if (!definition.function.parameters) {
+          definition.function.parameters = {
+            type: 'object',
+            properties: {},
+            required: []
+          };
+        }
+      }
+      
+      return definition;
     });
   }
 }
