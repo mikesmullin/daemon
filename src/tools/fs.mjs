@@ -5,6 +5,7 @@
 // - list_directory(path, glob_pattern?, depth?) // List files/folders with optional glob filtering and recursion depth
 // - create_directory(dirPath) // Create a new directory
 // - grep_search(query, isRegexp, includePattern?, maxResults?) // Search for text in files (literal or regex)
+// - open_file(filePath) // Open a file in VS Code editor
 //
 // Safe File Editing Tools:
 // - view_file(filePath, lineStart?, lineEnd?) // Safely view file contents with read tracking (supports negative line indices)
@@ -1229,6 +1230,80 @@ Supports unified diff format with context lines:
           path: args.filePath,
           error: error.message,
           operation: 'apply_patch'
+        }
+      };
+    }
+  }
+};
+
+_G.tools.open_file = {
+  definition: {
+    type: 'function',
+    function: {
+      name: 'open_file',
+      description: 'Open a file in VS Code editor. For code/text files, this opens them in the editor. For media files (audio, video, images), it opens them in the default system application. The command runs in the background, so it does not block execution.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filePath: {
+            type: 'string',
+            description: 'The path to the file to open. Can be absolute or relative to the current working directory. Examples: "src/main.js", "/home/user/document.txt", "output.mp3"'
+          }
+        },
+        required: ['filePath']
+      }
+    }
+  },
+  metadata: {
+    requiresHumanApproval: false,  // Opening files in editor is generally safe
+    preToolUse: () => 'allow'
+  },
+  execute: async (args) => {
+    const { filePath } = args;
+
+    try {
+      // Check if file exists
+      if (!existsSync(filePath)) {
+        return {
+          success: false,
+          content: `File not found: ${filePath}`,
+          metadata: {
+            error: 'file_not_found',
+            path: filePath,
+            operation: 'open_file'
+          }
+        };
+      }
+
+      // Execute 'code <file>' command in background
+      const result = spawnSync('code', [filePath], {
+        stdio: 'ignore',  // Don't capture output
+        detached: true,   // Run in background
+        shell: false
+      });
+
+      // Note: We don't check result.status because code command may exit immediately
+      // even when successful (it sends the file to an existing VS Code instance)
+
+      utils.logAgent(`Opened file in VS Code: ${filePath}`);
+
+      return {
+        success: true,
+        content: `Successfully opened file in VS Code: ${filePath}`,
+        metadata: {
+          path: filePath,
+          operation: 'open_file'
+        }
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        content: `Failed to open file: ${error.message}`,
+        metadata: {
+          path: filePath,
+          error: error.message,
+          operation: 'open_file'
         }
       };
     }

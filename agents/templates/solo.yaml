@@ -2,9 +2,9 @@
 apiVersion: daemon/v1
 kind: Agent
 metadata:
-  name: solo
-  #model: claude-sonnet-4
-  model: xai:grok-code-fast-1
+  description: Capable full-size LLM model for complex reasoning and problem-solving tasks
+  model: copilot:claude-sonnet-4
+  #model: xai:grok-code-fast-1
   # model: ollama:qwen3:8b
   tools:
   - create_file
@@ -16,9 +16,6 @@ metadata:
   - grep_search
   - execute_shell
   - fetch_webpage
-  - generate_image_gemini
-  - speak_to_human
-  - list_voice_presets
 spec:
   system_prompt: |
     You are an expert AI programming assistant, working with a user in an editor.

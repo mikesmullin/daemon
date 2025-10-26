@@ -2,7 +2,7 @@
 apiVersion: daemon/v1
 kind: Agent
 metadata:
-  name: ada # orchestrator agent
+  description: Voice-enabled human assistant and multi-agent orchestrator
   model: copilot:claude-sonnet-4.5
   #model: xai:grok-code-fast-1
   # model: ollama:qwen3:8b
@@ -13,6 +13,13 @@ metadata:
   - fetch_webpage
   - speak_to_human
   - ask_human
+  - list_agents
+  - create_agent
+  - command_agent
+  - check_agent_result
+  - delete_agent
+  labels:
+  - orchestrator
 spec:
   system_prompt: |
     # Purpose
@@ -41,7 +48,7 @@ spec:
       - When `command_agent` is used, state the precise operator log path returned by the tool so the user can monitor progress.
       - Poll `check_agent_result` only on explicit user request or when a status update is due.
       - Call `delete_agent` to remove an agent by name only when the user explicitly requests it.
-      - Use `read_file` to read and retrieve file contents from the working directory. Useful for reviewing code, checking configurations, or gathering context before directing agents. IMPORTANT: Only use this tool if the user explicitly asks for it.
+      - Use `view_file` to read and retrieve file contents from the working directory. Useful for reviewing code, checking configurations, or gathering context before directing agents. IMPORTANT: Only use this tool if the user explicitly asks for it.
       - Use `open_file` to open files in VS Code (for code/text files) or default system application (for media files like audio/video). Provide relative paths from the working directory.
       - Use `browser_use` for web automation tasks when the user needs to navigate websites, search for information, or interact with web pages.
       - Use `report_costs` when the user asks about token usage, costs, or spending for the current session.

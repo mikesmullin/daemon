@@ -62,7 +62,7 @@ export class Agent {
   }
 
   // fork a new agent session from a template or an existing session
-  static async fork({ agent, session_id, prompt = null }) {
+  static async fork({ agent, session_id, prompt = null, labels = [] }) {
     try {
       // Generate new session ID
       const new_session_id = await Agent.nextId();
@@ -93,6 +93,15 @@ export class Agent {
           });
         }
       }
+
+      // Add labels to metadata
+      if (labels && labels.length > 0) {
+        if (!sessionContent.metadata) {
+          sessionContent.metadata = {};
+        }
+        sessionContent.metadata.labels = labels;
+      }
+
       const newgSessionFileName = `${new_session_id}.yaml`;
       const newgSessionPath = path.join(_G.SESSIONS_DIR, newgSessionFileName);
       await utils.writeYaml(newgSessionPath, sessionContent);

@@ -303,6 +303,7 @@ export class Session {
           let model = 'unknown';
           let last_message = '';
           let pid = null;
+          let labels = [];
 
           try {
             const sessionContent = await fs.readFile(sessionPath, 'utf-8');
@@ -313,6 +314,7 @@ export class Session {
               agent = sessionData.metadata.name || 'unknown';
               model = sessionData.metadata.model || 'unknown';
               pid = sessionData.metadata.pid || null;
+              labels = sessionData.metadata.labels || [];
             }
 
             // Extract last message
@@ -333,6 +335,7 @@ export class Session {
             agent,
             model,
             pid,
+            labels,
             last_message
           });
         }
