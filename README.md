@@ -237,17 +237,75 @@ while true; do
 done
 ```
 
+## Orchestrator Agent Pattern
+
+The orchestrator pattern enables voice-driven, parallel multi-agent workflows. An orchestrator agent manages subagents, dispatching tasks and monitoring their progress while you interact via voice prompts.
+
+### Setup
+
+**Terminal 1 (Secondary - Start this first):**
+```bash
+LOG=-debug d watch --labels subagent --no-human
+```
+
+This starts the background worker that processes all subagent sessions in parallel with automatic rejection (with advice to use allowlisted commands) for non-allowlisted commands.
+
+**Terminal 2 (Primary - Your interaction point):**
+```bash
+LOG=-debug d agent @ada "use podman to check if redis container is running. if it is, stop the container. if it isn't, start the container."
+```
+
+This creates an orchestrator agent session that runs in a REPL-like loop.
+
+### How It Works
+
+1. **Orchestrator Agent** (Terminal 2):
+   - Receives voice prompts (works great with the `whisper` voice keyboard repo)
+   - Analyzes tasks and breaks them into subtasks
+   - Dispatches specialized subagents using the `create_agent` tool
+   - Monitors subagent progress with `running_agents` and `check_agent_response`
+   - Helps stuck subagents with `command_agent` when needed
+   - Uses the `sleep` tool to pause between status checks
+
+2. **Subagent Worker** (Terminal 1):
+   - Runs `d watch` in a continuous loop
+   - Filters for `--labels subagent` to only process delegated work
+   - Uses `--no-human` to auto-approve allowlisted commands (unattended mode)
+   - Executes subagent tasks in parallel as they're created
+
+### Voice Integration
+
+When using a voice keyboard (like the `whisper` repo):
+- Speak your commands naturally to the orchestrator
+- The orchestrator dictates responses back
+- Creates a seamless voice-driven workflow
+- Multiple subagents run in parallel while you continue speaking with the orchestrator
+
+### Benefits
+
+- **Parallel Execution**: Subagents work simultaneously in the background
+- **Voice-Driven**: Natural language interaction via dictation
+- **Autonomous Coordination**: Orchestrator manages task distribution and progress
+- **Failure Recovery**: Orchestrator can detect and help stuck subagents
+- **Unattended Operation**: `--no-human` mode allows fully autonomous execution
+
 ## Available Agent Templates
 
 The system includes specialized agent templates for different workflows:
 
-- **solo**: General-purpose agent for standalone tasks and quick automation
-- **planner**: Strategic planning, task breakdown, and workflow orchestration  
-- **executor**: Implementation-focused agent for running commands and deployments
-- **evaluator**: Analysis, testing, and quality assessment tasks
-- **retriever**: Information gathering, research, and data collection
+- **ada**: Voice-enabled human assistant and multi-agent orchestrator with full toolset including subagent management (uses xAI grok-code-fast-1 or Copilot claude-sonnet-4.5)
+- **solo**: Capable full-size LLM for complex reasoning and problem-solving with comprehensive file operations and shell execution (uses Copilot claude-sonnet-4, xAI grok, or Ollama qwen3:8b)
+- **mini**: Tiny local LLM for quick GPU execution and lightweight tasks with minimal toolset (uses Ollama deepseek-r1:8b, qwen3:8b, or phi4-mini)
 
-*Future: Templates will support complex multi-agent collaboration patterns where agents automatically spawn and coordinate sub-agents for sophisticated workflows.*
+**Agent Template Capabilities:**
+
+| Template | Model | Tools | Use Case |
+|----------|-------|-------|----------|
+| `ada` | xAI grok-code-fast-1 | File ops, web, agent management, speak/ask, sleep | Orchestrator for multi-agent workflows with voice |
+| `solo` | Copilot claude-sonnet-4 | File ops, shell, web, patches | General-purpose subagent for complex tasks |
+| `mini` | Ollama deepseek-r1:8b | Limited file ops | Quick local reasoning with minimal overhead |
+
+*Templates are YAML-based and fully customizable in `agents/templates/`. Each template defines the model, available tools, system prompts, and behavioral parameters.*
 
 ## Security
 

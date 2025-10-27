@@ -1,0 +1,46 @@
+---
+apiVersion: daemon/v1
+kind: Agent
+metadata:
+  description: Tiny LLM model for quick (local GPU execution) and lightweight reasoning tasks
+  #model: claude-sonnet-4
+  #model: xai:grok-code-fast-1
+  #model: ollama:mistral:7b
+  #model: ollama:phi4-mini  # CAUTION: phi4-mini only works with 1-2 tools max and NO system_prompt
+  #model: ollama:qwen3:8b      # RECOMMENDED: qwen3:8b works great with all tools + system prompt
+  model: ollama:deepseek-r1:8b
+  tools:
+  - create_file
+  #- view_file
+  #- edit_file
+  #- apply_patch
+  #- list_directory
+  #- create_directory
+  #- grep_search
+  #- execute_shell
+  #- fetch_webpage
+  #- generate_image_gemini
+  #- speak_to_human
+  #- list_voice_presets
+#spec:
+#  system_prompt: |
+#    You are an expert AI programming assistant, working with a user in an editor.
+    
+# OLLAMA MODEL COMPATIBILITY NOTES:
+# 
+# phi4-mini:latest
+#   - ONLY works with 1-2 tools maximum
+#   - REQUIRES removing system_prompt (comment out spec section entirely)
+#   - Tool calling breaks with 3+ tools or with system messages
+#
+# qwen3:8b (RECOMMENDED)
+#   - Works with all 12 tools
+#   - Works with or without system prompts  
+#   - Most reliable for complex agent workflows
+#
+# mistral:7b, mistral:v0.3, llama3.2:latest
+#   - Work well with multiple tools and system prompts
+#   - Good alternatives to qwen3:8b
+#
+# gemma3:4b
+#   - Does NOT support tool calling at all
