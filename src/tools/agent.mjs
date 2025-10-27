@@ -6,6 +6,7 @@
 // - command_agent(session_id, prompt) // Send additional instructions to an active subagent
 // - check_agent_response(session_id) // Get the last response from a subagent
 // - delete_agent(session_id) // Soft-delete an active agent session (mark as deleted, file removed on `d clean`)
+// - sleep(seconds) // Pause execution for specified duration (useful for waiting on subagents)
 //
 
 import { _G } from '../lib/globals.mjs';
@@ -419,6 +420,82 @@ _G.tools.delete_agent = {
         metadata: {
           error: error.message,
           session_id: args.session_id
+        }
+      };
+    }
+  }
+};
+
+_G.tools.sleep = {
+  definition: {
+    type: 'function',
+    function: {
+      name: 'sleep',
+      description: 'Pause execution for a specified duration. Useful when coordinating with subagents - allows time for them to make progress before checking their status. Also helpful for rate limiting, waiting for external processes, or scheduling periodic checks. The agent will resume execution after the sleep duration.',
+      parameters: {
+        type: 'object',
+        properties: {
+          seconds: {
+            type: 'number',
+            description: 'Number of seconds to sleep. Can be fractional (e.g., 0.5 for half a second). Practical range: 0.1 to 300 seconds (5 minutes). For longer delays, consider using multiple sleep calls or external scheduling.'
+          }
+        },
+        required: ['seconds']
+      }
+    }
+  },
+  execute: async (args) => {
+    try {
+      const seconds = parseFloat(args.seconds);
+
+      if (isNaN(seconds) || seconds < 0) {
+        return {
+          success: false,
+          content: `Invalid sleep duration: ${args.seconds}. Must be a positive number.`,
+          metadata: {
+            error: 'invalid_duration',
+            requested: args.seconds
+          }
+        };
+      }
+
+      if (seconds > 300) {
+        return {
+          success: false,
+          content: `Sleep duration too long: ${seconds}s. Maximum is 300 seconds (5 minutes). For longer delays, use multiple sleep calls.`,
+          metadata: {
+            error: 'duration_too_long',
+            requested: seconds,
+            maximum: 300
+          }
+        };
+      }
+
+      const milliseconds = Math.round(seconds * 1000);
+
+      // Log the operation
+      utils.logAgent(`Sleeping for ${seconds} seconds...`);
+
+      // Perform the actual sleep
+      await new Promise(resolve => setTimeout(resolve, milliseconds));
+
+      // Log completion
+      utils.logAgent(`Woke up after ${seconds} seconds`);
+
+      return {
+        success: true,
+        content: `Slept for ${seconds} seconds`,
+        metadata: {
+          duration_seconds: seconds,
+          duration_ms: milliseconds
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        content: error.message,
+        metadata: {
+          error: error.message
         }
       };
     }

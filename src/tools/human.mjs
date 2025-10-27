@@ -66,8 +66,11 @@ _G.tools.speak_to_human = {
       cmdArgs.push('-o', output_file);
     }
 
-    // Add preset (required by voice command, default to 'neutral')
-    const voicePreset = preset || 'neutral';
+    // use cached/server mode, if possible (for faster response)
+    cmdArgs.push('hot');
+
+    // Add preset (required by voice command, default to 'ada')
+    const voicePreset = preset || 'ada';
     cmdArgs.push(voicePreset);
 
     // Add text
