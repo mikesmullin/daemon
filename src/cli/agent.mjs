@@ -7,6 +7,7 @@
 import path from 'path';
 import { _G } from '../lib/globals.mjs';
 import { Agent } from '../lib/agents.mjs';
+import { Session } from '../lib/session.mjs';
 import utils, { log } from '../lib/utils.mjs';
 import color from '../lib/colors.mjs';
 
@@ -82,11 +83,12 @@ async function handleInteractiveMode(args, last) {
     }
 
     // Execute with the collected prompt, continuing the same session
-    sessionId = await executeAgent(agent, collectedPrompt, last, sessionId);
+    // Pass true for isInteractive flag to handle logging differently
+    sessionId = await executeAgent(agent, collectedPrompt, last, sessionId, true);
   }
 }
 
-async function executeAgent(agent, prompt, suppressLogs = false, continueSessionId = null) {
+async function executeAgent(agent, prompt, suppressLogs = false, continueSessionId = null, isInteractive = false) {
   if (!prompt) {
     utils.abort(
       'Error: agent requires a prompt after @<agent>\n' +
@@ -103,8 +105,13 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
     if (continueSessionId) {
       // Continue existing session by pushing new message
       log('debug', `🔄 Continuing session ${continueSessionId} with prompt: ${prompt}`);
-      await Agent.push(continueSessionId, prompt);
+      const pushResult = await Agent.push(continueSessionId, prompt);
       sessionId = continueSessionId;
+
+      // In interactive mode, update lastRead to the message timestamp to prevent re-logging the user message
+      if (isInteractive && pushResult.ts) {
+        await Session.updateLastRead(sessionId, pushResult.ts);
+      }
     } else {
       // Check for --lock flag: abort if another agent of same type is running
       if (_G.cliFlags.lock) {
@@ -174,6 +181,16 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
       }
       await utils.writeYaml(sessionPath, sessionContent);
 
+      // In interactive mode, update lastRead to prevent re-logging the initial user message
+      if (isInteractive && prompt) {
+        // Get the timestamp of the user message that was just added
+        const messages = sessionContent.spec.messages || [];
+        const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+        if (lastUserMessage && lastUserMessage.ts) {
+          await Session.updateLastRead(sessionId, lastUserMessage.ts);
+        }
+      }
+
       log('debug', `✅ Created session ${sessionId}, now monitoring until completion...`);
     }
 
@@ -191,7 +208,6 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
     // Enter focused watch mode for this specific session
     const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
     let lastIterationStart = 0;
-    const isInteractive = _G.cliFlags.interactive;
 
     // Promise resolver for interactive mode completion
     let completeWatch = null;

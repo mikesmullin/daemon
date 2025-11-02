@@ -101,7 +101,7 @@ export class TextAreaInput {
    * Draw a horizontal line across the terminal
    */
   drawLine() {
-    return colors.border + '─'.repeat(this.getTerminalWidth()) + colors.reset;
+    return colors.border + '───' + colors.reset;
   }
 
   /**
@@ -665,8 +665,9 @@ export class TextAreaInput {
     }
     process.stdin.pause();
 
-    // Clear screen
-    process.stdout.write('\x1b[2J\x1b[H');
+    // Don't clear screen - preserve output for better UX
+    // Just move to a new line to separate input from output
+    process.stdout.write('\n');
   }
 
   /**
