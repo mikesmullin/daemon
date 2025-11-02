@@ -15,12 +15,52 @@
 
 import { _G } from '../lib/globals.mjs';
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSync, appendFileSync, openSync, readSync, closeSync } from 'fs';
-import { join, dirname, relative } from 'path';
+import { join, dirname, relative, resolve, isAbsolute } from 'path';
 import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
 import utils from '../lib/utils.mjs';
 import minimatchPkg from 'minimatch';
 const { Minimatch } = minimatchPkg;
+
+// Security: Record the initial CWD at module load time
+// All filesystem operations are restricted to this directory and its subdirectories
+const ALLOWED_BASE_DIR = process.cwd();
+
+/**
+ * Validate that a file path is within the allowed base directory
+ * @param {string} filePath - The path to validate
+ * @returns {Object} { valid: boolean, resolvedPath: string, error?: string }
+ */
+function validatePath(filePath) {
+  try {
+    // Resolve to absolute path
+    const absolutePath = isAbsolute(filePath) ? filePath : resolve(ALLOWED_BASE_DIR, filePath);
+
+    // Get the relative path from the base directory
+    const relativePath = relative(ALLOWED_BASE_DIR, absolutePath);
+
+    // Check if the path escapes the base directory
+    // If it starts with '..' or is absolute from root, it's outside
+    if (relativePath.startsWith('..') || isAbsolute(relativePath)) {
+      return {
+        valid: false,
+        resolvedPath: absolutePath,
+        error: `Access denied: Path '${filePath}' is outside the allowed directory '${ALLOWED_BASE_DIR}'`
+      };
+    }
+
+    return {
+      valid: true,
+      resolvedPath: absolutePath
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      resolvedPath: filePath,
+      error: `Invalid path: ${error.message}`
+    };
+  }
+}
 
 // File tracking system for safety (persistent across daemon restarts)
 const fileVersions = new Map();
@@ -230,10 +270,16 @@ _G.tools.create_file = {
     requiresHumanApproval: false,  // File creation is generally safe
 
     preToolUse: async (args, context) => {
+      // Validate path is within allowed directory
+      const pathCheck = validatePath(args.filePath);
+      if (!pathCheck.valid) {
+        return 'deny'; // Path escapes allowed directory
+      }
+
+      const filePath = pathCheck.resolvedPath;
+
       // Check if trying to overwrite critical system files
       const criticalPaths = ['/etc/', '/bin/', '/usr/bin/', '/sys/', '/proc/'];
-      const filePath = args.filePath;
-
       if (criticalPaths.some(path => filePath.startsWith(path))) {
         return 'deny';
       }
@@ -247,21 +293,39 @@ _G.tools.create_file = {
     },
 
     getApprovalPrompt: async (args, context) => {
-      const exists = existsSync(args.filePath);
-      return `Creating file: ${args.filePath}\n` +
+      const pathCheck = validatePath(args.filePath);
+      const filePath = pathCheck.valid ? pathCheck.resolvedPath : args.filePath;
+      const exists = existsSync(filePath);
+      return `Creating file: ${filePath}\n` +
         `Content length: ${args.content.length} characters\n` +
         (exists ? `⚠️  File already exists and will be overwritten!` : `✅ New file creation`);
     }
   },
   execute: async (args) => {
     try {
+      // Validate path is within allowed directory
+      const pathCheck = validatePath(args.filePath);
+      if (!pathCheck.valid) {
+        return {
+          success: false,
+          content: pathCheck.error,
+          metadata: {
+            path: args.filePath,
+            error: 'path_validation_failed',
+            operation: 'create_file'
+          }
+        };
+      }
+
+      const filePath = pathCheck.resolvedPath;
+
       // Check if file already exists
-      if (existsSync(args.filePath)) {
+      if (existsSync(filePath)) {
         return {
           success: false,
           content: 'File already exists. Use a different tool to edit existing files.',
           metadata: {
-            path: args.filePath,
+            path: filePath,
             error: 'file_exists',
             operation: 'create_file'
           }
@@ -269,21 +333,21 @@ _G.tools.create_file = {
       }
 
       // Ensure directory exists
-      const dir = dirname(args.filePath);
+      const dir = dirname(filePath);
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
       }
 
-      writeFileSync(args.filePath, args.content, 'utf8');
+      writeFileSync(filePath, args.content, 'utf8');
 
       // Log the operation
-      utils.logFileSystem(`Created file: ${args.filePath}`);
+      utils.logFileSystem(`Created file: ${filePath}`);
 
       return {
         success: true,
-        content: `The following files were successfully edited:\n${args.filePath}`,
+        content: `The following files were successfully edited:\n${filePath}`,
         metadata: {
-          path: args.filePath,
+          path: filePath,
           size: args.content.length,
           operation: 'create_file'
         }
@@ -330,7 +394,21 @@ _G.tools.list_directory = {
   },
   execute: async (args) => {
     try {
-      const basePath = args.path;
+      // Validate path is within allowed directory
+      const pathCheck = validatePath(args.path);
+      if (!pathCheck.valid) {
+        return {
+          success: false,
+          content: pathCheck.error,
+          metadata: {
+            path: args.path,
+            error: 'path_validation_failed',
+            operation: 'list_directory'
+          }
+        };
+      }
+
+      const basePath = pathCheck.resolvedPath;
       const globPattern = args.glob_pattern;
       const maxDepth = args.depth !== undefined ? args.depth : 0;
 
@@ -454,16 +532,32 @@ _G.tools.create_directory = {
   },
   execute: async (args) => {
     try {
-      mkdirSync(args.dirPath, { recursive: true });
+      // Validate path is within allowed directory
+      const pathCheck = validatePath(args.dirPath);
+      if (!pathCheck.valid) {
+        return {
+          success: false,
+          content: pathCheck.error,
+          metadata: {
+            path: args.dirPath,
+            error: 'path_validation_failed',
+            operation: 'create_directory'
+          }
+        };
+      }
+
+      const dirPath = pathCheck.resolvedPath;
+
+      mkdirSync(dirPath, { recursive: true });
 
       // Log the operation
-      utils.logFileSystem(`Created directory: ${args.dirPath}`);
+      utils.logFileSystem(`Created directory: ${dirPath}`);
 
       return {
         success: true,
-        content: `Created directory at ${args.dirPath}`,
+        content: `Created directory at ${dirPath}`,
         metadata: {
-          path: args.dirPath,
+          path: dirPath,
           operation: 'create_directory'
         }
       };
@@ -513,6 +607,7 @@ _G.tools.grep_search = {
   },
   execute: async (args) => {
     try {
+      // Security: grep_search always operates from process.cwd() which is the allowed base directory
       const { query, isRegexp, includePattern, maxResults } = args;
       const workspacePath = process.cwd();
       const defaultMaxResults = 20;
@@ -696,37 +791,53 @@ _G.tools.view_file = {
   },
   execute: async (args) => {
     try {
-      if (!existsSync(args.filePath)) {
+      // Validate path is within allowed directory
+      const pathCheck = validatePath(args.filePath);
+      if (!pathCheck.valid) {
+        return {
+          success: false,
+          content: pathCheck.error,
+          metadata: {
+            path: args.filePath,
+            error: 'path_validation_failed',
+            operation: 'view_file'
+          }
+        };
+      }
+
+      const filePath = pathCheck.resolvedPath;
+
+      if (!existsSync(filePath)) {
         return {
           success: false,
           content: 'File not found',
           metadata: {
-            path: args.filePath,
+            path: filePath,
             error: 'file_not_found',
             operation: 'view_file'
           }
         };
       }
 
-      const stats = statSync(args.filePath);
+      const stats = statSync(filePath);
       if (stats.isDirectory()) {
         return {
           success: false,
           content: 'Path is a directory, not a file',
           metadata: {
-            path: args.filePath,
+            path: filePath,
             error: 'is_directory',
             operation: 'view_file'
           }
         };
       }
 
-      const content = readFileSync(args.filePath, 'utf8');
+      const content = readFileSync(filePath, 'utf8');
       const lines = content.split('\n');
       const totalLines = lines.length;
 
       // Record read time for safety tracking
-      recordFileRead(args.filePath);
+      recordFileRead(filePath);
 
       let displayContent = content;
       let startLine = 1;
@@ -760,13 +871,13 @@ _G.tools.view_file = {
       }
 
       // Log the operation
-      utils.logFileSystem(`Viewed file: ${args.filePath} (lines ${startLine}-${endLine})`);
+      utils.logFileSystem(`Viewed file: ${filePath} (lines ${startLine}-${endLine})`);
 
       return {
         success: true,
         content: displayContent,
         metadata: {
-          filePath: args.filePath,
+          filePath: filePath,
           totalLines: lines.length,
           displayedLines: `${startLine}-${endLine}`,
           size: stats.size,
@@ -834,26 +945,42 @@ The tool will fail safely if:
   },
   execute: async (args) => {
     try {
+      // Validate path is within allowed directory
+      const pathCheck = validatePath(args.filePath);
+      if (!pathCheck.valid) {
+        return {
+          success: false,
+          content: pathCheck.error,
+          metadata: {
+            path: args.filePath,
+            error: 'path_validation_failed',
+            operation: 'edit_file'
+          }
+        };
+      }
+
+      const filePath = pathCheck.resolvedPath;
+
       // Validate file exists
-      if (!existsSync(args.filePath)) {
+      if (!existsSync(filePath)) {
         return {
           success: false,
           content: 'File not found',
           metadata: {
-            path: args.filePath,
+            path: filePath,
             error: 'file_not_found',
             operation: 'edit_file'
           }
         };
       }
 
-      const stats = statSync(args.filePath);
+      const stats = statSync(filePath);
       if (stats.isDirectory()) {
         return {
           success: false,
           content: 'Path is a directory, not a file',
           metadata: {
-            path: args.filePath,
+            path: filePath,
             error: 'is_directory',
             operation: 'edit_file'
           }
@@ -861,13 +988,13 @@ The tool will fail safely if:
       }
 
       // Safety check: must read file first
-      const lastReadTime = getLastReadTime(args.filePath);
+      const lastReadTime = getLastReadTime(filePath);
       if (!lastReadTime) {
         return {
           success: false,
           content: 'You must read the file using view_file before editing it. This ensures safety and prevents conflicts.',
           metadata: {
-            path: args.filePath,
+            path: filePath,
             error: 'file_not_read',
             operation: 'edit_file'
           }
@@ -884,7 +1011,7 @@ The tool will fail safely if:
       }
 
       // Read current content
-      const oldContent = readFileSync(args.filePath, 'utf8');
+      const oldContent = readFileSync(filePath, 'utf8');
 
       // Validate old_string exists
       const index = oldContent.indexOf(args.oldString);
@@ -917,24 +1044,24 @@ The tool will fail safely if:
       }
 
       // Generate diff and statistics
-      const diff = generateDiff(oldContent, newContent, args.filePath);
+      const diff = generateDiff(oldContent, newContent, filePath);
       const { additions, removals } = countChanges(oldContent, newContent);
 
       // Write the file
-      writeFileSync(args.filePath, newContent, 'utf8');
+      writeFileSync(filePath, newContent, 'utf8');
 
       // Update read timestamp to reflect the change
-      recordFileRead(args.filePath);
+      recordFileRead(filePath);
 
       // Log the operation
-      utils.logFileSystem(`Edited file: ${args.filePath} (+${additions} -${removals})`);
+      utils.logFileSystem(`Edited file: ${filePath} (+${additions} -${removals})`);
 
       return {
         success: true,
-        content: `Successfully edited file: ${args.filePath}`,
+        content: `Successfully edited file: ${filePath}`,
         metadata: {
-          message: `Successfully edited file: ${args.filePath}`,
-          filePath: args.filePath,
+          message: `Successfully edited file: ${filePath}`,
+          filePath: filePath,
           diff: diff,
           changes: {
             additions: additions,
@@ -1001,26 +1128,42 @@ Supports unified diff format with context lines:
   },
   execute: async (args) => {
     try {
+      // Validate path is within allowed directory
+      const pathCheck = validatePath(args.filePath);
+      if (!pathCheck.valid) {
+        return {
+          success: false,
+          content: pathCheck.error,
+          metadata: {
+            path: args.filePath,
+            error: 'path_validation_failed',
+            operation: 'apply_patch'
+          }
+        };
+      }
+
+      const filePath = pathCheck.resolvedPath;
+
       // Validate file exists
-      if (!existsSync(args.filePath)) {
+      if (!existsSync(filePath)) {
         return {
           success: false,
           content: 'File not found',
           metadata: {
-            path: args.filePath,
+            path: filePath,
             error: 'file_not_found',
             operation: 'apply_patch'
           }
         };
       }
 
-      const stats = statSync(args.filePath);
+      const stats = statSync(filePath);
       if (stats.isDirectory()) {
         return {
           success: false,
           content: 'Path is a directory, not a file',
           metadata: {
-            path: args.filePath,
+            path: filePath,
             error: 'is_directory',
             operation: 'apply_patch'
           }
@@ -1028,13 +1171,13 @@ Supports unified diff format with context lines:
       }
 
       // Safety check: must read file first
-      const lastReadTime = getLastReadTime(args.filePath);
+      const lastReadTime = getLastReadTime(filePath);
       if (!lastReadTime) {
         return {
           success: false,
           content: 'You must read the file using view_file before applying patches. This ensures safety and prevents conflicts.',
           metadata: {
-            path: args.filePath,
+            path: filePath,
             error: 'file_not_read',
             operation: 'apply_patch'
           }
@@ -1050,7 +1193,7 @@ Supports unified diff format with context lines:
         };
       }
 
-      const oldContent = readFileSync(args.filePath, 'utf8');
+      const oldContent = readFileSync(filePath, 'utf8');
       const lines = oldContent.split('\n');
 
       // Parse the patch
@@ -1186,30 +1329,30 @@ Supports unified diff format with context lines:
           content: 'Patch resulted in no changes to the file content.',
           metadata: {
             error: 'Patch resulted in no changes to the file content.',
-            path: args.filePath,
+            path: filePath,
             operation: 'apply_patch'
           }
         };
       }
 
       // Write the file
-      writeFileSync(args.filePath, newContent, 'utf8');
+      writeFileSync(filePath, newContent, 'utf8');
 
       // Update read timestamp
-      recordFileRead(args.filePath);
+      recordFileRead(filePath);
 
       // Generate final diff for verification
-      const finalDiff = generateDiff(oldContent, newContent, args.filePath);
+      const finalDiff = generateDiff(oldContent, newContent, filePath);
 
       // Log the operation
-      utils.logFileSystem(`Applied patch to: ${args.filePath} (+${totalAdditions} -${totalRemovals})`);
+      utils.logFileSystem(`Applied patch to: ${filePath} (+${totalAdditions} -${totalRemovals})`);
 
       return {
         success: true,
-        content: `Successfully applied patch to: ${args.filePath}`,
+        content: `Successfully applied patch to: ${filePath}`,
         metadata: {
-          message: `Successfully applied patch to: ${args.filePath}`,
-          filePath: args.filePath,
+          message: `Successfully applied patch to: ${filePath}`,
+          filePath: filePath,
           hunksApplied: hunks.length,
           changes: {
             additions: totalAdditions,
@@ -1262,21 +1405,37 @@ _G.tools.open_file = {
     const { filePath } = args;
 
     try {
-      // Check if file exists
-      if (!existsSync(filePath)) {
+      // Validate path is within allowed directory
+      const pathCheck = validatePath(filePath);
+      if (!pathCheck.valid) {
         return {
           success: false,
-          content: `File not found: ${filePath}`,
+          content: pathCheck.error,
+          metadata: {
+            path: filePath,
+            error: 'path_validation_failed',
+            operation: 'open_file'
+          }
+        };
+      }
+
+      const validatedPath = pathCheck.resolvedPath;
+
+      // Check if file exists
+      if (!existsSync(validatedPath)) {
+        return {
+          success: false,
+          content: `File not found: ${validatedPath}`,
           metadata: {
             error: 'file_not_found',
-            path: filePath,
+            path: validatedPath,
             operation: 'open_file'
           }
         };
       }
 
       // Execute 'code <file>' command in background
-      const result = spawnSync('code', [filePath], {
+      const result = spawnSync('code', [validatedPath], {
         stdio: 'ignore',  // Don't capture output
         detached: true,   // Run in background
         shell: false
@@ -1285,13 +1444,13 @@ _G.tools.open_file = {
       // Note: We don't check result.status because code command may exit immediately
       // even when successful (it sends the file to an existing VS Code instance)
 
-      utils.logAgent(`Opened file in VS Code: ${filePath}`);
+      utils.logAgent(`Opened file in VS Code: ${validatedPath}`);
 
       return {
         success: true,
-        content: `Successfully opened file in VS Code: ${filePath}`,
+        content: `Successfully opened file in VS Code: ${validatedPath}`,
         metadata: {
-          path: filePath,
+          path: validatedPath,
           operation: 'open_file'
         }
       };
