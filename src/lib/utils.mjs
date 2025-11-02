@@ -509,7 +509,28 @@ export function logToolCall(tool_call, messageTimestamp = null) {
     args = JSON.parse(_.get(tool_call, 'function.arguments', '{}'));
   } catch (e) {
   }
-  log('info', bqIconLabel('grey', '🔧', color.white(`Tool Call: ${_.get(tool_call, 'function.name', 'unknown_name')}`) + color.grey(` #${_.get(tool_call, 'id', 'unknown_id')}`),
+
+  // Create a truncated version of args for display (last 50 chars of each value)
+  const truncatedArgs = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (typeof value === 'string' && value.length > 50) {
+      truncatedArgs[key] = '...' + value.slice(-50);
+    } else if (typeof value === 'string') {
+      truncatedArgs[key] = value;
+    } else {
+      // For non-string values, convert to JSON string and truncate if needed
+      const jsonValue = JSON.stringify(value);
+      if (jsonValue.length > 50) {
+        truncatedArgs[key] = '...' + jsonValue.slice(-50);
+      } else {
+        truncatedArgs[key] = jsonValue;
+      }
+    }
+  }
+
+  const paramsJson = JSON.stringify(truncatedArgs);
+
+  log('info', bqIconLabel('grey', '🔧', color.white(`Tool Call: ${_.get(tool_call, 'function.name', 'unknown_name')}`) + color.grey(` #${_.get(tool_call, 'id', 'unknown_id')}`) + color.grey(` ${paramsJson}`),
     // yaml.dump(args).trim()
   ), messageTimestamp);
   // console.log('');
@@ -566,7 +587,8 @@ export function logTask(text) {
 
 export function logToolResponse(text, messageTimestamp = null) {
   console.log('');
-  log('info', bqIconLabel('brightBlue', '🔧', color.brightBlue('Tool Response'), '\n' + text), messageTimestamp);
+  const truncatedText = text.length > 255 ? text.slice(0, 255) + '...' : text;
+  log('info', bqIconLabel('brightBlue', '🔧', color.brightBlue('Tool Response'), '\n' + truncatedText), messageTimestamp);
   console.log('');
 }
 
