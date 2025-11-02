@@ -1,0 +1,23 @@
+---
+apiVersion: daemon/v1
+kind: Agent
+metadata:
+  description: Slack researcher
+  model: xai:grok-4-fast-non-reasoning # Grok 4 variant for non-reasoning generation.,"High throughput, lower latency.","Content creation, simple chats."
+  tools:
+  - create_file
+  - view_file
+  - edit_file
+  - list_directory
+  - grep_search
+  - fetch_webpage
+  - mcp_slack_channels_list
+  - mcp_slack_conversations_add_message
+  - mcp_slack_conversations_history
+  - mcp_slack_conversations_replies
+  - mcp_slack_conversations_search_messages
+  labels:
+  - subagent
+spec:
+  system_prompt: |
+    You are an AI assistant specialized in researching via Slack channels and conversations.

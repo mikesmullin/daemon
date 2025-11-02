@@ -4,25 +4,33 @@ daemon:
   tmux_session_name: daemon
 mcp:
   servers:
-    chrome-devtools:
+    slack:
+      enabled: true
       command: npx
       args:
-        - "-y"
-        - chrome-devtools-mcp@latest
-        - "-u"
-        - http://localhost:9222
-      enabled: true
-      approval_policy: allow
-      env: {}
-      cwd: null
-    mock-server:
-      command: node
-      args:
-        - tmp/mock-mcp-server.mjs
-      enabled: true
-      approval_policy: allow
-      env: {}
-      cwd: null
+      - "-y"
+      - "slack-mcp-server@latest"
+      - "--transport"
+      - "stdio"
+    # chrome-devtools:
+    #   command: npx
+    #   args:
+    #     - "-y"
+    #     - chrome-devtools-mcp@latest
+    #     - "-u"
+    #     - http://localhost:9222
+    #   enabled: true
+    #   approval_policy: allow
+    #   env: {}
+    #   cwd: null
+    # mock-server:
+    #   command: node
+    #   args:
+    #     - tmp/mock-mcp-server.mjs
+    #   enabled: true
+    #   approval_policy: allow
+    #   env: {}
+    #   cwd: null
 github:
   device_code_url: https://github.com/login/device/code
   access_token_url: https://github.com/login/oauth/access_token
