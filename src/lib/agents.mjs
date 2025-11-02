@@ -141,6 +141,11 @@ export class Agent {
         const templatePath = path.join(_G.TEMPLATES_DIR, templateFileName);
         sessionContent = await utils.readYaml(templatePath);
 
+        // Ensure spec exists (YAML parses empty "spec:" as null)
+        if (!sessionContent.spec) {
+          sessionContent.spec = {};
+        }
+
         // render EJS in system prompt template, if present
         if (sessionContent.spec.system_prompt) {
           sessionContent.spec.system_prompt = ejs.render(sessionContent.spec.system_prompt, {

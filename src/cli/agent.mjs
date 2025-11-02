@@ -70,18 +70,23 @@ async function handleInteractiveMode(args, last) {
   // Import TUI module and prompt for input
   const { prompt: tuiPrompt } = await import('../lib/tui.mjs');
 
-  log('debug', `🤖 Interactive mode: collecting prompt for ${agent} agent...`);
-  const collectedPrompt = await tuiPrompt('> ');
+  // REPL loop: continuously prompt and execute
+  let sessionId = null;
 
-  if (!collectedPrompt || !collectedPrompt.trim()) {
-    utils.abort('Error: No prompt provided');
+  while (true) {
+    log('debug', `🤖 Interactive mode: collecting prompt for ${agent} agent...`);
+    const collectedPrompt = await tuiPrompt('> ');
+
+    if (!collectedPrompt || !collectedPrompt.trim()) {
+      utils.abort('Error: No prompt provided');
+    }
+
+    // Execute with the collected prompt, continuing the same session
+    sessionId = await executeAgent(agent, collectedPrompt, last, sessionId);
   }
-
-  // Execute with the collected prompt
-  await executeAgent(agent, collectedPrompt, last);
 }
 
-async function executeAgent(agent, prompt, suppressLogs = false) {
+async function executeAgent(agent, prompt, suppressLogs = false, continueSessionId = null) {
   if (!prompt) {
     utils.abort(
       'Error: agent requires a prompt after @<agent>\n' +
@@ -93,75 +98,84 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
     // Load config (needed for AI provider settings)
     _G.CONFIG = await utils.readYaml(_G.CONFIG_PATH);
 
-    // Check for --lock flag: abort if another agent of same type is running
-    if (_G.cliFlags.lock) {
-      const sessions = await Agent.list();
-      const runningSession = sessions.find(s =>
-        s.agent === agent &&
-        s.state === 'running'
-      );
+    let sessionId;
 
-      if (runningSession) {
-        utils.abort(
-          `Error: Another ${agent} agent is already running (session ${runningSession.session_id}, PID ${runningSession.pid || 'unknown'}).\n` +
-          `Use --kill to terminate it first, or wait for it to complete.`
+    if (continueSessionId) {
+      // Continue existing session by pushing new message
+      log('debug', `🔄 Continuing session ${continueSessionId} with prompt: ${prompt}`);
+      await Agent.push(continueSessionId, prompt);
+      sessionId = continueSessionId;
+    } else {
+      // Check for --lock flag: abort if another agent of same type is running
+      if (_G.cliFlags.lock) {
+        const sessions = await Agent.list();
+        const runningSession = sessions.find(s =>
+          s.agent === agent &&
+          s.state === 'running'
         );
+
+        if (runningSession) {
+          utils.abort(
+            `Error: Another ${agent} agent is already running (session ${runningSession.session_id}, PID ${runningSession.pid || 'unknown'}).\n` +
+            `Use --kill to terminate it first, or wait for it to complete.`
+          );
+        }
       }
-    }
 
-    // Check for --kill flag: kill any running agent of same type
-    if (_G.cliFlags.kill) {
-      const sessions = await Agent.list();
-      const runningSessions = sessions.filter(s =>
-        s.agent === agent &&
-        s.state === 'running'
-      );
+      // Check for --kill flag: kill any running agent of same type
+      if (_G.cliFlags.kill) {
+        const sessions = await Agent.list();
+        const runningSessions = sessions.filter(s =>
+          s.agent === agent &&
+          s.state === 'running'
+        );
 
-      for (const runningSession of runningSessions) {
-        const pid = runningSession.pid;
-        if (pid) {
-          try {
-            log('info', `🔪 Killing existing ${agent} session ${runningSession.session_id} (PID ${pid})...`);
-            process.kill(pid, 'SIGKILL');
-
-            // Wait a moment and verify process is dead
-            await new Promise(resolve => setTimeout(resolve, 100));
-
+        for (const runningSession of runningSessions) {
+          const pid = runningSession.pid;
+          if (pid) {
             try {
-              process.kill(pid, 0); // Check if process exists
-              utils.abort(`Error: Failed to kill process ${pid}. Process is still running.`);
-            } catch (e) {
-              // Process is dead (expected)
-              log('debug', `✅ Process ${pid} successfully terminated`);
-            }
-          } catch (error) {
-            if (error.code === 'ESRCH') {
-              // Process doesn't exist, that's fine
-              log('debug', `Process ${pid} not found (already terminated)`);
-            } else {
-              utils.abort(`Error: Failed to kill process ${pid}: ${error.message}`);
+              log('info', `🔪 Killing existing ${agent} session ${runningSession.session_id} (PID ${pid})...`);
+              process.kill(pid, 'SIGKILL');
+
+              // Wait a moment and verify process is dead
+              await new Promise(resolve => setTimeout(resolve, 100));
+
+              try {
+                process.kill(pid, 0); // Check if process exists
+                utils.abort(`Error: Failed to kill process ${pid}. Process is still running.`);
+              } catch (e) {
+                // Process is dead (expected)
+                log('debug', `✅ Process ${pid} successfully terminated`);
+              }
+            } catch (error) {
+              if (error.code === 'ESRCH') {
+                // Process doesn't exist, that's fine
+                log('debug', `Process ${pid} not found (already terminated)`);
+              } else {
+                utils.abort(`Error: Failed to kill process ${pid}: ${error.message}`);
+              }
             }
           }
         }
       }
+
+      // Create new agent session
+      log('debug', `🤖 Creating new ${agent} agent session with prompt: ${prompt}`);
+      const result = await Agent.fork({ agent, prompt });
+      sessionId = result.session_id;
+
+      // Store PID in session metadata
+      const sessionPath = path.join(_G.SESSIONS_DIR, `${sessionId}.yaml`);
+      const sessionContent = await utils.readYaml(sessionPath);
+      sessionContent.metadata.pid = process.pid;
+      if (_G.cliFlags.timeout) {
+        sessionContent.metadata.timeout = _G.cliFlags.timeout;
+        sessionContent.metadata.startTime = new Date().toISOString();
+      }
+      await utils.writeYaml(sessionPath, sessionContent);
+
+      log('debug', `✅ Created session ${sessionId}, now monitoring until completion...`);
     }
-
-    // Create new agent session
-    log('debug', `🤖 Creating new ${agent} agent session with prompt: ${prompt}`);
-    const result = await Agent.fork({ agent, prompt });
-    const sessionId = result.session_id;
-
-    // Store PID in session metadata
-    const sessionPath = path.join(_G.SESSIONS_DIR, `${sessionId}.yaml`);
-    const sessionContent = await utils.readYaml(sessionPath);
-    sessionContent.metadata.pid = process.pid;
-    if (_G.cliFlags.timeout) {
-      sessionContent.metadata.timeout = _G.cliFlags.timeout;
-      sessionContent.metadata.startTime = new Date().toISOString();
-    }
-    await utils.writeYaml(sessionPath, sessionContent);
-
-    log('debug', `✅ Created session ${sessionId}, now monitoring until completion...`);
 
     // Setup timeout handler if --timeout flag is set
     let timeoutHandle = null;
@@ -177,6 +191,13 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
     // Enter focused watch mode for this specific session
     const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
     let lastIterationStart = 0;
+    const isInteractive = _G.cliFlags.interactive;
+
+    // Promise resolver for interactive mode completion
+    let completeWatch = null;
+    const watchCompletionPromise = isInteractive ? new Promise((resolve, reject) => {
+      completeWatch = { resolve, reject };
+    }) : null;
 
     const performAgentWatch = async () => {
       try {
@@ -189,12 +210,21 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
 
         if (!targetSession) {
           log('error', `❌ Session ${sessionId} not found`);
+          if (isInteractive) {
+            completeWatch.reject(new Error(`Session ${sessionId} not found`));
+            return;
+          }
           process.exit(1);
         }
 
         // If session is already in terminal state, we're done
         if (['success', 'fail'].includes(targetSession.state)) {
           log('debug', `✅ Session ${sessionId} completed with state: ${targetSession.state}`);
+
+          // Clear timeout if set
+          if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+          }
 
           // Output the final assistant response to console
           if (!suppressLogs) {
@@ -216,10 +246,21 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
             }
           }
 
-          if (targetSession.state === 'fail') {
-            process.exit(1);
+          // In interactive mode, resolve promise to continue the REPL
+          // In non-interactive mode, exit the process
+          if (isInteractive) {
+            if (targetSession.state === 'fail') {
+              completeWatch.reject(new Error('Agent session failed'));
+            } else {
+              completeWatch.resolve();
+            }
+            return;
           } else {
-            process.exit(0);
+            if (targetSession.state === 'fail') {
+              process.exit(1);
+            } else {
+              process.exit(0);
+            }
           }
         }
 
@@ -260,10 +301,21 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
               }
             }
 
-            if (updatedSession.state === 'fail') {
-              process.exit(1);
+            // In interactive mode, resolve promise to continue the REPL
+            // In non-interactive mode, exit the process
+            if (isInteractive) {
+              if (updatedSession.state === 'fail') {
+                completeWatch.reject(new Error('Agent session failed'));
+              } else {
+                completeWatch.resolve();
+              }
+              return;
             } else {
-              process.exit(0);
+              if (updatedSession.state === 'fail') {
+                process.exit(1);
+              } else {
+                process.exit(0);
+              }
             }
           }
         }
@@ -282,6 +334,10 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
 
       } catch (error) {
         log('error', `❌ Agent watch failed: ${error.message}`);
+        if (isInteractive) {
+          completeWatch.reject(error);
+          return;
+        }
         process.exit(1);
       }
     };
@@ -289,8 +345,14 @@ async function executeAgent(agent, prompt, suppressLogs = false) {
     // Start the focused watch loop
     performAgentWatch();
 
-    // Keep the process alive - the watch loop will exit via process.exit() when done
-    await new Promise(() => { }); // Never resolves
+    if (isInteractive) {
+      // In interactive mode, await completion and return session ID
+      await watchCompletionPromise;
+      return sessionId; // Return session ID to continue REPL
+    } else {
+      // In non-interactive mode, keep process alive until watch exits via process.exit()
+      await new Promise(() => { }); // Never resolves
+    }
 
   } catch (error) {
     log('error', `❌ Failed to execute agent: ${error.message}`);
@@ -302,32 +364,36 @@ function showHelp() {
   console.log(`${color.bold('d agent')} - Create and run agent until completion
 
 Usage: d agent @<agent> <prompt> [options]
-Usage: d agent -i @<agent>         (interactive mode)
+Usage: d agent -i @<agent>         (interactive REPL mode)
 
 Description:
   Creates a new agent session and runs it to completion, blocking until
   the agent finishes. The session is monitored continuously and the final
   response is printed to stdout.
 
+  In interactive mode (-i), the agent enters a REPL (Read-Evaluate-Print-Loop)
+  where it continuously prompts for new input after each completion, maintaining
+  the same session and conversation context. Press Ctrl+C to exit.
+
   This command is ideal for one-off tasks where you want to wait for the
   result before continuing.
 
 Arguments:
   @<agent>      Agent template name (must start with @)
-  <prompt>      Task description for the agent
+  <prompt>      Task description for the agent (optional in interactive mode)
 
 Options:
   -t, --timeout <n>   Abort if session runs longer than <n> seconds
   -l, --lock          Abort if another instance of this agent type is running
   -k, --kill          Kill any running instance of this agent type before starting
-  -i, --interactive   Prompt for input using multi-line text editor
+  -i, --interactive   REPL mode - continuously prompt for input, maintain context
   --last              Suppress all logs except the final assistant message
   --no-humans         Auto-reject tool requests not on allowlist (unattended mode)
 
 Examples:
   d agent @solo "list files in current directory"
   d agent @ada "create a subagent to write tests"
-  d agent -i @solo                    # Interactive mode
+  d agent -i @solo                    # Interactive REPL mode
   d agent -k @solo "restart the task" # Kill existing, then run
   d agent -l @solo "run only one"     # Fail if already running
   d agent -t=300 @solo "long task"    # 5 minute timeout
