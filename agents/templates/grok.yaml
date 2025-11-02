@@ -19,7 +19,6 @@ metadata:
   - edit_file
   - apply_patch
   - create_directory
-  - execute_shell
   labels:
   - orchestrator
 spec:
