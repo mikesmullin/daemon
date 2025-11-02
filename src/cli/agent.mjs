@@ -226,8 +226,9 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
             clearTimeout(timeoutHandle);
           }
 
-          // Output the final assistant response to console
-          if (!suppressLogs) {
+          // Output the final assistant response to console (only in non-interactive mode)
+          // In interactive mode, logAssistant() already displayed it
+          if (!suppressLogs && !isInteractive) {
             try {
               const sessionFileName = `${sessionId}.yaml`;
               const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
@@ -281,8 +282,9 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
               clearTimeout(timeoutHandle);
             }
 
-            // Output the final assistant response to console
-            if (!suppressLogs) {
+            // Output the final assistant response to console (only in non-interactive mode)
+            // In interactive mode, logAssistant() already displayed it
+            if (!suppressLogs && !isInteractive) {
               try {
                 const sessionFileName = `${sessionId}.yaml`;
                 const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
