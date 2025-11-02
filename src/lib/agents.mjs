@@ -62,12 +62,16 @@ export class Agent {
           try {
             const templateContent = await utils.readYaml(templatePath);
 
-            templates.push({
-              name: agentName,
-              description: templateContent.metadata?.description || '',
-              model: templateContent.metadata?.model || 'unknown',
-              tools: templateContent.metadata?.tools || []
-            });
+            // Only include agents with 'subagent' label
+            const labels = templateContent.metadata?.labels || [];
+            if (labels.includes('subagent')) {
+              templates.push({
+                name: agentName,
+                description: templateContent.metadata?.description || '',
+                model: templateContent.metadata?.model || 'unknown',
+                tools: templateContent.metadata?.tools || []
+              });
+            }
           } catch (error) {
             log('debug', `Warning: Could not read template ${file}: ${error.message}`);
           }

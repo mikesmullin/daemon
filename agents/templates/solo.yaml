@@ -16,6 +16,8 @@ metadata:
   - grep_search
   - execute_shell
   - fetch_webpage
+  labels:
+  - subagent
 spec:
   system_prompt: |
     You are an expert AI programming assistant, working with a user in an editor.

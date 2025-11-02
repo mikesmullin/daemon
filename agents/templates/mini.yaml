@@ -22,6 +22,8 @@ metadata:
   #- generate_image_gemini
   #- speak_to_human
   #- list_voice_presets
+  labels:
+  - subagent  
 #spec:
 #  system_prompt: |
 #    You are an expert AI programming assistant, working with a user in an editor.
