@@ -101,8 +101,8 @@ async function parseCliArgs() {
     args.splice(interactiveIndex, 1);
   }
 
-  // Parse --no-humans
-  const noHumansIndex = args.findIndex(arg => arg === '--no-humans');
+  // Parse --no-humans or --no-human
+  const noHumansIndex = args.findIndex(arg => arg === '--no-humans' || arg === '--no-human');
   if (noHumansIndex !== -1) {
     noHumans = true;
     args.splice(noHumansIndex, 1);

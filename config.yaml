@@ -6,6 +6,7 @@ mcp:
   servers:
     slack:
       enabled: true
+      approval_policy: allow
       command: npx
       args:
       - "-y"

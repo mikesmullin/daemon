@@ -113,7 +113,7 @@ function registerMCPTool(serverName, toolName, toolDef, serverConfig) {
           return 'deny';
         } else if (approvalPolicy === 'approve') {
           return 'approve'; // Ask user
-        } else if (approvalPolicy === 'auto') {
+        } else if (approvalPolicy === 'auto' || approvalPolicy === 'allow') {
           return 'allow'; // Execute without asking
         }
         return 'approve'; // Default to asking
