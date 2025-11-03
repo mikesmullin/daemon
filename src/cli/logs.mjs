@@ -32,7 +32,7 @@ export async function handleLogsCommand(args) {
 
     // Use Session.logConversation to display all messages
     if (sessionContent.spec.messages && sessionContent.spec.messages.length > 0) {
-      Session.logConversation(sessionContent.spec.messages);
+      Session.logConversation(sessionContent.spec.messages, session_id);
     } else {
       console.log('No messages in this session yet.');
     }

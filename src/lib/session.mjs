@@ -464,13 +464,14 @@ export class Session {
    * hiding technical metadata that's useful for the system but not for users.
    * 
    * @param {Array} messages - Array of session messages
+   * @param {string} sessionId - Optional session ID to display in logs
    */
-  static logConversation(messages) {
+  static logConversation(messages, sessionId = null) {
     for (const message of messages) {
       if (message.role == 'user') {
         utils.logUser(message.content);
       } else if (message.role == 'assistant' && message.content) {
-        utils.logAssistant(message.content);
+        utils.logAssistant(message.content, null, null, null, null, sessionId);
       } else if (message.role == 'assistant' && message.tool_calls?.length > 0) {
         for (const tool_call of message.tool_calls) {
           utils.logToolCall(tool_call);

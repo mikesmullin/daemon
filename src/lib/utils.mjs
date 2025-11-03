@@ -482,9 +482,12 @@ export function logThought(text) {
   console.log('');
 }
 
-export function logAssistant(text, messageTimestamp = null, provider = null, model = null, agentName = null) {
+export function logAssistant(text, messageTimestamp = null, provider = null, model = null, agentName = null, sessionId = null) {
   console.log('');
   let providerLabel = '';
+  if (sessionId) {
+    providerLabel += `#${sessionId} `;
+  }
   if (agentName) {
     providerLabel += `@${agentName} `;
   }
