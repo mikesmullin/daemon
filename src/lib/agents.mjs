@@ -11,6 +11,12 @@ import { Session } from './session.mjs';
 import { Tool } from './tool.mjs';
 import _ from 'lodash';
 import os from 'os';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Auto-register all tools
 import '../tools/fs.mjs';
@@ -21,6 +27,57 @@ import '../tools/web.mjs';
 import '../tools/gemini-image.mjs';
 import '../tools/mcp.mjs';
 import '../tools/human.mjs';
+
+// Auto-register all plugins
+// Plugins are dynamically loaded from plugins/**/index.mjs
+async function loadPlugins() {
+  try {
+    const pluginsDir = path.join(__dirname, '../../plugins');
+
+    // Check if plugins directory exists
+    try {
+      await fs.access(pluginsDir);
+    } catch {
+      // Plugins directory doesn't exist, skip loading
+      log('debug', '📦 No plugins directory found, skipping plugin loading');
+      return;
+    }
+
+    const entries = await fs.readdir(pluginsDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const pluginIndexPath = path.join(pluginsDir, entry.name, 'index.mjs');
+
+        try {
+          await fs.access(pluginIndexPath);
+
+          // Import the plugin module
+          const pluginModule = await import(pluginIndexPath);
+
+          // Call the default export (plugin registration function) if it exists
+          if (typeof pluginModule.default === 'function') {
+            // Pass _G and utils to the plugin for registration
+            pluginModule.default({ ..._G, utils });
+            log('debug', `✅ Loaded plugin: ${entry.name}`);
+          } else {
+            log('warn', `⚠️  Plugin ${entry.name} does not export a default registration function`);
+          }
+        } catch (error) {
+          if (error.code !== 'ENOENT') {
+            log('warn', `⚠️  Failed to load plugin ${entry.name}: ${error.message}`);
+          }
+          // If index.mjs doesn't exist, skip this plugin silently
+        }
+      }
+    }
+  } catch (error) {
+    log('warn', `⚠️  Error loading plugins: ${error.message}`);
+  }
+}
+
+// Load plugins immediately
+await loadPlugins();
 
 export class Agent {
   // Agents follow BehaviorTree (BT) patterns

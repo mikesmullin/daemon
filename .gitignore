@@ -10,3 +10,4 @@ node_modules/
 /agents/templates/
 /.env
 .*_cache*.json
+/plugins/**/*
