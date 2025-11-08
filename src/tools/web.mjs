@@ -1,6 +1,7 @@
 // Web Operations
 //
 // - fetch_webpage(urls, query) // Fetch and analyze content from web pages
+// - open_browser(url) // Open a URL in the default web browser
 //
 
 import { _G } from '../lib/globals.mjs';
@@ -251,3 +252,103 @@ function filterContentByQuery(content, query) {
   // If no specific matches, return the beginning of the content
   return content.length > 2000 ? content.substring(0, 2000) + '...' : content;
 }
+
+// Open Browser Tool
+_G.tools.open_browser = {
+  definition: {
+    type: 'function',
+    function: {
+      name: 'open_browser',
+      description: 'Opens a URL in the default web browser. Useful for displaying web pages, documentation, or web applications to the user to interact with.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: {
+            type: 'string',
+            description: 'The URL to open in the browser. Must be a valid http:// or https:// URL.'
+          }
+        },
+        required: ['url']
+      }
+    }
+  },
+  execute: async (args, options = {}) => {
+    const { url } = args;
+
+    if (!url || typeof url !== 'string') {
+      throw new Error('URL is required and must be a string');
+    }
+
+    // Validate URL format
+    let validatedUrl;
+    try {
+      validatedUrl = new URL(url);
+      if (!['http:', 'https:'].includes(validatedUrl.protocol)) {
+        throw new Error('URL must use http:// or https:// protocol');
+      }
+    } catch (error) {
+      throw new Error(`Invalid URL: ${error.message}`);
+    }
+
+    log('debug', `Opening URL in browser: ${url}`);
+
+    try {
+      // Use the 'open' npm package which handles platform detection automatically
+      const { default: open } = await import('open');
+
+      // Open the URL in the default browser
+      const childProcess = await open(url, { wait: false });
+
+      // CRITICAL FIX for WSL2:
+      // The 'open' package has a bug where it doesn't set detached: true and stdio: 'ignore'
+      // for WSL2/PowerShell (it only does this for Linux/xdg-open).
+      // This means the PowerShell child process is still attached to our parent process.
+      // If our parent exits via process.exit(0) before PowerShell completes its handoff
+      // to Windows, the browser won't launch.
+      // 
+      // Solution: Wait for the PowerShell process to exit (which happens quickly ~250ms)
+      // before allowing our parent process to exit.
+      if (childProcess && typeof childProcess === 'object') {
+        await new Promise((resolve) => {
+          childProcess.on('exit', (code) => {
+            // log('debug', `Browser launched (exit code: ${code})`);
+            resolve();
+          });
+
+          childProcess.on('error', (err) => {
+            log('debug', `Browser launch error: ${err.message}`);
+            resolve();
+          });
+
+          // Safety timeout in case the process doesn't exit
+          setTimeout(() => {
+            log('debug', 'Browser launch timeout');
+            resolve();
+          }, 2000);
+        });
+      } return {
+        success: true,
+        content: `Successfully opened ${url} in the user's default browser.`,
+        // metadata: {
+        // url: url,
+        // platform: process.platform,
+        // operation: 'open_browser'
+        // }
+      };
+
+    } catch (error) {
+      log('error', `Error opening browser: ${error.message}`);
+
+      return {
+        success: false,
+        content: `Failed to open browser: ${error.message}`,
+        metadata: {
+          url: url,
+          platform: process.platform,
+          error: error.message,
+          operation: 'open_browser'
+        }
+      };
+    }
+  }
+};

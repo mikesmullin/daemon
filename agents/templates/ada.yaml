@@ -20,6 +20,7 @@ metadata:
   - command_agent
   - check_agent_response
   - delete_agent
+  - open_browser
   labels:
   - orchestrator
 spec:
