@@ -7,6 +7,8 @@ process.removeAllListeners('warning'); // suppress node.js tls warnings etc.
 
 import clipboardy from 'clipboardy';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { _G } from './lib/globals.mjs';
 import utils, { log } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
@@ -28,8 +30,13 @@ import { handleLogsCommand } from './cli/logs.mjs';
 import { handleToolCommand } from './cli/tool.mjs';
 import { handleMcpCommand } from './cli/mcp.mjs';
 
-// Load environment variables
-dotenv.config();
+// Get directory of this script to find .env file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const workspaceRoot = join(__dirname, '..');
+
+// Load environment variables from workspace root
+dotenv.config({ path: join(workspaceRoot, '.env') });
 
 // Cleanup MCP servers on exit
 process.on('SIGINT', async () => {

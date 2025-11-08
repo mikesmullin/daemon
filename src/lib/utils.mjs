@@ -14,10 +14,9 @@ const __dirname = dirname(__filename);
 // Create directory and parent directories if they don't exist
 export const mkdirp = (path) => mkdir(path, { recursive: true });
 
-// Convert path components to a path relative to workspace root, then make it relative to cwd
+// Convert path components to an absolute path relative to workspace root
 export function relWS(...pathComponents) {
-  const absolutePath = path.join(__dirname, '..', '..', ...pathComponents);
-  return path.relative(process.cwd(), absolutePath);
+  return path.join(__dirname, '..', '..', ...pathComponents);
 }
 
 // Abort with error message

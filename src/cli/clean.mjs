@@ -19,8 +19,7 @@ export async function handleCleanCommand(args) {
   }
 
   // Perform cleanup
-  for (let dir of [_G.PROC_DIR, _G.SESSIONS_DIR, _G.WORKSPACES_DIR, _G.TASKS_DIR]) {
-    dir = utils.relWS(dir);
+  for (const dir of [_G.PROC_DIR, _G.SESSIONS_DIR, _G.WORKSPACES_DIR, _G.TASKS_DIR]) {
     if (dir && fs.existsSync(dir)) {
       await fs.promises.rm(dir, { recursive: true, force: true });
       log('debug', `🧹 Cleaned directory: ${dir}`);
