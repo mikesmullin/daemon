@@ -241,57 +241,6 @@ export class Agent {
         await Agent.push(new_session_id, prompt);
       }
 
-      // Auto-launch tmux pane if running in tmux and config allows
-      log('debug', `🖼️  Tmux auto-pane settings detected: TMUX=${process.env.TMUX}, config=${_G.CONFIG.daemon?.auto_tmux_panes}`);
-
-      if (process.env.TMUX && _G.CONFIG.daemon?.auto_tmux_panes) {
-        try {
-          const { spawn } = await import('child_process');
-          const command = `d watch ${new_session_id}`;
-          const paneTitle = `${agent}-${new_session_id}`;
-
-          log('debug', `🖼️  Creating tmux pane: ${command}`);
-
-          // Split the current pane and run the watch command
-          const result = spawn('tmux', [
-            'split-window',
-            // '-v',  // vertical split
-            '-h',  // horizontal split
-            '-c', process.cwd(),  // set working directory
-            command  // command to run in new pane
-          ], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-
-          // Track child process for cleanup (though detached processes won't be killed)
-          _G.childProcesses.add(result);
-          result.on('exit', () => {
-            _G.childProcesses.delete(result);
-          });
-
-          // Set pane title in a separate command
-          setTimeout(() => {
-            const titleProc = spawn('tmux', ['select-pane', '-T', paneTitle], {
-              detached: true,
-              stdio: 'ignore'
-            });
-            _G.childProcesses.add(titleProc);
-            titleProc.on('exit', () => {
-              _G.childProcesses.delete(titleProc);
-            });
-          }, 100);
-
-          log('info', `🖼️  Created tmux pane "${paneTitle}" for session ${new_session_id}`);
-        } catch (error) {
-          log('debug', `Could not create tmux pane: ${error.message}`);
-        }
-      } else {
-        if (!process.env.TMUX) {
-          log('debug', '🖼️  Not in tmux session - skipping auto-pane creation');
-        }
-        if (!_G.CONFIG.daemon?.auto_tmux_panes) {
-          log('debug', '🖼️  auto_tmux_panes disabled in config - skipping auto-pane creation');
-        }
-      }
-
       return {
         session_id: new_session_id,
         agent,

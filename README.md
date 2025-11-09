@@ -19,7 +19,6 @@ We aim to be deterministic, testable, auditable, and composable.
 - 🔌 **MCP integration** - Extend capabilities with Model Context Protocol servers (Chrome DevTools, etc.)
 - 🔑 **Flexible authentication** - GitHub OAuth for Copilot, API keys for other providers
 - 👀 **Watch mode** - Continuous background operation for daily workflows  
-- �️ **Parallel execution** - Watch parallel processes, optionally with automatic tmux pane creation
 - �🔗 **Pipeline-friendly** - Designed for Unix-style stdin/stdout composition
 - 📊 **Multiple output formats** - JSON, YAML, CSV, and table output for scripting
 - 📈 **Usage metrics** - Track tokens/sec, time-to-first-token, and quota usage when available
@@ -119,21 +118,17 @@ Active conversation instances created from templates:
 
 ### Operation Modes
 
-**Quick-prompt mode** (`d "task"`):
-- Instant command suggestions for immediate tasks
-- Future: Intelligent agent team orchestration for complex requests
-- Example: `d "read slack and reply"` → spawns retriever + executor + evaluator agents
+**Quick-prompt mode** (`d "fuzzy description of a command line invocation"`):
+- Instant command suggestions
 
 **Watch mode** (`d watch`):
 - Continuous background monitoring with configurable intervals
 - Processes pending sessions autonomously 
 - Session-specific watching: `d watch <session_id>` for targeted monitoring
-- Auto-tmux integration: New sessions automatically create dedicated watch panes
 - Ideal for daily operation and long-running workflows
 
 **Parallel execution**:
 - Process-based parallelism with one watch process per session
-- Tmux integration for visual monitoring of multiple sessions
 - Serial execution within sessions prevents conflicts
 - Auto-scaling: New sessions spawn their own monitoring processes
 
@@ -157,13 +152,9 @@ Get instant command suggestions or trigger agent workflows:
 
 ```bash
 # Simple command help
-d "check if redis is running"
-d "find large files in current directory"
-d "deploy app to staging"
-
-# Future: Complex multi-agent workflows
-d "read slack and reply"           # → spawns retriever + executor + evaluator
-d "code review pull request #123"  # → spawns analyzer + reviewer + commenter
+d "use podman to check if redis is running"
+d "use podman to start redis"
+d "use podman to stop the running redis container"
 ```
 
 ### 2. Session Management
@@ -196,10 +187,6 @@ d clean                       # Reset all transient state
 # Background operation  
 d watch                       # Continuous monitoring of all pending sessions
 d watch 4                     # Monitor only session 4 (parallel execution)
-
-# Tmux integration
-tmux -f .tmux.conf new-session -s daemon    # Start w/ this if you want tmux auto-pane creation
-# New sessions auto-create watch panes when auto_tmux_panes: true in config
 
 # Inspect system state
 d sessions --format json      # Machine-readable session status
@@ -234,7 +221,7 @@ This starts the background worker that processes all subagent sessions in parall
 
 **Terminal 2 (Primary - Your interaction point):**
 ```bash
-LOG=-debug d agent @ada "use podman to check if redis container is running. if it is, stop the container. if it isn't, start the container."
+LOG=-debug d agent -i @ada
 ```
 
 This creates an orchestrator agent session that runs in a REPL-like loop.

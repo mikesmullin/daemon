@@ -1,7 +1,5 @@
 daemon:
   watch_poll_interval: 5
-  auto_tmux_panes: false
-  tmux_session_name: daemon
 mcp:
   servers:
     slack:
