@@ -18,7 +18,6 @@ We aim to be deterministic, testable, auditable, and composable.
 - 🛠️ **Rich tool ecosystem** - File operations, shell execution, web fetching, agent coordination
 - 🔌 **MCP integration** - Extend capabilities with Model Context Protocol servers (Chrome DevTools, etc.)
 - 🔑 **Flexible authentication** - GitHub OAuth for Copilot, API keys for other providers
-- ⛽ **Pump mode** - Step-through debugging for development and external orchestration
 - 👀 **Watch mode** - Continuous background operation for daily workflows  
 - �️ **Parallel execution** - Watch parallel processes, optionally with automatic tmux pane creation
 - �🔗 **Pipeline-friendly** - Designed for Unix-style stdin/stdout composition
@@ -125,11 +124,6 @@ Active conversation instances created from templates:
 - Future: Intelligent agent team orchestration for complex requests
 - Example: `d "read slack and reply"` → spawns retriever + executor + evaluator agents
 
-**Pump mode** (`d pump`):  
-- Execute one iteration and exit
-- Perfect for development, testing, and external orchestration
-- Enables step-through debugging and state inspection
-
 **Watch mode** (`d watch`):
 - Continuous background monitoring with configurable intervals
 - Processes pending sessions autonomously 
@@ -144,7 +138,7 @@ Active conversation instances created from templates:
 - Auto-scaling: New sessions spawn their own monitoring processes
 
 **Session management**:
-- Direct session manipulation (new, push, fork, eval)
+- Direct session manipulation via tools and agent commands
 - Pipeline-friendly for automation and scripting
 
 ## Installation
@@ -176,24 +170,20 @@ d "code review pull request #123"  # → spawns analyzer + reviewer + commenter
 Direct control over agent conversations:
 
 ```bash
-# Create a new agent session
-d new solo "Check if Redis is running with podman"
-d new executor "Deploy the application to staging"
-
-# Create session from stdin (pipe-friendly)
-echo "System status check" | d new solo -
-todo next | d new planner
-
 # Quick agent execution (creates session, runs until completion, shows result)
 d agent @solo "Check if Redis is running with podman"
 d agent @executor "Deploy the application to staging"
 d agent --last @solo "What is the current time?"  # Only show final response
 
-# Interact with existing sessions
+# Or use agent tools directly for more control
+d tool create_agent '{"agent":"solo","prompt":"Check if Redis is running with podman"}'
+d tool create_agent '{"agent":"executor","prompt":"Deploy the application to staging"}'
+
+# Interact with existing sessions using tools
 d sessions                    # List all sessions
-d push 0 "Now check PostgreSQL as well"  # Add message to session
-d fork 0 "Use docker instead of podman"  # Fork session with new direction
-d eval 0                      # Process pending work in session
+d tool running_agents '{}'    # List active subagent sessions
+d tool command_agent '{"session_id":"0","prompt":"Now check PostgreSQL as well"}'
+d tool delete_agent '{"session_id":"0"}'
 ```
 
 ### 3. Daemon Operations
@@ -201,7 +191,6 @@ Background orchestration and development modes:
 
 ```bash
 # Development and debugging
-d pump                        # Process one iteration, then exit
 d clean                       # Reset all transient state
 
 # Background operation  
@@ -222,19 +211,12 @@ d tool                        # List available agent tools
 Designed to work seamlessly with Unix tools and automation:
 
 ```bash
-# Pipe tasks to agents
-todo next | d new planner
-kubectl get pods --field-selector=status.phase=Failed | d new troubleshooter -
+# Pipe tasks to agents using tool commands
+echo "analyze logs" | xargs -I {} d tool create_agent "{\"agent\":\"planner\",\"prompt\":\"{}\"}"
 
 # Combine with other CLI tools
 d sessions --format json | jq '.[] | select(.state == "pending")'
 d sessions --format csv | grep "success" | wc -l
-
-# External orchestration (via pump mode)
-while true; do
-  d pump
-  sleep 30
-done
 ```
 
 ## Orchestrator Agent Pattern
@@ -373,7 +355,6 @@ npm link                      # Creates global 'd' command
 
 # Development workflow
 d clean                       # Reset all transient state  
-d pump                        # Debug single iteration
 d watch                       # Test continuous operation
 
 # Testing

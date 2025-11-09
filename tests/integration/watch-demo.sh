@@ -19,8 +19,8 @@ sed 's/watch_poll_interval: 5/watch_poll_interval: 3/' config.yaml.backup > conf
 
 # Create initial test sessions
 echo "📝 Creating test sessions..."
-node src/daemon.mjs new solo "What is 2 + 2?"
-node src/daemon.mjs new solo "Calculate 15 * 23"
+node src/daemon.mjs tool create_agent '{"agent":"solo","prompt":"What is 2 + 2?"}'
+node src/daemon.mjs tool create_agent '{"agent":"solo","prompt":"Calculate 15 * 23"}'
 
 # Check initial session state
 echo "📋 Initial session state:"
@@ -37,14 +37,14 @@ sleep 2
 
 # Add new work during watch operation
 echo "➕ Adding new work to session 0..."
-node src/daemon.mjs push 0 "Now calculate 3 + 3"
+node src/daemon.mjs tool command_agent '{"session_id":"0","prompt":"Now calculate 3 + 3"}'
 
 # Let watch mode run and process the new work
 sleep 8
 
 # Add another piece of work
 echo "➕ Adding more work to session 1..."
-node src/daemon.mjs push 1 "What about 4 * 4?"
+node src/daemon.mjs tool command_agent '{"session_id":"1","prompt":"What about 4 * 4?"}'
 
 # Wait for watch to finish or timeout
 wait $WATCH_PID 2>/dev/null || true

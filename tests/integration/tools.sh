@@ -30,21 +30,20 @@ node src/daemon.mjs tool execute_shell '{"command":"ls"}'
 
 # tools/agent.mjs
 
-node src/daemon.mjs tool new_session '{"agent":"planner","prompt":"What is 2+2?"}'
+node src/daemon.mjs tool create_agent '{"agent":"planner","prompt":"What is 2+2?"}'
 
-node src/daemon.mjs --format yaml tool list_sessions '{}'
+node src/daemon.mjs --format yaml tool running_agents '{}'
 
-node src/daemon.mjs tool append_prompt '{"session_id":0,"prompt":"What is 3+3?"}'
+node src/daemon.mjs tool command_agent '{"session_id":"0","prompt":"What is 3+3?"}'
 
-node src/daemon.mjs tool fork_session '{"session_id":0,"prompt":"What is 4+4?"}'
-
-node src/daemon.mjs tool kill_session '{"session_id":0}'
+node src/daemon.mjs tool delete_agent '{"session_id":"0"}'
 
 
 # special
 
 node src/daemon.mjs clean
 
-node src/daemon.mjs tool new_session '{"agent":"solo","prompt":"run the terminal command `whoami`"}'
+node src/daemon.mjs tool create_agent '{"agent":"solo","prompt":"run the terminal command `whoami`"}'
 
-node src/daemon.mjs eval 0
+# Note: Agent will be processed automatically by watch mode in production,
+# or manually via: d agent @solo "..." for immediate execution

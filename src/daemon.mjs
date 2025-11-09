@@ -20,13 +20,7 @@ import { handleSessionsCommand } from './cli/sessions.mjs';
 import { handleModelsCommand } from './cli/models.mjs';
 import { handleCleanCommand } from './cli/clean.mjs';
 import { handleWatchCommand } from './cli/watch.mjs';
-import { handlePumpCommand } from './cli/pump.mjs';
 import { handleAgentCommand } from './cli/agent.mjs';
-import { handleNewCommand } from './cli/new.mjs';
-import { handlePushCommand } from './cli/push.mjs';
-import { handleForkCommand } from './cli/fork.mjs';
-import { handleEvalCommand } from './cli/eval.mjs';
-import { handleLogsCommand } from './cli/logs.mjs';
 import { handleToolCommand } from './cli/tool.mjs';
 import { handleMcpCommand } from './cli/mcp.mjs';
 
@@ -194,26 +188,6 @@ async function parseCliArgs() {
       await handleMcpCommand(args, format, options);
       break;
 
-    case 'new':
-      await handleNewCommand(args, format, options);
-      break;
-
-    case 'fork':
-      await handleForkCommand(args, format, options);
-      break;
-
-    case 'push':
-      await handlePushCommand(args, format, options);
-      break;
-
-    case 'eval':
-      await handleEvalCommand(args, format, options);
-      break;
-
-    case 'logs':
-      await handleLogsCommand(args);
-      break;
-
     case 'agent':
       await handleAgentCommand(args, last);
       break;
@@ -223,13 +197,7 @@ async function parseCliArgs() {
       await handleToolCommand(args, format, options);
       break;
 
-    case 'pump':
-      _G.mode = 'pump';
-      await handlePumpCommand(args);
-      break;
-
     case 'watch':
-      _G.mode = 'watch';
       await handleWatchCommand(args);
       break;
 
@@ -264,16 +232,10 @@ Usage: d <prompt>                (quick-prompt mode)
 Subcommands:
   help          Show this help message
   clean         Remove transient state (proc, sessions, workspaces)
-  pump          Run one iteration and exit
   watch         Run continuously, monitoring sessions
   sessions      List all agent sessions
   models        List available AI models from all providers
-  new           Create a new agent session
   agent         Create and run agent until completion
-  push          Append message to session
-  fork          Fork an existing agent session
-  eval          Evaluate an agent session
-  logs          Display chat log for a session
   tool          Execute an agent tool directly
   mcp           Manage MCP servers
 
@@ -295,7 +257,7 @@ For detailed help on a specific subcommand, run:
 Examples:
   d help                    # Show this help
   d sessions help           # Show sessions subcommand help
-  d pump help               # Show pump subcommand help
+  d watch help              # Show watch subcommand help
   d "how to list files"     # Quick-prompt mode
 `);
 }

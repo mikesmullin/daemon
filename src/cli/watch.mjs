@@ -18,6 +18,8 @@ export async function handleWatchCommand(args) {
     process.exit(0);
   }
 
+  // Watch mode (continuous monitoring)
+
   const sessionInfo = _G.cliFlags.session ? ` session ${_G.cliFlags.session}` : '';
   const labelsInfo = _G.cliFlags.labels && _G.cliFlags.labels.length > 0 ? ` --labels ${_G.cliFlags.labels.join(',')}` : '';
   log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump${sessionInfo}${labelsInfo} every ${_G.CONFIG.daemon.watch_poll_interval} seconds`);
