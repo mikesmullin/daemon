@@ -10,9 +10,9 @@
  * - YAML-based allowlist configuration
  */
 
-import { _G } from '../lib/globals.mjs';
+import { _G } from '../../src/lib/globals.mjs';
 import { existsSync } from 'fs';
-import { abort, log, readYaml, writeYaml, spawnAsync } from '../lib/utils.mjs';
+import { abort, log, readYaml, writeYaml, spawnAsync } from '../../src/lib/utils.mjs';
 
 /**
  * Default allowlist configuration

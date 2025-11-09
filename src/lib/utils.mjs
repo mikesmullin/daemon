@@ -259,7 +259,7 @@ export function initializeDirectories() {
   _G.SESSIONS_DIR = relWS('agents', 'sessions');
   _G.WORKSPACES_DIR = relWS('agents', 'workspaces');
   _G.MCP_DIR = relWS('agents', 'mcp');
-  _G.STORAGE_DIR = relWS('storage');
+  _G.STORAGE_DIR = relWS('plugins', 'shell', 'storage');
 
   _G.CONFIG_PATH = relWS('config.yaml');
   _G.TOKENS_PATH = relWS('.tokens.yaml');

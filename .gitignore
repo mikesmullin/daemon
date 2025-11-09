@@ -1,9 +1,7 @@
 node_modules/
 /PROMPT.md
-/convo.md
 /.tokens.yaml
 /tmp/
-/storage/*
 /agents/proc/
 /agents/sessions/
 /agents/mcp/

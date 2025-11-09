@@ -20,7 +20,6 @@ const __dirname = dirname(__filename);
 
 // Auto-register all tools
 import '../tools/fs.mjs';
-import '../tools/shell.mjs';
 import '../tools/agent.mjs';
 import '../tools/web.mjs';
 import '../tools/gemini-image.mjs';
