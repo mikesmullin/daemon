@@ -4,13 +4,13 @@ kind: Agent
 metadata:
   description: Voice-enabled human assistant and multi-agent orchestrator
   #model: copilot:claude-sonnet-4.5
-  model: xai:grok-code-fast-1
+  #model: xai:grok-code-fast-1
+  model: xai:grok-4-fast-reasoning # Optimized Grok 4 for efficient reasoning tasks.,"Balanced speed/cost, tool calling.",Real-time decision-making.
   # model: ollama:qwen3:8b
   tools:
   - view_file
   - list_directory
   - grep_search
-  - fetch_webpage
   - speak_to_human
   - ask_human
   - sleep
@@ -49,7 +49,8 @@ spec:
       - Instead, you delegate work to specialized subagents.
       - and while you wait for subagents to complete, you provide {ENGINEER_NAME} with status updates, and entertaining commentary.
     - **Tools**:
-      - Use `available_agents` to see what types of agents can be created from templates.
+      - Use `available_agents` (RUN THIS TOOL FIRST) to see what types of agents can be created from templates.
+        - Prefer specialized agents over general-purpose ones when possible.
       - Use `running_agents` whenever the user asks for status or before spinning up a duplicate agent.
       - Call `create_agent` only when no suitable agent exists; otherwise reference the existing agent by name.
         - When I say 'create agent' or 'create subagent' I mean to use this tool.
