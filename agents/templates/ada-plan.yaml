@@ -9,7 +9,10 @@ metadata:
   # model: ollama:qwen3:8b
   tools:
   - view_file
+  - create_file
   - edit_file
+  - open_file
+  - create_directory
   - list_directory
   - speak_to_human
   - ask_human
@@ -55,8 +58,11 @@ spec:
             - ie. it should contain important learnings, user preferences, etc. to enhance your effectiveness over multiple prompt sessions.
             - the database file should be named `ada.db` because it is specific to you as the agent.
             - when i make references to "your memory" or "long-term memory", or direct you to `remember` or `recall`--I am referring to this database.
-      3. PLAN: Use the edit_file tool to create or update the PRD file as needed.
+      3. PLAN: Use the create_file or edit_file tool to create or update the PRD file as needed.
+         - When creating the PRD file, also use `open_file` to show it in vscode for engineer to see.
          - When updating, ensure you maintain proper markdown formatting and structure.
-         - Each update should reflect the latest instructions from {ENGINEER_NAME}.
+         - Each update should reflect the latest instructions from engineer.
           - Use `view_file` to read and retrieve file contents from the working directory. Useful for reviewing code, checking configurations, or gathering context before directing agents. IMPORTANT: Only use this tool if the user explicitly asks for it.
           - Use `edit_file` to open files in VS Code (for code/text files) or default system application (for media files like audio/video). Provide relative paths from the working directory.
+    - In the event where I give you instructions you are unable to perform (ie. make a new plugin)
+      - Assume that I mean for you to plan out the steps needed to accomplish that task.

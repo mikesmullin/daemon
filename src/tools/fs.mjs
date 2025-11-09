@@ -249,7 +249,7 @@ _G.tools.create_file = {
     type: 'function',
     function: {
       name: 'create_file',
-      description: 'This is a tool for creating a new file in the workspace. The file will be created with the specified content. The directory will be created if it does not already exist. Never use this tool to edit a file that already exists.',
+      description: 'Create a new file in the workspace. Can create an empty file (like touch) or a file with initial content. The directory will be created if it does not already exist. This tool will refuse to proceed if a file already exists at the specified path (security guardrail to prevent accidental overwrites).',
       parameters: {
         type: 'object',
         properties: {
@@ -259,10 +259,10 @@ _G.tools.create_file = {
           },
           content: {
             type: 'string',
-            description: 'The content to write to the file.'
+            description: 'Optional content to write to the file. If not provided or empty, an empty file will be created.'
           }
         },
-        required: ['filePath', 'content']
+        required: ['filePath']
       }
     }
   },
@@ -296,8 +296,10 @@ _G.tools.create_file = {
       const pathCheck = validatePath(args.filePath);
       const filePath = pathCheck.valid ? pathCheck.resolvedPath : args.filePath;
       const exists = existsSync(filePath);
+      const contentLength = args.content ? args.content.length : 0;
+      const fileType = contentLength === 0 ? 'Empty file' : `File with ${contentLength} characters`;
       return `Creating file: ${filePath}\n` +
-        `Content length: ${args.content.length} characters\n` +
+        `Type: ${fileType}\n` +
         (exists ? `⚠️  File already exists and will be overwritten!` : `✅ New file creation`);
     }
   },
@@ -338,17 +340,21 @@ _G.tools.create_file = {
         mkdirSync(dir, { recursive: true });
       }
 
-      writeFileSync(filePath, args.content, 'utf8');
+      // Write file with content (empty string if no content provided)
+      const content = args.content || '';
+      writeFileSync(filePath, content, 'utf8');
 
       // Log the operation
-      utils.logFileSystem(`Created file: ${filePath}`);
+      const fileType = content.length === 0 ? 'empty file' : `file (${content.length} bytes)`;
+      utils.logFileSystem(`Created ${fileType}: ${filePath}`);
 
       return {
         success: true,
-        content: `The following files were successfully edited:\n${filePath}`,
+        content: `Successfully created file: ${filePath}${content.length === 0 ? ' (empty)' : ''}`,
         metadata: {
           path: filePath,
-          size: args.content.length,
+          size: content.length,
+          isEmpty: content.length === 0,
           operation: 'create_file'
         }
       };
