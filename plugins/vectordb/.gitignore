@@ -1,0 +1,5 @@
+# Ignore vector database data files
+data/
+
+# Ignore node_modules if installed locally
+node_modules/

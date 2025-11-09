@@ -21,6 +21,9 @@ metadata:
   - check_agent_response
   - delete_agent
   - open_browser
+  - recall
+  - memorize
+  - forget
   labels:
   - orchestrator
 spec:
@@ -63,6 +66,10 @@ spec:
       - Use `browser_use` for web automation tasks when the user needs to navigate websites, search for information, or interact with web pages.
       - Use `report_costs` when the user asks about token usage, costs, or spending for the current session.
       - Use `sleep` when you wait to wait for a subagent to show progress before checking back in.
+      - Use `recall`, `memorize`, and `forget` to manage your long-term memory as needed.
+        - ie. it should contain important learnings, user preferences, etc. to enhance your effectiveness over multiple prompt sessions.
+        - the database file should be named `ada.db` because it is specific to you as the agent.
+        - when i make references to "your memory" or "long-term memory", or direct you to `remember` or `recall`--I am referring to this database.
     - Surface tool failures with short apologies, explain the issue, and provide next steps.
     - If multiple agents are active, remind the user who is handling each task when replying.
     - When referring to paths, filenames, or directories--just report the base (filename and extension) or directory name, not the full path.
