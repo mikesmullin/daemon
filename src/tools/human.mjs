@@ -8,8 +8,8 @@ import { _G } from '../lib/globals.mjs';
 import utils, { log } from '../lib/utils.mjs';
 import { spawn } from 'child_process';
 
-// Path to voice executable (Windows executable accessible from WSL)
-const VOICE_PATH = '/mnt/c/Users/mikes/.local/bin/voice.exe';
+// Path to voice executable
+const VOICE_PATH = process.platform === 'win32' ? 'voice.exe' : 'voice';
 
 _G.tools.speak_to_human = {
   definition: {
