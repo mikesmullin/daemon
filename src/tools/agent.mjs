@@ -29,9 +29,25 @@ _G.tools.available_agents = {
       // Log the operation
       utils.logAgent(`Listed ${templates.length} available agent templates`);
 
+      // Format agent details for the LLM
+      let contentText = `Found ${templates.length} available agent templates:\n\n`;
+      templates.forEach((agent, idx) => {
+        contentText += `${idx + 1}. ${agent.name}\n`;
+        if (agent.description) {
+          contentText += `   Description: ${agent.description}\n`;
+        }
+        if (agent.model) {
+          contentText += `   Model: ${agent.model}\n`;
+        }
+        if (agent.tools && agent.tools.length > 0) {
+          contentText += `   Tools: ${agent.tools.join(', ')}\n`;
+        }
+        contentText += '\n';
+      });
+
       return {
         success: true,
-        content: `Found ${templates.length} available agent templates`,
+        content: contentText,
         metadata: {
           agents: templates
         }
@@ -61,9 +77,27 @@ _G.tools.available_agents = {
       // Log the operation
       utils.logAgent(`Listed ${result.length} running subagent sessions`);
 
+      // Format running agent details for the LLM
+      let contentText = `Found ${result.length} running subagent sessions:\n\n`;
+      result.forEach((agent, idx) => {
+        contentText += `${idx + 1}. Session ID: ${agent.session_id}\n`;
+        contentText += `   Agent Type: ${agent.agent}\n`;
+        contentText += `   Status: ${agent.status}\n`;
+        if (agent.state) {
+          contentText += `   State: ${agent.state}\n`;
+        }
+        if (agent.labels && agent.labels.length > 0) {
+          contentText += `   Labels: ${agent.labels.join(', ')}\n`;
+        }
+        if (agent.created_at) {
+          contentText += `   Created: ${agent.created_at}\n`;
+        }
+        contentText += '\n';
+      });
+
       return {
         success: true,
-        content: `Found ${result.length} running subagent sessions`,
+        content: contentText,
         metadata: {
           agents: result
         }
@@ -111,7 +145,7 @@ _G.tools.create_agent = {
 
       return {
         success: true,
-        content: `Successfully created new ${args.agent} subagent ${result.session_id}`,
+        content: `Successfully created new ${args.agent} subagent with session ID ${result.session_id}.\n\nAgent: ${args.agent}\nSession ID: ${result.session_id}\nPrompt: ${args.prompt}`,
         metadata: {
           agent: args.agent,
           session_id: result.session_id,
@@ -199,7 +233,7 @@ _G.tools.command_agent = {
 
       return {
         success: true,
-        content: `Successfully sent command to subagent ${args.session_id}`,
+        content: `Successfully sent command to subagent ${args.session_id}.\n\nSession ID: ${args.session_id}\nCommand: ${args.prompt}`,
         metadata: {
           session_id: args.session_id,
           result: result
@@ -293,7 +327,7 @@ _G.tools.check_agent_response = {
       if (!lastAssistantMessage) {
         return {
           success: true,
-          content: `Subagent ${args.session_id} (${session.agent}) has not responded yet`,
+          content: `Subagent ${args.session_id} (${session.agent}) has not responded yet.\n\nSession ID: ${args.session_id}\nAgent Type: ${session.agent}\nStatus: No response yet`,
           metadata: {
             session_id: args.session_id,
             agent: session.agent,
@@ -305,9 +339,21 @@ _G.tools.check_agent_response = {
       // Log the operation
       utils.logAgent(`Checked response from subagent session ${args.session_id}`);
 
+      // Format the response with additional context
+      let contentText = `Subagent ${args.session_id} (${session.agent}) last response:\n\n`;
+      contentText += `Session ID: ${args.session_id}\n`;
+      contentText += `Agent Type: ${session.agent}\n`;
+      if (lastAssistantMessage.ts) {
+        contentText += `Timestamp: ${new Date(lastAssistantMessage.ts).toISOString()}\n`;
+      }
+      if (lastAssistantMessage.finish_reason) {
+        contentText += `Finish Reason: ${lastAssistantMessage.finish_reason}\n`;
+      }
+      contentText += `\nResponse:\n${lastAssistantMessage.content || '(no content)'}`;
+
       return {
         success: true,
-        content: `Subagent ${args.session_id} (${session.agent}) last response:\n${lastAssistantMessage.content || '(no content)'}`,
+        content: contentText,
         metadata: {
           session_id: args.session_id,
           agent: session.agent,
@@ -407,7 +453,7 @@ _G.tools.delete_agent = {
 
       return {
         success: true,
-        content: `Successfully marked subagent ${args.session_id} as deleted. Run 'd clean' to remove the file.`,
+        content: `Successfully marked subagent ${args.session_id} as deleted.\n\nSession ID: ${args.session_id}\nAgent Type: ${session.agent}\n\nRun 'd clean' to remove the file.`,
         metadata: {
           session_id: args.session_id,
           agent: session.agent
@@ -484,7 +530,7 @@ _G.tools.sleep = {
 
       return {
         success: true,
-        content: `Slept for ${seconds} seconds`,
+        content: `Slept for ${seconds} seconds (${milliseconds}ms)`,
         metadata: {
           duration_seconds: seconds,
           duration_ms: milliseconds
