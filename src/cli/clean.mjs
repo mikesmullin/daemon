@@ -19,7 +19,7 @@ export async function handleCleanCommand(args) {
   }
 
   // Perform cleanup
-  for (const dir of [_G.PROC_DIR, _G.SESSIONS_DIR, _G.WORKSPACES_DIR, _G.TASKS_DIR]) {
+  for (const dir of [_G.PROC_DIR, _G.SESSIONS_DIR, _G.WORKSPACES_DIR]) {
     if (dir && fs.existsSync(dir)) {
       await fs.promises.rm(dir, { recursive: true, force: true });
       log('debug', `🧹 Cleaned directory: ${dir}`);
@@ -41,7 +41,6 @@ Description:
   - agents/proc/      (process state files)
   - agents/sessions/  (session YAML files)
   - agents/workspaces/ (workspace data)
-  - tasks/            (task files)
 
   This command is useful for:
   - Resetting the daemon to a clean state

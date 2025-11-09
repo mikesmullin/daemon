@@ -8,11 +8,8 @@
     "d": "./src/daemon.mjs"
   },
   "scripts": {
-    "help": "node src/daemon.mjs help",
-    "clean": "node src/daemon.mjs clean",
-    "demo": "./tests/integration/agent-demo.sh",
-    "pump": "node src/daemon.mjs pump",
-    "test": "node tests/runner.js"
+    "help": "bun src/daemon.mjs help",
+    "clean": "bun src/daemon.mjs clean"
   },
   "keywords": [
     "github",

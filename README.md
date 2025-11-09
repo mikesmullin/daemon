@@ -94,7 +94,7 @@ export OLLAMA_HOST=http://172.24.0.1:11434
 
 The system uses a **file-based multi-agent architecture** with YAML configuration:
 
-Code built with Node.js ES6 module syntax, with dependencies:
+Code built with Bun runtime and ES6 module syntax, with dependencies:
 - **OpenAI SDK** for Copilot and xAI API compatibility
 - **Google Generative AI** for Gemini models
 - **Ollama SDK** for local model inference
@@ -139,8 +139,8 @@ Active conversation instances created from templates:
 ## Installation
 
 ```bash
-npm install
-npm link  # Creates global 'd' command alias
+bun install
+bun link  # Creates global 'd' command alias
 ```
 
 ## Usage
@@ -337,16 +337,12 @@ LOG=-debug               # Everything except debug messages
 
 ```bash
 # Install and link globally
-npm install
-npm link                      # Creates global 'd' command
+bun install
+bun link                      # Creates global 'd' command
 
 # Development workflow
 d clean                       # Reset all transient state  
 d watch                       # Test continuous operation
-
-# Testing
-npm test                      # Run test suite
-./tests/integration/agent-demo.sh  # Integration tests
 ```
 
 ## Roadmap
