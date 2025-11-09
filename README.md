@@ -143,6 +143,16 @@ bun install
 bun link  # Creates global 'd' command alias
 ```
 
+### Dependencies
+
+#### Linux
+
+**X11 (most desktop environments):**
+```bash
+# Ubuntu/Debian
+sudo apt install xclip # or wl-clipboard for Wayland (for quick prompt mode)
+```
+
 ## Usage
 
 The tool offers three primary interaction patterns:
