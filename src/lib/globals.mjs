@@ -20,4 +20,18 @@ export let _G = {
 
   // Track if MCP tools have been initialized
   mcpInitialized: false,
+
+  // FSM state for ctrl+c handling
+  // States: 'normal', 'tool_executing', 'ask_human'
+  fsmState: 'normal',
+
+  // Track running child processes for cleanup
+  childProcesses: new Set(),
+
+  // Signal handling state
+  signalHandler: {
+    abortRequested: false,  // Set to true when ctrl+c is pressed during tool execution
+    pendingToolCalls: [],   // Tool calls that are currently being executed
+    currentSessionId: null, // Session currently being processed
+  }
 };

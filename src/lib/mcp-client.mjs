@@ -61,9 +61,14 @@ export class MCPClient {
       });
 
       serverProcess.on('exit', (code, signal) => {
+        // Remove from child process tracking
+        _G.childProcesses.delete(serverProcess);
         log('warn', `⚠️  MCP server ${serverName} exited: code=${code}, signal=${signal}`);
         MCPClient._handleServerCrash(serverName);
       });
+
+      // Track MCP server process for cleanup
+      _G.childProcesses.add(serverProcess);
 
       // Initialize the server
       await MCPClient._sendRequest(serverName, {
@@ -237,9 +242,14 @@ export class MCPClient {
         server.process.kill('SIGTERM');
       }
 
+      // Remove from child process tracking
+      _G.childProcesses.delete(server.process);
+
     } catch (error) {
       log('debug', `Error during shutdown of ${serverName}: ${error.message}`);
       server.process.kill('SIGKILL');
+      // Remove from child process tracking
+      _G.childProcesses.delete(server.process);
     }
 
     delete _G.mcpServers[serverName];

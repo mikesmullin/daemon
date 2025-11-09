@@ -261,11 +261,21 @@ export class Agent {
             command  // command to run in new pane
           ], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
 
+          // Track child process for cleanup (though detached processes won't be killed)
+          _G.childProcesses.add(result);
+          result.on('exit', () => {
+            _G.childProcesses.delete(result);
+          });
+
           // Set pane title in a separate command
           setTimeout(() => {
-            spawn('tmux', ['select-pane', '-T', paneTitle], {
+            const titleProc = spawn('tmux', ['select-pane', '-T', paneTitle], {
               detached: true,
               stdio: 'ignore'
+            });
+            _G.childProcesses.add(titleProc);
+            titleProc.on('exit', () => {
+              _G.childProcesses.delete(titleProc);
             });
           }, 100);
 

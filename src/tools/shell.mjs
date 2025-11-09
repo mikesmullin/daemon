@@ -67,24 +67,76 @@ _G.tools.execute_shell = {
     // Authorization already handled by Tool.execute() preToolUse hook
     // Execute command directly without additional authorization checks
     try {
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
+      const { spawn } = await import('child_process');
 
-      const result = await execAsync(args.command, {
+      // Use spawn instead of exec to get child process reference for tracking
+      const child = spawn('sh', ['-c', args.command], {
         cwd: args.cwd || process.cwd(),
         timeout: 30000  // 30 second timeout
       });
 
-      return {
-        success: true,
-        content: result.stdout + (result.stderr || ''),
-        metadata: {
-          command: args.command,
-          cwd: args.cwd || process.cwd(),
-          authorized: 'approved_by_preToolUse_hook'
-        }
-      };
+      // Track child process for cleanup
+      _G.childProcesses.add(child);
+
+      // Remove from tracking when process exits
+      child.on('exit', () => {
+        _G.childProcesses.delete(child);
+      });
+
+      return new Promise((resolve) => {
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (data) => {
+          stdout += data.toString();
+        });
+
+        child.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+
+        child.on('error', (error) => {
+          _G.childProcesses.delete(child);
+          resolve({
+            success: false,
+            content: `Command failed: ${error.message}`,
+            metadata: {
+              command: args.command,
+              error: error.message,
+              authorized: 'approved_by_preToolUse_hook'
+            }
+          });
+        });
+
+        child.on('close', (code, signal) => {
+          _G.childProcesses.delete(child);
+
+          if (signal) {
+            resolve({
+              success: false,
+              content: `Command terminated by signal: ${signal}`,
+              metadata: {
+                command: args.command,
+                cwd: args.cwd || process.cwd(),
+                signal,
+                authorized: 'approved_by_preToolUse_hook'
+              }
+            });
+          } else {
+            const output = stdout + (stderr || '');
+            resolve({
+              success: code === 0,
+              content: output || `Command exited with code ${code}`,
+              metadata: {
+                command: args.command,
+                cwd: args.cwd || process.cwd(),
+                exit_code: code,
+                authorized: 'approved_by_preToolUse_hook'
+              }
+            });
+          }
+        });
+      });
     } catch (error) {
       return {
         success: false,

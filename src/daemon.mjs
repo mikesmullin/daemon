@@ -33,14 +33,92 @@ const workspaceRoot = join(__dirname, '..');
 dotenv.config({ path: join(workspaceRoot, '.env') });
 
 // Cleanup MCP servers on exit
+let ctrlCPressCount = 0;
+let ctrlCTimeout = null;
+
 process.on('SIGINT', async () => {
+  // FSM-based signal handling
+  const currentState = _G.fsmState;
+
+  log('debug', `🛑 SIGINT received in state: ${currentState}`);
+
+  if (currentState === 'tool_executing') {
+    // User wants to abort tool execution
+    log('info', '\n🛑 Aborting tool execution...');
+    _G.signalHandler.abortRequested = true;
+
+    // Kill all child processes
+    for (const proc of _G.childProcesses) {
+      try {
+        log('debug', `Killing child process ${proc.pid}`);
+        proc.kill('SIGTERM');
+      } catch (error) {
+        log('debug', `Failed to kill process ${proc.pid}: ${error.message}`);
+      }
+    }
+    _G.childProcesses.clear();
+
+    // Set state back to normal - the tool execution will detect abortRequested flag
+    _G.fsmState = 'normal';
+    return; // Don't exit, let the agent handle the abortion
+  }
+
+  if (currentState === 'ask_human') {
+    // Two-press ctrl+c for ask_human (handled by TUI)
+    // This is already handled in tui.mjs, but we track it here
+    ctrlCPressCount++;
+
+    if (ctrlCPressCount === 1) {
+      log('warn', '\n⚠️  Press Ctrl+C again to exit');
+      ctrlCTimeout = setTimeout(() => {
+        ctrlCPressCount = 0;
+      }, 2000);
+      return;
+    } else {
+      log('info', '\n🛑 Shutting down...');
+      // Kill all child processes before exit
+      for (const proc of _G.childProcesses) {
+        try {
+          log('debug', `Killing child process ${proc.pid}`);
+          proc.kill('SIGKILL');
+        } catch (error) {
+          log('debug', `Failed to kill process ${proc.pid}: ${error.message}`);
+        }
+      }
+      _G.childProcesses.clear();
+      await MCPClient.stopAllServers();
+      process.exit(0);
+    }
+  }
+
+  // Normal state - clean shutdown
   log('info', '\n🛑 Shutting down...');
+  // Kill all child processes before exit
+  for (const proc of _G.childProcesses) {
+    try {
+      log('debug', `Killing child process ${proc.pid}`);
+      proc.kill('SIGKILL');
+    } catch (error) {
+      log('debug', `Failed to kill process ${proc.pid}: ${error.message}`);
+    }
+  }
+  _G.childProcesses.clear();
   await MCPClient.stopAllServers();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   log('info', '\n🛑 Shutting down...');
+  // Kill all child processes before exit
+  for (const proc of _G.childProcesses) {
+    try {
+      log('debug', `Killing child process ${proc.pid}`);
+      proc.kill('SIGKILL');
+    } catch (error) {
+      log('debug', `Failed to kill process ${proc.pid}: ${error.message}`);
+    }
+  }
+  _G.childProcesses.clear();
   await MCPClient.stopAllServers();
   process.exit(0);
 });

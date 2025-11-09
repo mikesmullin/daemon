@@ -299,6 +299,11 @@ _G.tools.open_browser = {
       // Open the URL in the default browser
       const childProcess = await open(url, { wait: false });
 
+      // Track child process for cleanup
+      if (childProcess && typeof childProcess === 'object') {
+        _G.childProcesses.add(childProcess);
+      }
+
       // CRITICAL FIX for WSL2:
       // The 'open' package has a bug where it doesn't set detached: true and stdio: 'ignore'
       // for WSL2/PowerShell (it only does this for Linux/xdg-open).
@@ -311,11 +316,13 @@ _G.tools.open_browser = {
       if (childProcess && typeof childProcess === 'object') {
         await new Promise((resolve) => {
           childProcess.on('exit', (code) => {
+            _G.childProcesses.delete(childProcess);
             // log('debug', `Browser launched (exit code: ${code})`);
             resolve();
           });
 
           childProcess.on('error', (err) => {
+            _G.childProcesses.delete(childProcess);
             log('debug', `Browser launch error: ${err.message}`);
             resolve();
           });

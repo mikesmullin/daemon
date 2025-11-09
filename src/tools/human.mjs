@@ -6,7 +6,10 @@
 
 import { _G } from '../lib/globals.mjs';
 import utils, { log } from '../lib/utils.mjs';
-import { spawn } from 'child_process';
+import { spawn, exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 // Path to voice executable
 const VOICE_PATH = process.platform === 'win32' ? 'voice.exe' : 'voice';
@@ -86,7 +89,12 @@ _G.tools.speak_to_human = {
         stdio: 'inherit'  // Pass through stdio - no buffering, immediate execution
       });
 
+      // Track child process for cleanup
+      _G.childProcesses.add(child);
+
       child.on('close', (code) => {
+        _G.childProcesses.delete(child);
+
         if (code === 0) {
           const outputInfo = output_file
             ? `Audio saved to: ${output_file}`
@@ -119,6 +127,7 @@ _G.tools.speak_to_human = {
       });
 
       child.on('error', (error) => {
+        _G.childProcesses.delete(child);
         log('error', `❌ Voice command failed: ${error.message}`);
         resolve({
           success: false,
@@ -161,6 +170,9 @@ _G.tools.ask_human = {
     const { question } = args;
 
     try {
+      // Set FSM state to ask_human
+      _G.fsmState = 'ask_human';
+
       // Display the question if provided (before the prompt)
       if (question && question.trim()) {
         console.log(`\n${question}`);
@@ -171,6 +183,9 @@ _G.tools.ask_human = {
 
       // Show interactive prompt and wait for human response
       const response = await tuiPrompt('> ');
+
+      // Reset FSM state
+      _G.fsmState = 'normal';
 
       if (!response || !response.trim()) {
         return {
@@ -198,6 +213,9 @@ _G.tools.ask_human = {
       };
 
     } catch (error) {
+      // Reset FSM state on error
+      _G.fsmState = 'normal';
+
       log('error', `❌ Failed to get human input: ${error.message}`);
 
       return {
