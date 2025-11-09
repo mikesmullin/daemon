@@ -78,13 +78,15 @@ async function handleInteractiveMode(args, last) {
     log('debug', `🤖 Interactive mode: collecting prompt for ${agent} agent...`);
     const collectedPrompt = await tuiPrompt('> ');
 
+    // Validate prompt - if empty, just re-prompt (don't crash)
     if (!collectedPrompt || !collectedPrompt.trim()) {
-      utils.abort('Error: No prompt provided');
+      log('debug', 'Empty prompt provided, re-prompting...');
+      continue; // Skip this iteration and prompt again
     }
 
     // Execute with the collected prompt, continuing the same session
     // Pass true for isInteractive flag to handle logging differently
-    sessionId = await executeAgent(agent, collectedPrompt, last, sessionId, true);
+    sessionId = await executeAgent(agent, collectedPrompt.trim(), last, sessionId, true);
   }
 }
 
