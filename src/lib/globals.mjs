@@ -31,7 +31,7 @@ export let _G = {
   // Signal handling state
   signalHandler: {
     abortRequested: false,  // Set to true when ctrl+c is pressed during tool execution
-    pendingToolCalls: [],   // Tool calls that are currently being executed
+    currentToolCallId: null, // Currently executing tool call ID
     currentSessionId: null, // Session currently being processed
   }
 };

@@ -246,22 +246,6 @@ export class Tool {
     for (const message of sessionContent.spec.messages) {
       if (message.role === 'assistant' && message.tool_calls) {
         for (const toolCall of message.tool_calls) {
-          // Check if abort was requested
-          if (_G.signalHandler.abortRequested) {
-            log('warn', `⚠️  User aborted tool call ${color.bold(toolCall.function.name)} #${toolCall.id}`);
-
-            // Add tool result message indicating abortion
-            sessionContent.spec.messages.push({
-              ts: new Date().toISOString(),
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: 'Tool execution was aborted by user (Ctrl+C)',
-            });
-
-            sessionUpdated = true;
-            continue; // Skip executing this tool
-          }
-
           // Check if this tool call needs to be executed
           let shouldExecute = true;
 
@@ -279,6 +263,7 @@ export class Tool {
             // Set FSM state to tool_executing
             _G.fsmState = 'tool_executing';
             _G.signalHandler.currentSessionId = session_id;
+            _G.signalHandler.currentToolCallId = toolCall.id;
 
             try {
               // Parse arguments and execute the tool through our approval workflow
@@ -297,8 +282,18 @@ export class Tool {
                   content: 'Tool execution was aborted by user (Ctrl+C)',
                 });
 
+                // Reset abort flag - only abort the current tool, not all pending ones
+                _G.signalHandler.abortRequested = false;
+                _G.signalHandler.currentToolCallId = null;
+
                 sessionUpdated = true;
-                continue; // Skip to next tool
+
+                // Reset FSM state so we can continue with next tool
+                _G.fsmState = 'normal';
+                _G.signalHandler.currentSessionId = null;
+
+                // Continue to next tool (don't skip remaining tools)
+                continue;
               }
 
               // Use the content field for API compatibility, but keep rich metadata
@@ -335,17 +330,13 @@ export class Tool {
               // Reset FSM state
               _G.fsmState = 'normal';
               _G.signalHandler.currentSessionId = null;
+              _G.signalHandler.currentToolCallId = null;
             }
 
             sessionUpdated = true;
           }
         }
       }
-    }
-
-    // Reset abort flag after processing all tools
-    if (_G.signalHandler.abortRequested) {
-      _G.signalHandler.abortRequested = false;
     }
 
     return sessionUpdated;
