@@ -28,6 +28,7 @@
   <script type="module" src="/components/orchestrator-action.mjs"></script>
   <script type="module" src="/components/search-bar.mjs"></script>
   <script type="module" src="/components/auto-follow-toggle.mjs"></script>
+  <script type="module" src="/components/chat-message.mjs"></script>
   
   <style>
     * {
@@ -227,6 +228,64 @@
       border-color: #00d4ff;
       color: #00d4ff;
     }
+    
+    .chat-input-field {
+      width: 100%;
+      min-height: 80px;
+      padding: 0.75rem;
+      background: #0f0f0f;
+      border: 2px solid #1a1a1a;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 0.875rem;
+      resize: vertical;
+      transition: all 0.3s ease;
+      box-shadow: 0 0 0 0 rgba(0, 212, 255, 0);
+    }
+    
+    .chat-input-field:focus {
+      outline: none;
+      border-color: #00d4ff;
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+    }
+    
+    .chat-input-field.chat-input-focused {
+      border-color: #00d4ff;
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+    }
+    
+    .chat-input-field::placeholder {
+      color: #555;
+    }
+    
+    .send-button {
+      background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+      color: #000;
+      border: none;
+      padding: 0.625rem 1.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 8px rgba(0, 212, 255, 0.3);
+    }
+    
+    .send-button:hover {
+      background: linear-gradient(135deg, #00e5ff 0%, #00aadd 100%);
+      box-shadow: 0 4px 12px rgba(0, 212, 255, 0.5);
+      transform: translateY(-1px);
+    }
+    
+    .send-button:active {
+      transform: translateY(0);
+    }
+    
+    .send-button.send-button-disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -325,43 +384,70 @@
         </event-stream>
       </div>
       
-      <!-- Right Sidebar - Orchestrator -->
+      <!-- Right Sidebar - Agent Chat -->
       <div class="orchestrator-sidebar" :style="`width: ${rightWidth}px`">
         <div class="resize-handle resize-handle-right" 
              @mousedown="startResize($event, 'right')"></div>
         <orchestrator-panel x-ref="orchestratorPanel">
-          <div x-show="!selectedAgent" style="padding:1rem;color:#888;">Select an agent to open chat</div>
+          <!-- Empty State -->
+          <div x-show="!selectedAgent" style="display:flex;flex-direction:column;height:100%;align-items:center;justify-content:center;color:#666;gap:1rem;padding:2rem;text-align:center;">
+            <div style="font-size:3rem;opacity:0.5;">💬</div>
+            <div style="font-size:0.875rem;">Select an agent to open chat</div>
+          </div>
 
+          <!-- Chat Interface -->
           <template x-if="selectedAgent">
-            <div style="display:flex;flex-direction:column;height:100%">
-              <div style="padding:1rem;border-bottom:1px solid #222;display:flex;align-items:center;justify-content:space-between;">
-                <div style="font-weight:700;color:#e0e0e0;">Chat — <span x-text="selectedAgent"></span></div>
-                <div style="font-family: 'JetBrains Mono', monospace;color:#888;font-size:12px;" x-text="sessionIdByAgent[selectedAgent] || ''"></div>
-              </div>
-
-              <div style="flex:1;overflow-y:auto;padding:1rem;" x-ref="chatList">
-                <template x-for="(msg, idx) in messagesByAgent[selectedAgent] || []" :key="selectedAgent + '-' + idx">
-                  <div style="margin-bottom:0.75rem;">
-                    <div x-show="msg.type === 'USER_REQUEST'" style="text-align:right;">
-                      <div style="display:inline-block;background:#0b2540;color:#fff;padding:8px 12px;border-radius:12px;max-width:80%;">
-                        <div x-text="msg.content"></div>
-                        <div style="font-size:11px;color:#888;margin-top:6px;" x-text="msg.ts"></div>
-                      </div>
+            <div style="display:flex;flex-direction:column;height:100%;">
+              <!-- Header -->
+              <div style="padding:1rem 1.5rem;background:#1a1a1a;border-bottom:1px solid #333;display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;flex-direction:column;gap:0.25rem;">
+                  <div style="font-size:0.875rem;font-weight:700;color:#e0e0e0;text-transform:uppercase;letter-spacing:0.05em;">
+                    AGENT ACTIONS
+                  </div>
+                  <div style="display:flex;gap:1rem;font-size:0.75rem;font-family:'JetBrains Mono',monospace;">
+                    <div style="display:flex;align-items:center;gap:0.25rem;color:#888;">
+                      <span>Cost:</span>
+                      <span style="color:#00d4ff;font-weight:600;" x-text="'$' + ((getAgentByName(selectedAgent)?.cost || 0).toFixed(4))"></span>
                     </div>
-                    <div x-show="msg.type !== 'USER_REQUEST'" style="text-align:left;">
-                      <div style="display:inline-block;background:#111;padding:8px 12px;border-radius:12px;max-width:80%;color:#e0e0e0;">
-                        <div x-text="msg.content"></div>
-                        <div style="font-size:11px;color:#666;margin-top:6px;" x-text="msg.ts"></div>
-                      </div>
+                    <div style="display:flex;align-items:center;gap:0.25rem;color:#888;">
+                      <span>Context:</span>
+                      <span style="color:#00d4ff;font-weight:600;" x-text="(getAgentByName(selectedAgent)?.tokensUsed || 0) + '/' + (getAgentByName(selectedAgent)?.tokensTotal || 200000)"></span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <!-- Chat Messages -->
+              <div style="flex:1;overflow-y:auto;overflow-x:hidden;padding:1rem;scroll-behavior:smooth;" x-ref="chatList">
+                <template x-for="(msg, idx) in messagesByAgent[selectedAgent] || []" :key="selectedAgent + '-' + idx">
+                  <chat-message
+                    :type="msg.type"
+                    :content="msg.content"
+                    :timestamp="msg.ts"
+                    :tool="msg.tool || ''"
+                    :params="msg.params ? JSON.stringify(msg.params) : ''">
+                  </chat-message>
                 </template>
               </div>
 
-              <div style="padding:0.75rem;border-top:1px solid #222;background:#0a0a0a;">
-                <textarea x-model="newMessage" placeholder="Type a message..." style="width:100%;height:70px;padding:8px;border-radius:6px;background:#0f0f0f;border:1px solid #222;color:#e0e0e0;resize:vertical;"></textarea>
-                <div style="display:flex;justify-content:flex-end;margin-top:0.5rem;gap:0.5rem;">
-                  <button class="button" @click="sendMessage">Send</button>
+              <!-- Chat Input -->
+              <div style="padding:1rem;background:#0a0a0a;border-top:1px solid #333;">
+                <textarea 
+                  x-model="newMessage" 
+                  @keydown.ctrl.enter="sendMessage"
+                  @keydown.meta.enter="sendMessage"
+                  placeholder="Type a message... (Ctrl+Enter to send)" 
+                  class="chat-input-field"
+                  :class="{ 'chat-input-focused': newMessage.trim() }">
+                </textarea>
+                <div style="display:flex;justify-content:flex-end;margin-top:0.75rem;">
+                  <button 
+                    @click="sendMessage" 
+                    :disabled="!newMessage.trim()"
+                    class="send-button"
+                    :class="{ 'send-button-disabled': !newMessage.trim() }">
+                    Send
+                  </button>
                 </div>
               </div>
             </div>
@@ -644,6 +730,11 @@
             if (el) el.scrollTop = el.scrollHeight;
           }, 50);
         },
+        
+        getAgentByName(name) {
+          return this.agents.find(a => a.name === name);
+        },
+        
         sendMessage() {
           if (!this.selectedAgent) return alert('Select an agent first');
           const sessionId = this.sessionIdByAgent[this.selectedAgent];
