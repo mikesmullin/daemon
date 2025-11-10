@@ -452,8 +452,32 @@
           // Maintain per-agent message list for chat
           const agentKey = event.agent || event.agent_name || event.name || 'unknown';
           if (!this.messagesByAgent[agentKey]) this.messagesByAgent[agentKey] = [];
-          const content = event.content || event.text || event.message || (event.response && event.response.output_text) || JSON.stringify(event.payload || {});
-          this.messagesByAgent[agentKey].push({ type: event.type, content: content, ts: event.timestamp || new Date().toISOString() });
+          
+          // Extract content based on event structure
+          let content = '';
+          if (event.content) {
+            content = event.content;
+          } else if (event.result) {
+            // TOOL_RESPONSE events have result
+            content = event.result;
+          } else if (event.params) {
+            // TOOL_CALL events have params - format nicely
+            content = `Tool: ${event.tool}\n${JSON.stringify(event.params, null, 2)}`;
+          } else if (event.text) {
+            content = event.text;
+          } else if (event.message) {
+            content = event.message;
+          } else {
+            content = JSON.stringify(event);
+          }
+          
+          this.messagesByAgent[agentKey].push({ 
+            type: event.type, 
+            content: content, 
+            ts: event.timestamp || new Date().toISOString(),
+            tool: event.tool,
+            params: event.params
+          });
           if (event.session_id) this.sessionIdByAgent[agentKey] = event.session_id;
 
           // Auto-follow: if enabled, select this agent when messages arrive
@@ -465,38 +489,6 @@
               if (el) el.scrollTop = el.scrollHeight;
             }, 50);
           }
-
-          // If it's an orchestrator action, add to orchestrator panel
-          if (this.isOrchestratorAction(event)) {
-            const panel = this.$refs.orchestratorPanel;
-            panel.addAction({
-              tool: event.tool || event.type,
-              timestamp: event.timestamp,
-              params: event.params,
-              description: this.getActionDescription(event)
-            });
-          }
-        },
-        
-        isOrchestratorAction(event) {
-          const orchestratorEvents = ['TOOL_CALL', 'SESSIONSTART', 'SESSIONEND'];
-          const orchestratorTools = ['create_agent', 'stop_agent'];
-          
-          return orchestratorEvents.includes(event.type) || 
-                 (event.tool && orchestratorTools.includes(event.tool));
-        },
-        
-        getActionDescription(event) {
-          if (event.type === 'TOOL_CALL') {
-            return `Calling ${event.tool || 'tool'}`;
-          }
-          if (event.type === 'SESSIONSTART') {
-            return `Session started: ${event.agent}`;
-          }
-          if (event.type === 'SESSIONEND') {
-            return `Session ended: ${event.agent}`;
-          }
-          return '';
         },
         
         handleMetrics(data) {

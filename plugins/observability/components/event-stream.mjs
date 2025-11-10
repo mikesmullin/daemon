@@ -106,12 +106,19 @@ export class EventStream extends HTMLElement {
 
   formatEventContent(event) {
     if (event.content) return event.content;
+    
     if (event.type === 'TOOL_CALL' && event.tool) {
-      return `${event.tool}(${JSON.stringify(event.params || {}, null, 2)})`;
+      const paramsJson = JSON.stringify(event.params || {}, null, 2);
+      const truncated = paramsJson.length > 200;
+      const displayJson = truncated ? paramsJson.substring(0, 200) + '...' : paramsJson;
+      
+      return `Tool: ${event.tool}\nParameters:\n${displayJson}`;
     }
+    
     if (event.type === 'TOOL_RESPONSE' && event.result) {
       return event.result;
     }
+    
     return JSON.stringify(event, null, 2);
   }
 
