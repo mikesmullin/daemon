@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Detail - Task Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2d2d2d;
+      --bg-card: #3a3a3a;
+      --text-primary: #e5e5e5;
+      --text-secondary: #a0a0a0;
+      --accent-cyan: #22d3ee;
+      --accent-blue: #3b82f6;
+    }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .nav-link {
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
+      transition: background 0.2s;
+    }
+
+    .nav-link:hover {
+      background: var(--bg-secondary);
+    }
+
+    .priority-badge {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
+      font-weight: 600;
+    }
+
+    .priority-1 { background: #ef4444; color: white; }
+    .priority-2 { background: #f97316; color: white; }
+    .priority-3 { background: #eab308; color: black; }
+    .priority-4 { background: #6b7280; color: white; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
+      font-weight: 600;
+    }
+
+    .status-open { background: #60a5fa; color: white; }
+    .status-progress { background: #f59e0b; color: white; }
+    .status-review { background: #a78bfa; color: white; }
+    .status-done { background: #10b981; color: white; }
+
+    .markdown-content {
+      line-height: 1.6;
+    }
+
+    .markdown-content h1 { font-size: 1.5rem; font-weight: bold; margin-top: 1rem; }
+    .markdown-content h2 { font-size: 1.25rem; font-weight: bold; margin-top: 0.75rem; }
+    .markdown-content h3 { font-size: 1.1rem; font-weight: bold; margin-top: 0.5rem; }
+    .markdown-content p { margin: 0.5rem 0; }
+    .markdown-content ul, .markdown-content ol { margin-left: 1.5rem; }
+    .markdown-content code { background: #2d2d2d; padding: 0.2rem 0.4rem; border-radius: 0.25rem; }
+    .markdown-content pre { background: #2d2d2d; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+    .markdown-content pre code { background: none; padding: 0; }
+    .markdown-content a { color: #22d3ee; text-decoration: underline; }
+    .markdown-content blockquote { border-left: 4px solid #4b5563; padding-left: 1rem; color: #9ca3af; }
+
+    .timeline-item {
+      position: relative;
+      padding-left: 2rem;
+      padding-bottom: 1.5rem;
+      border-left: 2px solid #4b5563;
+    }
+
+    .timeline-item:last-child {
+      border-left: none;
+    }
+
+    .timeline-dot {
+      position: absolute;
+      left: -0.5rem;
+      top: 0.25rem;
+      width: 0.75rem;
+      height: 0.75rem;
+      border-radius: 50%;
+      background: #22d3ee;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div x-data="ticketApp()" x-init="init()">
+    <!-- Navigation -->
+    <nav class="bg-gray-900 border-b border-gray-800">
+      <div class="container mx-auto px-4 py-4">
+        <div class="flex items-center justify-between">
+          <h1 class="text-2xl font-bold text-cyan-400">📋 Task Management</h1>
+          <div class="flex space-x-4">
+            <a href="/kanban" class="nav-link">Kanban Board</a>
+            <a href="/plan" class="nav-link">Roadmap</a>
+            <a href="/" class="nav-link">Home</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Ticket Detail -->
+    <main class="container mx-auto px-4 py-8 max-w-6xl">
+      <div x-show="loading" class="text-center py-12">
+        <div class="text-gray-400">Loading...</div>
+      </div>
+
+      <div x-show="!loading && !ticket" class="text-center py-12">
+        <div class="text-red-400">Ticket not found</div>
+      </div>
+
+      <div x-show="!loading && ticket" class="space-y-6">
+        <!-- Header -->
+        <div class="card">
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <div class="text-sm text-gray-400 mb-2" x-text="`Ticket #${ticket.id}`"></div>
+              <h1 class="text-3xl font-bold" x-text="ticket.title"></h1>
+            </div>
+            <div class="flex gap-2">
+              <span class="status-badge" :class="getStatusClass(ticket.status)" x-text="ticket.status"></span>
+              <span class="priority-badge" :class="`priority-${getPriorityQuadrant(ticket.urgency, ticket.importance)}`" x-text="getPriorityLabel(ticket.urgency, ticket.importance)"></span>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <span class="text-gray-400">Assignee:</span>
+              <span class="ml-2" x-text="ticket.assignee || 'Unassigned'"></span>
+            </div>
+            <div>
+              <span class="text-gray-400">Due Date:</span>
+              <span class="ml-2" x-text="ticket.due_date ? formatDate(ticket.due_date) : 'No due date'"></span>
+            </div>
+            <div>
+              <span class="text-gray-400">Urgency:</span>
+              <span class="ml-2" x-text="`${ticket.urgency}/5`"></span>
+            </div>
+            <div>
+              <span class="text-gray-400">Importance:</span>
+              <span class="ml-2" x-text="`${ticket.importance}/5`"></span>
+            </div>
+            <div>
+              <span class="text-gray-400">Created:</span>
+              <span class="ml-2" x-text="formatDateTime(ticket.created_at)"></span>
+            </div>
+            <div>
+              <span class="text-gray-400">Updated:</span>
+              <span class="ml-2" x-text="formatDateTime(ticket.updated_at)"></span>
+            </div>
+          </div>
+
+          <div x-show="ticket.labels && ticket.labels.length > 0" class="mt-4">
+            <span class="text-gray-400 text-sm">Labels:</span>
+            <div class="flex flex-wrap gap-2 mt-2">
+              <template x-for="label in ticket.labels" :key="label">
+                <span class="bg-gray-700 px-3 py-1 rounded text-sm" x-text="label"></span>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="card" x-show="ticket.description">
+          <h2 class="text-xl font-bold mb-4">Description</h2>
+          <div class="markdown-content text-gray-300" x-html="renderMarkdown(ticket.description)"></div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6">
+          <!-- Comments -->
+          <div class="card">
+            <h2 class="text-xl font-bold mb-4">Comments (<span x-text="comments.length"></span>)</h2>
+            <div class="space-y-4 max-h-96 overflow-y-auto">
+              <template x-for="comment in comments" :key="comment.id">
+                <div class="bg-gray-700 rounded p-3">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="font-semibold text-sm text-cyan-400" x-text="comment.author"></span>
+                    <span class="text-xs text-gray-400" x-text="formatDateTime(comment.timestamp)"></span>
+                  </div>
+                  <div class="markdown-content text-sm text-gray-300" x-html="renderMarkdown(comment.content)"></div>
+                </div>
+              </template>
+              <div x-show="comments.length === 0" class="text-gray-400 text-sm text-center py-4">
+                No comments yet
+              </div>
+            </div>
+          </div>
+
+          <!-- History -->
+          <div class="card">
+            <h2 class="text-xl font-bold mb-4">History (<span x-text="history.length"></span>)</h2>
+            <div class="max-h-96 overflow-y-auto">
+              <template x-for="entry in history" :key="entry.timestamp">
+                <div class="timeline-item">
+                  <div class="timeline-dot"></div>
+                  <div class="text-xs text-gray-400 mb-1" x-text="formatDateTime(entry.timestamp)"></div>
+                  <div class="text-sm">
+                    <span class="text-cyan-400" x-text="entry.changed_by"></span>
+                    <span class="text-gray-400"> changed </span>
+                    <span class="font-semibold" x-text="entry.field_changed"></span>
+                  </div>
+                  <div class="text-xs text-gray-500 mt-1" x-show="entry.old_value || entry.new_value">
+                    <span x-show="entry.old_value">
+                      <span class="line-through" x-text="entry.old_value"></span>
+                    </span>
+                    <span x-show="entry.old_value && entry.new_value"> → </span>
+                    <span x-show="entry.new_value" class="text-green-400" x-text="entry.new_value"></span>
+                  </div>
+                </div>
+              </template>
+              <div x-show="history.length === 0" class="text-gray-400 text-sm text-center py-4">
+                No history yet
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Back Button -->
+        <div class="text-center">
+          <a href="/kanban" class="inline-block bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2 rounded transition">
+            ← Back to Kanban
+          </a>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function ticketApp() {
+      return {
+        ticket: null,
+        comments: [],
+        history: [],
+        loading: true,
+
+        async init() {
+          await this.loadTicket();
+          // Auto-refresh every 5 seconds
+          setInterval(() => this.loadTicket(), 5000);
+        },
+
+        async loadTicket() {
+          const path = window.location.pathname;
+          const id = path.split('/').pop();
+          
+          try {
+            const [ticketRes, commentsRes, historyRes] = await Promise.all([
+              fetch(`/api/ticket/${id}`),
+              fetch(`/api/ticket/${id}/comments`),
+              fetch(`/api/ticket/${id}/history`)
+            ]);
+
+            if (ticketRes.ok) {
+              this.ticket = await ticketRes.json();
+              this.comments = await commentsRes.json();
+              this.history = await historyRes.json();
+            }
+          } catch (error) {
+            console.error('Failed to load ticket:', error);
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        getPriorityQuadrant(urgency, importance) {
+          if (urgency <= 2 && importance <= 2) return 1;
+          if (urgency > 2 && importance <= 2) return 2;
+          if (urgency <= 2 && importance > 2) return 3;
+          return 4;
+        },
+
+        getPriorityLabel(urgency, importance) {
+          const quadrant = this.getPriorityQuadrant(urgency, importance);
+          const labels = {
+            1: 'Do First',
+            2: 'Schedule',
+            3: 'Delegate',
+            4: 'Eliminate'
+          };
+          return labels[quadrant];
+        },
+
+        getStatusClass(status) {
+          const map = {
+            'Open': 'status-open',
+            'In Progress': 'status-progress',
+            'Review': 'status-review',
+            'Done': 'status-done'
+          };
+          return map[status] || '';
+        },
+
+        renderMarkdown(text) {
+          if (!text) return '';
+          try {
+            return marked.parse(text);
+          } catch (error) {
+            return text;
+          }
+        },
+
+        formatDate(dateStr) {
+          if (!dateStr) return '';
+          const date = new Date(dateStr);
+          return date.toLocaleDateString();
+        },
+
+        formatDateTime(dateStr) {
+          if (!dateStr) return '';
+          const date = new Date(dateStr);
+          return date.toLocaleString();
+        }
+      };
+    }
+  </script>
+</body>
+</html>
