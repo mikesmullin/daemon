@@ -98,10 +98,20 @@ export class EventStream extends HTMLElement {
     const mappedType = this.mapEventType(event.type);
     const agent = event.agent || 'system';
     
-    eventItem.setAttribute('timestamp', this.formatTimestamp(event.timestamp));
+    eventItem.setAttribute('timestamp', event.timestamp);
     eventItem.setAttribute('type', mappedType);
     eventItem.setAttribute('agent', agent);
-    eventItem.setAttribute('agent-color', this.getAgentColor(agent));
+    
+    if (event.session_id) {
+      eventItem.setAttribute('session-id', event.session_id);
+    }
+    
+    // For tool events, use event.tool; for hook events, use original event.type
+    if (event.tool) {
+      eventItem.setAttribute('tool-name', event.tool);
+    } else if (mappedType === 'hook') {
+      eventItem.setAttribute('tool-name', event.type);
+    }
     
     if (event.context_tokens) {
       eventItem.setAttribute('context-tokens', event.context_tokens);
@@ -166,12 +176,8 @@ export class EventStream extends HTMLElement {
   formatEventContent(event) {
     if (event.content) return event.content;
     
-    if (event.type === 'TOOL_CALL' && event.tool) {
-      const paramsJson = JSON.stringify(event.params || {}, null, 2);
-      const truncated = paramsJson.length > 200;
-      const displayJson = truncated ? paramsJson.substring(0, 200) + '...' : paramsJson;
-      
-      return `Tool: ${event.tool}\nParameters:\n${displayJson}`;
+    if (event.type === 'TOOL_CALL' && event.params) {
+      return JSON.stringify(event.params, null, 2);
     }
     
     if (event.type === 'TOOL_RESPONSE' && event.result) {
