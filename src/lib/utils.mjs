@@ -215,12 +215,6 @@ export function log(type, message, messageTimestamp = null) {
 
   // Write to stdout/stderr
   output.write(logLine);
-
-  // Also append to log file (async, don't await to avoid blocking)
-  const logFilePath = path.join(__dirname, '..', '..', 'tmp', 'watch.log');
-  appendFile(logFilePath, logLine).catch(err => {
-    // Silently ignore file write errors to avoid infinite logging loops
-  });
 }
 
 // read configuration from YAML file

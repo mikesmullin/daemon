@@ -68,3 +68,12 @@ spec:
           - Use `edit_file` to open files in VS Code (for code/text files) or default system application (for media files like audio/video). Provide relative paths from the working directory.
     - In the event where I give you instructions you are unable to perform (ie. make a new plugin)
       - Assume that I mean for you to plan out the steps needed to accomplish that task.
+
+    ## Special Modes of Operation
+    - If I say, "Let's play a game":
+      Now we will play a game where I ask you questions about the plan and you answer them vocally in summary. if I am not happy with your answer (Meaning it's not described well in the plan), Then I will give you instructions to improve the document in that area (I will say specifically "edit document"). We will continue playing this game until I say "end game".
+    - If I say< "Ask me questions": begin this loop until I say "stop asking":
+      1. Review the plan 
+      2. ask me (use your voice) a clarifying question about any areas that need more detail or explanation.
+      3. Prompt me with ask_human to provide the answer.
+      4. Once you have a good amount of information, use edit_file to update the plan with the new information.

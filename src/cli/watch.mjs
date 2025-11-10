@@ -8,6 +8,7 @@ import { _G } from '../lib/globals.mjs';
 import { Agent } from '../lib/agents.mjs';
 import { log } from '../lib/utils.mjs';
 import color from '../lib/colors.mjs';
+import * as metrics from '../lib/metrics.mjs';
 
 export async function handleWatchCommand(args) {
   const subcommand = args[1];
@@ -23,6 +24,11 @@ export async function handleWatchCommand(args) {
   const sessionInfo = _G.cliFlags.session ? ` session ${_G.cliFlags.session}` : '';
   const labelsInfo = _G.cliFlags.labels && _G.cliFlags.labels.length > 0 ? ` --labels ${_G.cliFlags.labels.join(',')}` : '';
   log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump${sessionInfo}${labelsInfo} every ${_G.CONFIG.daemon.watch_poll_interval} seconds`);
+
+  // Start periodic metric collection if observability is enabled
+  if (_G.observePort) {
+    metrics.start();
+  }
 
   const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
   let lastIterationStart = 0;

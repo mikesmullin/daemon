@@ -13,6 +13,7 @@ import _ from 'lodash';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import * as observability from './observability.mjs';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -372,6 +373,31 @@ export class Agent {
           tools: toolDefinitions,
         });
 
+        // Emit observability event for assistant response
+        if (response.choices && response.choices.length > 0) {
+          const choice = response.choices[0];
+          if (choice.message.content) {
+            observability.emitResponse(
+              session_id,
+              sessionContent.metadata.name,
+              choice.message.content,
+              sessionContent.metadata.model,
+              response.usage?.total_cost,
+              response.usage?.total_tokens
+            );
+          }
+          if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
+            for (const tool_call of choice.message.tool_calls) {
+              observability.emitToolCall(
+                session_id,
+                sessionContent.metadata.name,
+                tool_call.function.name,
+                JSON.parse(tool_call.function.arguments || '{}')
+              );
+            }
+          }
+        }
+
         sessionContent.metadata.usage = response.usage;
         sessionContent.metadata.provider = response.provider; // Store provider name
 
@@ -520,6 +546,14 @@ export class Agent {
       await Session.updateLastRead(session_id);
 
       await Agent.state(session_id, finalState);
+      
+      // Emit STOP hook if session completed
+      if (finalState === 'success') {
+        observability.emitHook('STOP', session_id, sessionContent.metadata.name, {
+          reason: lastMessage?.finish_reason || 'completed'
+        });
+      }
+      
       return {
         session_id,
         agent: sessionContent.metadata.name,

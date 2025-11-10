@@ -5,6 +5,7 @@ import ejs from 'ejs';
 import { _G } from './globals.mjs';
 import utils, { log } from './utils.mjs';
 import os from 'os';
+import * as observability from './observability.mjs';
 
 /**
  * Session Management Class
@@ -207,6 +208,9 @@ export class Session {
         await Session.push(new_session_id, prompt);
       }
 
+      // Emit session start event
+      observability.emitSessionStart(new_session_id, agent, agent);
+
       return {
         session_id: new_session_id,
         agent,
@@ -274,6 +278,13 @@ export class Session {
 
       // Set session to pending since new work was added
       await Session.setState(session_id, 'pending');
+
+      // Emit user request event
+      observability.emitUserRequest(
+        session_id,
+        sessionContent.metadata?.name || 'unknown',
+        prompt
+      );
 
       return {
         session_id: session_id,

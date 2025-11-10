@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Agent Observability Dashboard</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  
+  <!-- Web Components -->
+  <script type="module" src="/components/status-bar.mjs"></script>
+  <script type="module" src="/components/agent-card.mjs"></script>
+  <script type="module" src="/components/event-stream.mjs"></script>
+  <script type="module" src="/components/event-item.mjs"></script>
+  <script type="module" src="/components/orchestrator-panel.mjs"></script>
+  <script type="module" src="/components/orchestrator-action.mjs"></script>
+  <script type="module" src="/components/search-bar.mjs"></script>
+  <script type="module" src="/components/auto-follow-toggle.mjs"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      overflow: hidden;
+    }
+    
+    .dashboard-container {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .dashboard-main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 300px 1fr 280px;
+      overflow: hidden;
+    }
+    
+    .agents-sidebar,
+    .orchestrator-sidebar {
+      background: #0f0f0f;
+      border-right: 1px solid #333;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    
+    .orchestrator-sidebar {
+      border-right: none;
+      border-left: 1px solid #333;
+    }
+    
+    .agents-sidebar::-webkit-scrollbar,
+    .orchestrator-sidebar::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .agents-sidebar::-webkit-scrollbar-track,
+    .orchestrator-sidebar::-webkit-scrollbar-track {
+      background: #1a1a1a;
+    }
+    
+    .agents-sidebar::-webkit-scrollbar-thumb,
+    .orchestrator-sidebar::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 4px;
+    }
+    
+    .agents-header,
+    .stream-controls {
+      padding: 1rem 1.5rem;
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
+    }
+    
+    .section-title {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #e0e0e0;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    .agents-list {
+      padding: 1rem;
+    }
+    
+    .stream-main {
+      display: flex;
+      flex-direction: column;
+      background: #0f0f0f;
+    }
+    
+    .stream-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .empty-agents {
+      padding: 2rem 1rem;
+      text-align: center;
+      color: #666;
+      font-size: 0.875rem;
+    }
+    
+    .empty-agents-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      opacity: 0.5;
+    }
+    
+    button {
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+    
+    .button {
+      padding: 0.5rem 1rem;
+      border: 1px solid #444;
+      background: #2a2a2a;
+      color: #e0e0e0;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-radius: 4px;
+    }
+    
+    .button:hover {
+      background: #333;
+      border-color: #00d4ff;
+      color: #00d4ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard-container" x-data="dashboard()">
+    <!-- Status Bar -->
+    <status-bar 
+      :title="'MULTI-AGENT OBSERVABILITY'"
+      :connection="connectionStatus"
+      :active="metrics.activeAgents"
+      :running="metrics.runningTasks"
+      :logs="metrics.logCount"
+      :cost="metrics.totalCost">
+      <button slot="actions" class="button" @click="clearAll">CLEAR ALL</button>
+      <button slot="actions" class="button" @click="openPrompt">PROMPT (Cmd+K)</button>
+    </status-bar>
+    
+    <!-- Main Dashboard -->
+    <div class="dashboard-main">
+      <!-- Left Sidebar - Agents -->
+      <div class="agents-sidebar">
+        <div class="agents-header">
+          <div class="section-title">ACTIVE AGENTS</div>
+        </div>
+        <div class="agents-list">
+          <template x-if="agents.length === 0">
+            <div class="empty-agents">
+              <div class="empty-agents-icon">🤖</div>
+              <div>No active agents</div>
+            </div>
+          </template>
+          
+          <template x-for="agent in agents" :key="agent.name">
+            <agent-card
+              :name="agent.name"
+              :status="agent.status"
+              :model="agent.model"
+              :tokens-used="agent.tokensUsed"
+              :tokens-total="200000"
+              :cost="agent.cost"
+              :active-tasks="agent.activeTasks"
+              :tools-in-use="0"
+              :messages="agent.messages"
+              :errors="0"
+              @agent-click="filterByAgent($event.detail.agent)">
+            </agent-card>
+          </template>
+        </div>
+      </div>
+      
+      <!-- Center - Event Stream -->
+      <div class="stream-main">
+        <search-bar @search="handleSearch"></search-bar>
+        
+        <div class="stream-controls">
+          <div class="section-title">LIVE EVENT STREAM</div>
+          <auto-follow-toggle 
+            :active="autoFollow.toString()"
+            @toggle="autoFollow = $event.detail.active">
+          </auto-follow-toggle>
+        </div>
+        
+        <event-stream 
+          x-ref="eventStream"
+          :auto-follow="autoFollow.toString()"
+          :filter-agent="filterAgent"
+          :filter-type="filterType">
+        </event-stream>
+      </div>
+      
+      <!-- Right Sidebar - Orchestrator -->
+      <div class="orchestrator-sidebar">
+        <orchestrator-panel x-ref="orchestratorPanel">
+        </orchestrator-panel>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function dashboard() {
+      return {
+        ws: null,
+        connectionStatus: 'connecting',
+        autoFollow: true,
+        filterAgent: '',
+        filterType: '',
+        searchQuery: '',
+        
+        metrics: {
+          activeAgents: 0,
+          runningTasks: 0,
+          logCount: 0,
+          totalCost: 0
+        },
+        
+        agents: [],
+        
+        init() {
+          this.connectWebSocket();
+          this.setupKeyboardShortcuts();
+          
+          // Update status bar pulse on new events
+          this.$watch('metrics', () => {
+            const statusBar = document.querySelector('status-bar');
+            if (statusBar && this.connectionStatus === 'connected') {
+              statusBar.triggerPulse();
+            }
+          });
+        },
+        
+        connectWebSocket() {
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const wsUrl = `${protocol}//${window.location.host}`;
+          
+          this.ws = new WebSocket(wsUrl);
+          
+          this.ws.onopen = () => {
+            console.log('WebSocket connected');
+          };
+          
+          this.ws.onmessage = (event) => {
+            try {
+              const message = JSON.parse(event.data);
+              this.handleMessage(message);
+            } catch (err) {
+              console.error('Failed to parse message:', err);
+            }
+          };
+          
+          this.ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            this.connectionStatus = 'disconnected';
+          };
+          
+          this.ws.onclose = () => {
+            console.log('WebSocket disconnected');
+            this.connectionStatus = 'disconnected';
+            
+            // Attempt reconnect after 5 seconds
+            setTimeout(() => {
+              this.connectWebSocket();
+            }, 5000);
+          };
+        },
+        
+        handleMessage(message) {
+          switch (message.type) {
+            case 'init':
+              this.handleInit(message.data);
+              break;
+            case 'event':
+              this.handleEvent(message.data);
+              break;
+            case 'metrics':
+              this.handleMetrics(message.data);
+              break;
+            case 'connection':
+              this.connectionStatus = message.data.status;
+              break;
+            case 'clear':
+              this.clearEvents();
+              break;
+          }
+        },
+        
+        handleInit(data) {
+          // Load initial events
+          if (data.events && data.events.length > 0) {
+            const stream = this.$refs.eventStream;
+            data.events.forEach(event => {
+              stream.appendEvent(event);
+            });
+          }
+          
+          // Load metrics
+          if (data.metrics) {
+            this.updateMetrics(data.metrics);
+          }
+          
+          // Set connection status
+          if (data.connectionStatus) {
+            this.connectionStatus = data.connectionStatus;
+          }
+        },
+        
+        handleEvent(event) {
+          const stream = this.$refs.eventStream;
+          
+          // Add to main stream
+          stream.appendEvent(event);
+          
+          // If it's an orchestrator action, add to orchestrator panel
+          if (this.isOrchestratorAction(event)) {
+            const panel = this.$refs.orchestratorPanel;
+            panel.addAction({
+              tool: event.tool || event.type,
+              timestamp: event.timestamp,
+              params: event.params,
+              description: this.getActionDescription(event)
+            });
+          }
+        },
+        
+        isOrchestratorAction(event) {
+          const orchestratorEvents = ['TOOL_CALL', 'SESSIONSTART', 'SESSIONEND'];
+          const orchestratorTools = ['create_agent', 'stop_agent'];
+          
+          return orchestratorEvents.includes(event.type) || 
+                 (event.tool && orchestratorTools.includes(event.tool));
+        },
+        
+        getActionDescription(event) {
+          if (event.type === 'TOOL_CALL') {
+            return `Calling ${event.tool || 'tool'}`;
+          }
+          if (event.type === 'SESSIONSTART') {
+            return `Session started: ${event.agent}`;
+          }
+          if (event.type === 'SESSIONEND') {
+            return `Session ended: ${event.agent}`;
+          }
+          return '';
+        },
+        
+        handleMetrics(data) {
+          this.updateMetrics(data);
+        },
+        
+        updateMetrics(data) {
+          this.metrics.activeAgents = data.activeAgents || 0;
+          this.metrics.runningTasks = data.runningTasks || 0;
+          this.metrics.logCount = data.logCount || 0;
+          this.metrics.totalCost = data.totalCost || 0;
+          
+          if (data.agents) {
+            this.agents = data.agents;
+          }
+        },
+        
+        clearAll() {
+          if (confirm('Clear all events?')) {
+            this.clearEvents();
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+              this.ws.send(JSON.stringify({ type: 'clear' }));
+            }
+          }
+        },
+        
+        clearEvents() {
+          const stream = this.$refs.eventStream;
+          const panel = this.$refs.orchestratorPanel;
+          stream.clear();
+          panel.clear();
+        },
+        
+        openPrompt() {
+          alert('Prompt modal not yet implemented');
+        },
+        
+        filterByAgent(agentName) {
+          this.filterAgent = this.filterAgent === agentName ? '' : agentName;
+          // TODO: Implement actual filtering logic
+        },
+        
+        handleSearch(event) {
+          this.searchQuery = event.detail.query;
+          // TODO: Implement search filtering
+        },
+        
+        setupKeyboardShortcuts() {
+          document.addEventListener('keydown', (e) => {
+            // Cmd+K or Ctrl+K
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+              e.preventDefault();
+              this.openPrompt();
+            }
+          });
+        }
+      };
+    }
+  </script>
+</body>
+</html>

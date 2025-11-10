@@ -14,6 +14,7 @@ import utils, { log } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
 import color from './lib/colors.mjs';
 import { MCPClient } from './lib/mcp-client.mjs';
+import * as observability from './lib/observability.mjs';
 
 // Import CLI command handlers
 import { handleSessionsCommand } from './cli/sessions.mjs';
@@ -139,6 +140,7 @@ async function parseCliArgs() {
   let kill = false;
   let interactive = false;
   let noHumans = false;
+  let observePort = null;
 
   // Parse -t=<n> or --timeout=<n>
   for (let i = 0; i < args.length; i++) {
@@ -187,6 +189,25 @@ async function parseCliArgs() {
     args.splice(noHumansIndex, 1);
   }
 
+  // Parse --observe <port>
+  const observeIndex = args.indexOf('--observe');
+  if (observeIndex !== -1) {
+    if (observeIndex + 1 < args.length && !args[observeIndex + 1].startsWith('-') && !args[observeIndex + 1].startsWith('@')) {
+      const portValue = parseInt(args[observeIndex + 1], 10);
+      if (!isNaN(portValue)) {
+        observePort = portValue;
+        args.splice(observeIndex, 2);
+      } else {
+        // Next arg is not a valid number, use default port
+        observePort = 3002;
+        args.splice(observeIndex, 1);
+      }
+    } else {
+      observePort = 3002; // Default port
+      args.splice(observeIndex, 1);
+    }
+  }
+
   // Parse --session <session_id> (for watch/pump modes)
   let session = null;
   const sessionIndex = args.indexOf('--session');
@@ -206,6 +227,10 @@ async function parseCliArgs() {
 
   // Store global flags in _G for access throughout the app
   _G.cliFlags = { timeout, lock, kill, interactive, noHumans, session, labels };
+  _G.observePort = observePort;
+  
+  // Initialize observability if enabled
+  observability.init();
 
   // Parse --format flag
   let format = 'table';
@@ -323,6 +348,7 @@ Global Options:
   -k, --kill          Kill any running instance of this agent type before starting
   -i, --interactive   (agent only) Prompt for input using multi-line text editor
   --no-humans         Auto-reject tool requests not on allowlist (unattended mode)
+  --observe [port]    Enable observability emission via UDP (default port: 3002)
 
 Format Options:
   --format <format>   Output format: table (default), json, yaml, csv
