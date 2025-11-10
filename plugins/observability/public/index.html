@@ -412,6 +412,14 @@
           this.setupKeyboardShortcuts();
           this.setupResizeHandlers();
           
+          // Setup search event listener
+          const searchBar = document.querySelector('search-bar');
+          if (searchBar) {
+            searchBar.addEventListener('search', (e) => {
+              this.handleSearch(e);
+            });
+          }
+          
           // Update status bar pulse on new events
           this.$watch('metrics', () => {
             const statusBar = document.querySelector('status-bar');
@@ -564,6 +572,14 @@
           this.updateMetrics(data);
         },
         
+        handleSearch(event) {
+          this.searchQuery = event.detail.query || '';
+          const stream = this.$refs.eventStream;
+          if (stream) {
+            stream.setAttribute('search-query', this.searchQuery);
+          }
+        },
+        
         toggleFilterType(type) {
           this.filterTypes[type] = !this.filterTypes[type];
           // Trigger reactivity by updating the event stream attribute
@@ -607,11 +623,6 @@
         filterByAgent(agentName) {
           this.filterAgent = this.filterAgent === agentName ? '' : agentName;
           // TODO: Implement actual filtering logic
-        },
-        
-        handleSearch(event) {
-          this.searchQuery = event.detail.query;
-          // TODO: Implement search filtering
         },
         
         setupKeyboardShortcuts() {

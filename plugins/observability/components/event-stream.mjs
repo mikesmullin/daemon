@@ -1,6 +1,6 @@
 // event-stream.mjs - Main event timeline container
 export class EventStream extends HTMLElement {
-  static observedAttributes = ['auto-follow', 'filter-agent', 'filter-types'];
+  static observedAttributes = ['auto-follow', 'filter-agent', 'filter-types', 'search-query'];
 
   constructor() {
     super();
@@ -8,6 +8,7 @@ export class EventStream extends HTMLElement {
     this.autoFollow = true;
     this.filterAgent = '';
     this.filterTypes = { response: true, tool: true, thinking: true, hook: true };
+    this.searchQuery = '';
   }
 
   connectedCallback() {
@@ -34,6 +35,9 @@ export class EventStream extends HTMLElement {
         console.error('Failed to parse filter-types:', e);
       }
       this.applyFilters();
+    } else if (name === 'search-query') {
+      this.searchQuery = (newValue || '').toLowerCase();
+      this.applyFilters();
     }
   }
 
@@ -43,6 +47,9 @@ export class EventStream extends HTMLElement {
     items.forEach(item => {
       const agent = item.getAttribute('agent');
       const type = item.getAttribute('type');
+      const sessionId = item.getAttribute('session-id') || '';
+      const toolName = item.getAttribute('tool-name') || '';
+      const content = item.textContent || '';
       
       let visible = true;
       
@@ -55,6 +62,14 @@ export class EventStream extends HTMLElement {
       const typeCategory = this.getTypeCategory(type);
       if (!this.filterTypes[typeCategory]) {
         visible = false;
+      }
+      
+      // Filter by search query
+      if (this.searchQuery) {
+        const searchText = [agent, sessionId, toolName, type, content].join(' ').toLowerCase();
+        if (!searchText.includes(this.searchQuery)) {
+          visible = false;
+        }
       }
       
       item.style.display = visible ? 'block' : 'none';
@@ -120,7 +135,12 @@ export class EventStream extends HTMLElement {
     eventItem.textContent = this.formatEventContent(event);
     
     // Apply filters to new item
+    const sessionId = event.session_id || '';
+    const toolName = event.tool || (mappedType === 'hook' ? event.type : '');
+    const content = eventItem.textContent || '';
+    
     let visible = true;
+    
     if (this.filterAgent && agent !== this.filterAgent) {
       visible = false;
     }
@@ -129,6 +149,14 @@ export class EventStream extends HTMLElement {
     const typeCategory = this.getTypeCategory(mappedType);
     if (!this.filterTypes[typeCategory]) {
       visible = false;
+    }
+    
+    // Apply search filter
+    if (this.searchQuery) {
+      const searchText = [agent, sessionId, toolName, mappedType, content].join(' ').toLowerCase();
+      if (!searchText.includes(this.searchQuery)) {
+        visible = false;
+      }
     }
     
     if (!visible) {

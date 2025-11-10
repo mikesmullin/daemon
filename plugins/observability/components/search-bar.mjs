@@ -8,16 +8,18 @@ export class SearchBar extends HTMLElement {
 
   connectedCallback() {
     this.render();
-    this.setupEventListeners();
   }
 
   setupEventListeners() {
     const input = this.shadowRoot.querySelector('input');
     if (input) {
       input.addEventListener('input', (e) => {
+        const value = e.target.value;
+        
+        // Debounce search
         clearTimeout(this.debounceTimer);
         this.debounceTimer = setTimeout(() => {
-          this.dispatchSearch(e.target.value);
+          this.dispatchSearch(value);
         }, 300);
       });
     }
@@ -27,7 +29,10 @@ export class SearchBar extends HTMLElement {
     this.dispatchEvent(new CustomEvent('search', {
       bubbles: true,
       composed: true,
-      detail: { query, filters: {} }
+      detail: {
+        query: query,
+        filters: {}
+      }
     }));
   }
 
@@ -85,6 +90,9 @@ export class SearchBar extends HTMLElement {
         <input type="text" placeholder="${placeholder}" />
       </div>
     `;
+    
+    // Setup event listeners after render
+    this.setupEventListeners();
   }
 }
 
