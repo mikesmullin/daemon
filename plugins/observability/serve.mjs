@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 import dgram from 'dgram';
+import fs from 'fs/promises';
+import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -96,6 +98,35 @@ class ObservabilityServer {
       case 'USER_REQUEST':
       case 'RESPONSE':
         this.metrics.logCount++;
+        // Also track agent from these events if not yet in agentStates
+        if (event.agent && event.session_id) {
+          const agentKey = `${event.agent}_${event.session_id}`;
+          if (!this.agentStates.has(agentKey)) {
+            this.agentStates.set(agentKey, {
+              name: event.agent,
+              sessionId: event.session_id,
+              status: event.type === 'USER_REQUEST' ? 'running' : 'ready',
+              model: event.model || 'unknown',
+              tokensUsed: event.context_tokens || 0,
+              cost: event.cost || 0,
+              summary: event.type === 'USER_REQUEST' ? 'Processing...' : (event.content || '').substring(0, 50),
+              activeTasks: 0,
+              messages: 1,
+              lastUpdate: event.timestamp || new Date().toISOString()
+            });
+          }
+        }
+        break;
+      case 'STOP':
+        // Mark agent as stopped
+        if (event.agent && event.session_id) {
+          const agentKey = `${event.agent}_${event.session_id}`;
+          const agent = this.agentStates.get(agentKey);
+          if (agent) {
+            agent.status = 'stopped';
+            agent.lastUpdate = event.timestamp || new Date().toISOString();
+          }
+        }
         break;
       case 'TOOL_CALL':
         // Could track running tasks here
@@ -233,10 +264,88 @@ class ObservabilityServer {
         this.eventBuffer = [];
         this.broadcast({ type: 'clear' });
         break;
+
       case 'ping':
         ws.send(JSON.stringify({ type: 'pong' }));
         break;
+
+      // Client requests to submit a new user message for a session
+      // payload: { type: 'submit', session_id: '123', content: 'Hello' }
+      case 'submit':
+        (async () => {
+          const sessionId = String(msg.session_id || msg.sessionId || msg.session);
+          const content = String(msg.content || '');
+          if (!sessionId || !content) {
+            ws.send(JSON.stringify({ type: 'submit:response', ok: false, error: 'missing session_id or content' }));
+            return;
+          }
+
+          try {
+            const result = await this.appendUserMessage(sessionId, content);
+            ws.send(JSON.stringify({ type: 'submit:response', ok: true, session_id: sessionId }));
+
+            // Broadcast the new USER_REQUEST event to all clients
+            const event = {
+              type: 'USER_REQUEST',
+              timestamp: new Date().toISOString(),
+              daemon_pid: process.pid,
+              session_id: sessionId,
+              agent: result.agent || 'unknown',
+              content,
+            };
+            this.handleEvent(event);
+          } catch (err) {
+            ws.send(JSON.stringify({ type: 'submit:response', ok: false, error: err.message }));
+          }
+        })();
+        break;
     }
+  }
+
+  async appendUserMessage(sessionId, content) {
+    // sessions directory relative to plugin
+    const sessionsDir = join(__dirname, '..', '..', 'agents', 'sessions');
+    const procDir = join(__dirname, '..', '..', 'agents', 'proc');
+    const sessionFile = join(sessionsDir, `${sessionId}.yaml`);
+
+    // Read session YAML
+    let sessionData;
+    try {
+      const txt = await fs.readFile(sessionFile, 'utf8');
+      sessionData = yaml.load(txt) || {};
+    } catch (err) {
+      throw new Error(`Failed to read session ${sessionId}: ${err.message}`);
+    }
+
+    // Ensure spec/messages exists
+    sessionData.spec = sessionData.spec || {};
+    sessionData.spec.messages = sessionData.spec.messages || [];
+
+    const newMessage = {
+      ts: new Date().toISOString(),
+      role: 'user',
+      content: content
+    };
+
+    sessionData.spec.messages.push(newMessage);
+
+    // Persist session file
+    try {
+      const out = yaml.dump(sessionData, { lineWidth: -1, noRefs: true });
+      await fs.writeFile(sessionFile, out, 'utf8');
+    } catch (err) {
+      throw new Error(`Failed to write session ${sessionId}: ${err.message}`);
+    }
+
+    // Mark session pending by writing proc file
+    try {
+      await fs.writeFile(join(procDir, String(sessionId)), 'pending', 'utf8');
+    } catch (err) {
+      // Non-fatal, but report
+      console.error('Failed to mark session pending:', err.message);
+    }
+
+    return { ok: true, agent: sessionData.metadata?.name };
   }
 
   broadcast(message) {

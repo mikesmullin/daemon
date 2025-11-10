@@ -6,6 +6,7 @@
 import { Session } from './session.mjs';
 import * as observability from './observability.mjs';
 import { log } from './utils.mjs';
+import { _G } from './globals.mjs';
 
 let metricInterval = null;
 const SNAPSHOT_INTERVAL = 60000; // 1 minute in milliseconds
@@ -51,9 +52,18 @@ async function collectAndEmitMetrics() {
     const sessions = await Session.list();
     
     // Filter to active sessions (not deleted, not in fail state)
-    const activeSessions = sessions.filter(s => 
+    let activeSessions = sessions.filter(s => 
       !s.labels?.includes('deleted') && s.state !== 'fail'
     );
+
+    // If --labels flag is set (e.g., from watch mode), only emit metrics for those sessions
+    if (_G.cliFlags?.labels && _G.cliFlags.labels.length > 0) {
+      activeSessions = activeSessions.filter(s => {
+        if (!s.labels) return false;
+        // Session must have ALL the required labels
+        return _G.cliFlags.labels.every(label => s.labels.includes(label));
+      });
+    }
 
     // Emit per-session metrics
     for (const session of activeSessions) {

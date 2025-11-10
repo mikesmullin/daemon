@@ -48,22 +48,61 @@
     
     .dashboard-main {
       flex: 1;
-      display: grid;
-      grid-template-columns: 300px 1fr 280px;
+      display: flex;
       overflow: hidden;
+      position: relative;
     }
     
     .agents-sidebar,
     .orchestrator-sidebar {
       background: #0f0f0f;
-      border-right: 1px solid #333;
       overflow-y: auto;
       overflow-x: hidden;
+      position: relative;
+    }
+    
+    .agents-sidebar {
+      border-right: 1px solid #333;
+      min-width: 200px;
+      max-width: 600px;
     }
     
     .orchestrator-sidebar {
-      border-right: none;
       border-left: 1px solid #333;
+      min-width: 200px;
+      max-width: 600px;
+    }
+    
+    .stream-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #0f0f0f;
+      overflow: hidden;
+    }
+    
+    .resize-handle {
+      width: 5px;
+      background: transparent;
+      cursor: col-resize;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      z-index: 10;
+      transition: background 0.2s;
+    }
+    
+    .resize-handle:hover,
+    .resize-handle.dragging {
+      background: #00d4ff;
+    }
+    
+    .resize-handle-left {
+      right: -2px;
+    }
+    
+    .resize-handle-right {
+      left: -2px;
     }
     
     .agents-sidebar::-webkit-scrollbar,
@@ -102,9 +141,11 @@
     }
     
     .stream-main {
+      flex: 1;
       display: flex;
       flex-direction: column;
       background: #0f0f0f;
+      overflow: hidden;
     }
     
     .stream-controls {
@@ -168,7 +209,9 @@
     <!-- Main Dashboard -->
     <div class="dashboard-main">
       <!-- Left Sidebar - Agents -->
-      <div class="agents-sidebar">
+      <div class="agents-sidebar" :style="`width: ${leftWidth}px`">
+        <div class="resize-handle resize-handle-left" 
+             @mousedown="startResize($event, 'left')"></div>
         <div class="agents-header">
           <div class="section-title">ACTIVE AGENTS</div>
         </div>
@@ -192,7 +235,7 @@
               :tools-in-use="0"
               :messages="agent.messages"
               :errors="0"
-              @agent-click="filterByAgent($event.detail.agent)">
+              @agent-click="selectAgent($event.detail.agent)">
             </agent-card>
           </template>
         </div>
@@ -219,8 +262,46 @@
       </div>
       
       <!-- Right Sidebar - Orchestrator -->
-      <div class="orchestrator-sidebar">
+      <div class="orchestrator-sidebar" :style="`width: ${rightWidth}px`">
+        <div class="resize-handle resize-handle-right" 
+             @mousedown="startResize($event, 'right')"></div>
         <orchestrator-panel x-ref="orchestratorPanel">
+          <div x-show="!selectedAgent" style="padding:1rem;color:#888;">Select an agent to open chat</div>
+
+          <template x-if="selectedAgent">
+            <div style="display:flex;flex-direction:column;height:100%">
+              <div style="padding:1rem;border-bottom:1px solid #222;display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-weight:700;color:#e0e0e0;">Chat — <span x-text="selectedAgent"></span></div>
+                <div style="font-family: 'JetBrains Mono', monospace;color:#888;font-size:12px;" x-text="sessionIdByAgent[selectedAgent] || ''"></div>
+              </div>
+
+              <div style="flex:1;overflow-y:auto;padding:1rem;" x-ref="chatList">
+                <template x-for="(msg, idx) in messagesByAgent[selectedAgent] || []" :key="selectedAgent + '-' + idx">
+                  <div style="margin-bottom:0.75rem;">
+                    <div x-show="msg.type === 'USER_REQUEST'" style="text-align:right;">
+                      <div style="display:inline-block;background:#0b2540;color:#fff;padding:8px 12px;border-radius:12px;max-width:80%;">
+                        <div x-text="msg.content"></div>
+                        <div style="font-size:11px;color:#888;margin-top:6px;" x-text="msg.ts"></div>
+                      </div>
+                    </div>
+                    <div x-show="msg.type !== 'USER_REQUEST'" style="text-align:left;">
+                      <div style="display:inline-block;background:#111;padding:8px 12px;border-radius:12px;max-width:80%;color:#e0e0e0;">
+                        <div x-text="msg.content"></div>
+                        <div style="font-size:11px;color:#666;margin-top:6px;" x-text="msg.ts"></div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <div style="padding:0.75rem;border-top:1px solid #222;background:#0a0a0a;">
+                <textarea x-model="newMessage" placeholder="Type a message..." style="width:100%;height:70px;padding:8px;border-radius:6px;background:#0f0f0f;border:1px solid #222;color:#e0e0e0;resize:vertical;"></textarea>
+                <div style="display:flex;justify-content:flex-end;margin-top:0.5rem;gap:0.5rem;">
+                  <button class="button" @click="sendMessage">Send</button>
+                </div>
+              </div>
+            </div>
+          </template>
         </orchestrator-panel>
       </div>
     </div>
@@ -235,8 +316,20 @@
         filterAgent: '',
         filterType: '',
         searchQuery: '',
-        
-        metrics: {
+              // chat state
+      messagesByAgent: {},
+      sessionIdByAgent: {},
+      selectedAgent: null,
+      newMessage: '',
+      
+      // resize state
+      leftWidth: 300,
+      rightWidth: 280,
+      resizing: null,
+      startX: 0,
+      startWidth: 0,
+      
+      metrics: {
           activeAgents: 0,
           runningTasks: 0,
           logCount: 0,
@@ -248,6 +341,7 @@
         init() {
           this.connectWebSocket();
           this.setupKeyboardShortcuts();
+          this.setupResizeHandlers();
           
           // Update status bar pulse on new events
           this.$watch('metrics', () => {
@@ -294,6 +388,9 @@
         },
         
         handleMessage(message) {
+          // Debug log every websocket message
+          console.debug('[WS_RECV]', JSON.stringify(message));
+          
           switch (message.type) {
             case 'init':
               this.handleInit(message.data);
@@ -316,11 +413,19 @@
         handleInit(data) {
           // Load initial events
           if (data.events && data.events.length > 0) {
-            const stream = this.$refs.eventStream;
             data.events.forEach(event => {
-              stream.appendEvent(event);
+              this.handleEvent(event);
             });
           }
+
+          // Populate sessionIdByAgent from initial metrics/agents if available
+          const initialAgents = (data.metrics && data.metrics.agents) || data.agents || [];
+          initialAgents.forEach(a => {
+            if (a && a.name) {
+              this.sessionIdByAgent[a.name] = a.sessionId || a.session_id || this.sessionIdByAgent[a.name];
+              if (!this.messagesByAgent[a.name]) this.messagesByAgent[a.name] = [];
+            }
+          });
           
           // Load metrics
           if (data.metrics) {
@@ -334,11 +439,33 @@
         },
         
         handleEvent(event) {
-          const stream = this.$refs.eventStream;
+          // Skip GLOBAL_METRIC_SNAPSHOT from event displays - it only updates metrics
+          if (event.type === 'GLOBAL_METRIC_SNAPSHOT') {
+            return;
+          }
           
+          const stream = this.$refs.eventStream;
+
           // Add to main stream
           stream.appendEvent(event);
-          
+
+          // Maintain per-agent message list for chat
+          const agentKey = event.agent || event.agent_name || event.name || 'unknown';
+          if (!this.messagesByAgent[agentKey]) this.messagesByAgent[agentKey] = [];
+          const content = event.content || event.text || event.message || (event.response && event.response.output_text) || JSON.stringify(event.payload || {});
+          this.messagesByAgent[agentKey].push({ type: event.type, content: content, ts: event.timestamp || new Date().toISOString() });
+          if (event.session_id) this.sessionIdByAgent[agentKey] = event.session_id;
+
+          // Auto-follow: if enabled, select this agent when messages arrive
+          if (this.autoFollow) {
+            this.selectedAgent = agentKey;
+            // scroll to bottom after DOM updates
+            setTimeout(() => {
+              const el = this.$refs.chatList;
+              if (el) el.scrollTop = el.scrollHeight;
+            }, 50);
+          }
+
           // If it's an orchestrator action, add to orchestrator panel
           if (this.isOrchestratorAction(event)) {
             const panel = this.$refs.orchestratorPanel;
@@ -423,6 +550,76 @@
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
               e.preventDefault();
               this.openPrompt();
+            }
+          });
+        }
+        ,
+        selectAgent(agentName) {
+          this.selectedAgent = agentName;
+          this.newMessage = '';
+          // ensure chat scrolls to bottom
+          setTimeout(() => {
+            const el = this.$refs.chatList;
+            if (el) el.scrollTop = el.scrollHeight;
+          }, 50);
+        },
+        sendMessage() {
+          if (!this.selectedAgent) return alert('Select an agent first');
+          const sessionId = this.sessionIdByAgent[this.selectedAgent];
+          if (!sessionId) return alert('No session id for selected agent');
+          const content = (this.newMessage || '').trim();
+          if (!content) return;
+
+          // Optimistically append
+          if (!this.messagesByAgent[this.selectedAgent]) this.messagesByAgent[this.selectedAgent] = [];
+          const msg = { type: 'USER_REQUEST', content, ts: new Date().toISOString() };
+          this.messagesByAgent[this.selectedAgent].push(msg);
+
+          // send to server
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: 'submit', session_id: sessionId, content }));
+          } else {
+            console.warn('WebSocket not open — cannot send message');
+          }
+
+          this.newMessage = '';
+          setTimeout(() => {
+            const el = this.$refs.chatList;
+            if (el) el.scrollTop = el.scrollHeight;
+          }, 50);
+        },
+        
+        // Resize handlers
+        startResize(event, side) {
+          event.preventDefault();
+          this.resizing = side;
+          this.startX = event.clientX;
+          this.startWidth = side === 'left' ? this.leftWidth : this.rightWidth;
+          
+          const handle = event.target;
+          handle.classList.add('dragging');
+        },
+        
+        setupResizeHandlers() {
+          document.addEventListener('mousemove', (event) => {
+            if (!this.resizing) return;
+            
+            const delta = event.clientX - this.startX;
+            
+            if (this.resizing === 'left') {
+              const newWidth = Math.max(200, Math.min(600, this.startWidth + delta));
+              this.leftWidth = newWidth;
+            } else if (this.resizing === 'right') {
+              const newWidth = Math.max(200, Math.min(600, this.startWidth - delta));
+              this.rightWidth = newWidth;
+            }
+          });
+          
+          document.addEventListener('mouseup', () => {
+            if (this.resizing) {
+              const handles = document.querySelectorAll('.resize-handle');
+              handles.forEach(h => h.classList.remove('dragging'));
+              this.resizing = null;
             }
           });
         }
