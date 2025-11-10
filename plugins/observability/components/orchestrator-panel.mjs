@@ -63,22 +63,8 @@ export class OrchestratorPanel extends HTMLElement {
         
         .content {
           height: calc(100% - 60px);
-          overflow-y: auto;
-          overflow-x: hidden;
-          padding: 1rem;
-        }
-        
-        .content::-webkit-scrollbar {
-          width: 6px;
-        }
-        
-        .content::-webkit-scrollbar-track {
-          background: #1a1a1a;
-        }
-        
-        .content::-webkit-scrollbar-thumb {
-          background: #333;
-          border-radius: 3px;
+          overflow: visible;
+          padding: 0;
         }
         
         .empty-state {

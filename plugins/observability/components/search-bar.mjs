@@ -38,9 +38,8 @@ export class SearchBar extends HTMLElement {
       <style>
         :host {
           display: block;
-          padding: 1rem;
-          background: #1a1a1a;
-          border-bottom: 1px solid #333;
+          width: 500px;
+          flex-shrink: 0;
         }
         
         .search-container {
@@ -49,7 +48,7 @@ export class SearchBar extends HTMLElement {
         
         input {
           width: 100%;
-          padding: 0.75rem 1rem 0.75rem 2.5rem;
+          padding: 0.5rem 1rem 0.5rem 2.25rem;
           background: #0f0f0f;
           border: 1px solid #333;
           border-radius: 6px;
@@ -57,6 +56,7 @@ export class SearchBar extends HTMLElement {
           font-size: 0.875rem;
           font-family: 'Inter', -apple-system, sans-serif;
           transition: all 0.2s;
+          box-sizing: border-box;
         }
         
         input:focus {
@@ -71,11 +71,11 @@ export class SearchBar extends HTMLElement {
         
         .icon {
           position: absolute;
-          left: 0.75rem;
+          left: 0.625rem;
           top: 50%;
           transform: translateY(-50%);
           color: #666;
-          font-size: 1rem;
+          font-size: 0.875rem;
           pointer-events: none;
         }
       </style>

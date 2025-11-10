@@ -152,6 +152,40 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 1rem;
+    }
+    
+    .filter-buttons {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    
+    .filter-button {
+      padding: 0.375rem 0.75rem;
+      border: 1px solid #444;
+      background: #1a1a1a;
+      color: #888;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.05em;
+    }
+    
+    .filter-button:hover {
+      background: #2a2a2a;
+      border-color: #666;
+      color: #e0e0e0;
+    }
+    
+    .filter-button.active {
+      background: #00d4ff22;
+      border-color: #00d4ff;
+      color: #00d4ff;
+      box-shadow: 0 0 8px #00d4ff33;
     }
     
     .empty-agents {
@@ -243,21 +277,48 @@
       
       <!-- Center - Event Stream -->
       <div class="stream-main">
-        <search-bar @search="handleSearch"></search-bar>
-        
         <div class="stream-controls">
-          <div class="section-title">LIVE EVENT STREAM</div>
-          <auto-follow-toggle 
-            :active="autoFollow.toString()"
-            @toggle="autoFollow = $event.detail.active">
-          </auto-follow-toggle>
+          <div class="filter-buttons">
+            <button 
+              class="filter-button" 
+              :class="{ active: filterTypes.response }"
+              @click="toggleFilterType('response')">
+              💬 RESPONSE
+            </button>
+            <button 
+              class="filter-button" 
+              :class="{ active: filterTypes.tool }"
+              @click="toggleFilterType('tool')">
+              🔧 TOOL
+            </button>
+            <button 
+              class="filter-button" 
+              :class="{ active: filterTypes.thinking }"
+              @click="toggleFilterType('thinking')">
+              💭 THINKING
+            </button>
+            <button 
+              class="filter-button" 
+              :class="{ active: filterTypes.hook }"
+              @click="toggleFilterType('hook')">
+              ⚓ HOOK
+            </button>
+          </div>
+          
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex-shrink: 0;">
+            <search-bar @search="handleSearch"></search-bar>
+            <auto-follow-toggle 
+              :active="autoFollow.toString()"
+              @toggle="autoFollow = $event.detail.active">
+            </auto-follow-toggle>
+          </div>
         </div>
         
         <event-stream 
           x-ref="eventStream"
           :auto-follow="autoFollow.toString()"
           :filter-agent="filterAgent"
-          :filter-type="filterType">
+          :filter-types="JSON.stringify(filterTypes)">
         </event-stream>
       </div>
       
@@ -314,7 +375,12 @@
         connectionStatus: 'connecting',
         autoFollow: true,
         filterAgent: '',
-        filterType: '',
+        filterTypes: {
+          response: true,
+          tool: true,
+          thinking: true,
+          hook: true
+        },
         searchQuery: '',
               // chat state
       messagesByAgent: {},
@@ -324,7 +390,7 @@
       
       // resize state
       leftWidth: 300,
-      rightWidth: 280,
+      rightWidth: 560,
       resizing: null,
       startX: 0,
       startWidth: 0,
@@ -493,6 +559,15 @@
         
         handleMetrics(data) {
           this.updateMetrics(data);
+        },
+        
+        toggleFilterType(type) {
+          this.filterTypes[type] = !this.filterTypes[type];
+          // Trigger reactivity by updating the event stream attribute
+          const stream = this.$refs.eventStream;
+          if (stream) {
+            stream.setAttribute('filter-types', JSON.stringify(this.filterTypes));
+          }
         },
         
         updateMetrics(data) {

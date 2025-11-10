@@ -1,13 +1,13 @@
 // event-stream.mjs - Main event timeline container
 export class EventStream extends HTMLElement {
-  static observedAttributes = ['auto-follow', 'filter-agent', 'filter-type'];
+  static observedAttributes = ['auto-follow', 'filter-agent', 'filter-types'];
 
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
     this.autoFollow = true;
     this.filterAgent = '';
-    this.filterType = '';
+    this.filterTypes = { response: true, tool: true, thinking: true, hook: true };
   }
 
   connectedCallback() {
@@ -26,9 +26,48 @@ export class EventStream extends HTMLElement {
       this.autoFollow = newValue !== 'false';
     } else if (name === 'filter-agent') {
       this.filterAgent = newValue || '';
-    } else if (name === 'filter-type') {
-      this.filterType = newValue || '';
+      this.applyFilters();
+    } else if (name === 'filter-types') {
+      try {
+        this.filterTypes = JSON.parse(newValue || '{"response":true,"tool":true,"thinking":true,"hook":true}');
+      } catch (e) {
+        console.error('Failed to parse filter-types:', e);
+      }
+      this.applyFilters();
     }
+  }
+
+  applyFilters() {
+    // Apply visibility filters to existing event items
+    const items = this.querySelectorAll('event-item');
+    items.forEach(item => {
+      const agent = item.getAttribute('agent');
+      const type = item.getAttribute('type');
+      
+      let visible = true;
+      
+      // Filter by agent
+      if (this.filterAgent && agent !== this.filterAgent) {
+        visible = false;
+      }
+      
+      // Filter by type categories (checkbox style - show if enabled)
+      const typeCategory = this.getTypeCategory(type);
+      if (!this.filterTypes[typeCategory]) {
+        visible = false;
+      }
+      
+      item.style.display = visible ? 'block' : 'none';
+    });
+  }
+
+  getTypeCategory(type) {
+    // Map event types to filter categories
+    if (type === 'response' || type === 'user_request') return 'response';
+    if (type === 'tool_call' || type === 'tool_response') return 'tool';
+    if (type === 'thinking') return 'thinking';
+    if (type === 'hook') return 'hook';
+    return 'response'; // default
   }
 
   setupObservers() {
@@ -56,16 +95,36 @@ export class EventStream extends HTMLElement {
 
   appendEvent(event) {
     const eventItem = document.createElement('event-item');
+    const mappedType = this.mapEventType(event.type);
+    const agent = event.agent || 'system';
+    
     eventItem.setAttribute('timestamp', this.formatTimestamp(event.timestamp));
-    eventItem.setAttribute('type', this.mapEventType(event.type));
-    eventItem.setAttribute('agent', event.agent || 'system');
-    eventItem.setAttribute('agent-color', this.getAgentColor(event.agent));
+    eventItem.setAttribute('type', mappedType);
+    eventItem.setAttribute('agent', agent);
+    eventItem.setAttribute('agent-color', this.getAgentColor(agent));
     
     if (event.context_tokens) {
       eventItem.setAttribute('context-tokens', event.context_tokens);
     }
 
     eventItem.textContent = this.formatEventContent(event);
+    
+    // Apply filters to new item
+    let visible = true;
+    if (this.filterAgent && agent !== this.filterAgent) {
+      visible = false;
+    }
+    
+    // Check if type category is enabled in filter
+    const typeCategory = this.getTypeCategory(mappedType);
+    if (!this.filterTypes[typeCategory]) {
+      visible = false;
+    }
+    
+    if (!visible) {
+      eventItem.style.display = 'none';
+    }
+    
     this.appendChild(eventItem);
 
     this.dispatchEvent(new CustomEvent('new-event', {
