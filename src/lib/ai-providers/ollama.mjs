@@ -54,8 +54,8 @@ export class OllamaProvider extends BaseProvider {
     try {
       this.client = new Ollama({ host: this.baseUrl });
 
-      // Test connectivity by listing models
-      await this.client.list();
+      // Test connectivity by listing models with short timeout
+      await this.withTimeout(this.client.list(), 2000, 'Ollama connection timeout');
 
       this.initialized = true;
       log('debug', `✅ Ollama provider initialized (${this.baseUrl})`);
@@ -65,6 +65,18 @@ export class OllamaProvider extends BaseProvider {
         `Make sure Ollama is running. Error: ${error.message}`
       );
     }
+  }
+
+  /**
+   * Wrap a promise with a timeout
+   */
+  async withTimeout(promise, timeoutMs, timeoutMessage = 'Operation timed out') {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)
+      )
+    ]);
   }
 
   /**
@@ -171,7 +183,12 @@ export class OllamaProvider extends BaseProvider {
 
   async listModels() {
     try {
-      const response = await this.client.list();
+      // Add timeout for listing models
+      const response = await this.withTimeout(
+        this.client.list(),
+        2000,
+        'Timeout listing Ollama models'
+      );
 
       return response.models.map(m => ({
         id: m.name,
