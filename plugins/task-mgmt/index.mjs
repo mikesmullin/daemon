@@ -22,18 +22,8 @@ import * as tools from './tools.mjs';
 export default function registerTaskMgmtPlugin(_G) {
   const { log } = _G.utils || { log: console.log };
 
-  // Initialize database
-  try {
-    db.initializeDatabase();
-    if (typeof log === 'function') {
-      log('debug', '📋 Task Management database initialized');
-    }
-  } catch (error) {
-    if (typeof log === 'function') {
-      log('error', `Failed to initialize Task Management database: ${error.message}`);
-    }
-    throw error;
-  }
+  // Database is initialized lazily on first tool use via db.getDatabase()
+  // This prevents errors during plugin loading if db file is missing
 
   // Register: createTicket
   _G.tools.createTicket = {

@@ -9,7 +9,8 @@
   },
   "scripts": {
     "help": "bun src/daemon.mjs help",
-    "clean": "bun src/daemon.mjs clean"
+    "clean": "bun src/daemon.mjs clean",
+    "postinstall": "bash scripts/install-plugins.sh"
   },
   "keywords": [
     "github",

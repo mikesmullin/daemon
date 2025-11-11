@@ -64,7 +64,9 @@ async function loadPlugins() {
           }
         } catch (error) {
           if (error.code !== 'ENOENT') {
-            log('warn', `⚠️  Failed to load plugin ${entry.name}: ${error.message}`);
+            // Extract just the first line of error message for brevity
+            const errorMsg = error.message.split('\n')[0];
+            log('warn', `⚠️  Failed to load plugin ${entry.name}: ${errorMsg}. Run 'bun install' to verify plugin dependencies.`);
           }
           // If index.mjs doesn't exist, skip this plugin silently
         }
