@@ -1,5 +1,5 @@
 {
-  "name": "copilot-cli-minimal",
+  "name": "daemon",
   "version": "2.0.0",
   "type": "module",
   "description": "File-based multi-agent orchestrator using GitHub Copilot API",
