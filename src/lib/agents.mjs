@@ -197,8 +197,47 @@ export class Agent {
       }
       else {
         // Creating from a template
-        const templateFileName = `${agent}.yaml`;
-        const templatePath = path.join(_G.TEMPLATES_DIR, templateFileName);
+        // Support multi-path template resolution:
+        // 1. Check current working directory (process.cwd())
+        // 2. Check workspace root templates directory (_G.TEMPLATES_DIR)
+        
+        // Strip .yaml extension if provided by user
+        const agentName = agent.endsWith('.yaml') ? agent.slice(0, -5) : agent;
+        
+        const searchPaths = [
+          // Path 1: Current working directory
+          path.join(process.cwd(), `${agentName}.yaml`),
+          // Path 2: Workspace root templates directory (for bare names like 'solo')
+          path.join(_G.TEMPLATES_DIR, `${agentName}.yaml`),
+          // Path 3: Workspace root templates directory with agent as path
+          path.join(_G.TEMPLATES_DIR, agent.endsWith('.yaml') ? agent : `${agent}.yaml`)
+        ];
+        
+        let templatePath = null;
+        let foundPath = null;
+        
+        // Try each search path in order
+        for (const searchPath of searchPaths) {
+          try {
+            await fs.access(searchPath);
+            foundPath = searchPath;
+            log('debug', `✅ Found agent template at: ${searchPath}`);
+            break;
+          } catch (error) {
+            log('debug', `❌ Agent template not found at: ${searchPath}`);
+          }
+        }
+        
+        if (!foundPath) {
+          const searchPathsFormatted = searchPaths.map(p => `  - ${p}`).join('\n');
+          utils.abort(
+            `Agent template "${agent}" not found.\n\n` +
+            `Searched in:\n${searchPathsFormatted}\n\n` +
+            `Available templates: ${await Agent.listAvailable().then(t => t.map(a => a.name).join(', '))}`
+          );
+        }
+        
+        templatePath = foundPath;
         sessionContent = await utils.readYaml(templatePath);
 
         // Ensure spec exists (YAML parses empty "spec:" as null)

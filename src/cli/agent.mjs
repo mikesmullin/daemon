@@ -11,6 +11,9 @@ import { Session } from '../lib/session.mjs';
 import utils, { log } from '../lib/utils.mjs';
 import color from '../lib/colors.mjs';
 
+// Agent name regex: allows file path characters (alphanumeric, hyphen, underscore, forward slash, dot)
+const AGENT_NAME_PATTERN = /^@([\w\-\/\.]+)/;
+
 export async function handleAgentCommand(args, last) {
   const subcommand = args[1];
 
@@ -28,7 +31,7 @@ export async function handleAgentCommand(args, last) {
 
   // Non-interactive mode: parse @agent prompt pattern
   const fullPrompt = args.slice(1).join(' ');
-  const agentMatch = fullPrompt.match(/^@([\w-]+)\s+(.+)$/);
+  const agentMatch = fullPrompt.match(new RegExp(AGENT_NAME_PATTERN.source + '\\s+(.+)$'));
 
   if (!agentMatch) {
     utils.abort(
@@ -56,7 +59,7 @@ async function handleInteractiveMode(args, last) {
   }
 
   const agentArg = args[1];
-  const agentMatch = agentArg.match(/^@([\w-]+)$/);
+  const agentMatch = agentArg.match(AGENT_NAME_PATTERN);
 
   if (!agentMatch) {
     utils.abort(

@@ -106,6 +106,9 @@ Reusable agent blueprints that define specialized behaviors:
 - Available tools and model preferences  
 - Behavioral parameters and constraints
 - Versioned and shareable across projects
+- **Flexible template resolution** - Reference templates by name (`@solo`) or path (`@custom/agent`, `@./my-agent.yaml`)
+  - Searches current working directory first, then workspace templates directory
+  - Organize templates in subdirectories for better project structure
 - Future: Templates for complex multi-agent collaboration patterns
 
 ### Agent Sessions (`agents/sessions/`)
@@ -175,6 +178,10 @@ Direct control over agent conversations:
 d agent @solo "Check if Redis is running with podman"
 d agent @executor "Deploy the application to staging"
 d agent --last @solo "What is the current time?"  # Only show final response
+
+# Use custom agent templates from subdirectories or paths
+d agent @custom/my-agent "Run custom task"
+d agent @./local-agent.yaml "Use local template"
 
 # Or use agent tools directly for more control
 d tool create_agent '{"agent":"solo","prompt":"Check if Redis is running with podman"}'
