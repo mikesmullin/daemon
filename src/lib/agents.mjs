@@ -294,7 +294,6 @@ export class Agent {
   static async prompt({ model, messages, tools = [], max_tokens }) {
     const modelName = model || 'claude-sonnet-4';
 
-
     try {
       // Get the appropriate provider for this model
       const provider = await registry.getProvider(modelName);
@@ -408,11 +407,106 @@ export class Agent {
         // user has run the tool and the result is pending for assistant
         (last_message.role == 'tool')
       ) {
+        // Check if user interrupted in interactive mode
+        if (_G.signalHandler.interruptRequested && _G.cliFlags.interactive) {
+          log('debug', '⚠️  User interrupted - prompting for new input');
+          _G.signalHandler.interruptRequested = false;
+          
+          // Import TUI prompt module
+          const { prompt: tuiPrompt } = await import('../lib/tui.mjs');
+          
+          // Set FSM state to ask_human
+          _G.fsmState = 'ask_human';
+          
+          // Prompt user for new input
+          const userInput = await tuiPrompt('> ');
+          
+          // Reset FSM state
+          _G.fsmState = 'normal';
+          
+          if (userInput && userInput.trim()) {
+            // Add user's new input as a message
+            const newUserMessage = {
+              ts: utils.unixToIso(utils.unixTime()),
+              role: 'user',
+              content: userInput.trim()
+            };
+            
+            if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
+            sessionContent.spec.messages.push(newUserMessage);
+            sessionUpdated = true;
+            
+            // Update last_message to reflect the new user input
+            last_message = newUserMessage;
+            
+            // Log the new user message
+            utils.logUser(newUserMessage.content, newUserMessage.ts);
+            
+            // Save the session with the new message
+            await utils.writeYaml(sessionPath, sessionContent);
+            
+            // Update lastRead to prevent re-logging
+            await Session.updateLastRead(session_id, newUserMessage.ts);
+            
+            // Rebuild messages array for API call
+            messages.push(_.omit(newUserMessage, ['ts']));
+          } else {
+            // User provided empty input, continue with original flow
+            log('debug', 'Empty input received, continuing agent execution');
+          }
+        }
+
         const response = await Agent.prompt({
           model: sessionContent.metadata.model,
           messages: messages,
           tools: toolDefinitions,
         });
+
+        // Check if user interrupted in interactive mode after API response
+        if (_G.signalHandler.interruptRequested && _G.cliFlags.interactive) {
+          log('debug', '⚠️  User interrupted - prompting for new input');
+          _G.signalHandler.interruptRequested = false;
+          
+          // Import TUI prompt module
+          const { prompt: tuiPrompt } = await import('../lib/tui.mjs');
+          
+          // Set FSM state to ask_human
+          _G.fsmState = 'ask_human';
+          
+          // Prompt user for new input
+          const userInput = await tuiPrompt('> ');
+          
+          // Reset FSM state
+          _G.fsmState = 'normal';
+          
+          if (userInput && userInput.trim()) {
+            // Add user's new input as a message
+            const newUserMessage = {
+              ts: utils.unixToIso(utils.unixTime()),
+              role: 'user',
+              content: userInput.trim()
+            };
+            
+            if (null == sessionContent.spec.messages) sessionContent.spec.messages = [];
+            sessionContent.spec.messages.push(newUserMessage);
+            
+            // Log the new user message
+            utils.logUser(newUserMessage.content, newUserMessage.ts);
+            
+            // Save the session with the new message
+            await utils.writeYaml(sessionPath, sessionContent);
+            
+            // Update lastRead to prevent re-logging
+            await Session.updateLastRead(session_id, newUserMessage.ts);
+            
+            // Set state to pending so agent will be re-evaluated with new message
+            await Agent.state(session_id, 'pending');
+            return;
+          } else {
+            // User provided empty input, continue with normal flow
+            log('debug', 'Empty input received, continuing agent execution');
+          }
+        }
 
         // Emit observability event for assistant response
         if (response.choices && response.choices.length > 0) {

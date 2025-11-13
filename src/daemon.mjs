@@ -92,7 +92,17 @@ process.on('SIGINT', async () => {
     }
   }
 
-  // Normal state - clean shutdown
+  // Normal state - check if in interactive mode
+  if (_G.cliFlags.interactive) {
+    // In interactive mode, Ctrl+C should interrupt and prompt for new input
+    log('info', '\n⚠️  Interrupting agent (will prompt after current operation completes)...');
+    
+    // Set interrupt flag for the agent loop to handle
+    _G.signalHandler.interruptRequested = true;
+    return; // Don't exit, let the agent handle the interruption
+  }
+
+  // Non-interactive mode - clean shutdown
   log('info', '\n🛑 Shutting down...');
   // Kill all child processes before exit
   for (const proc of _G.childProcesses) {

@@ -31,6 +31,7 @@ export let _G = {
   // Signal handling state
   signalHandler: {
     abortRequested: false,  // Set to true when ctrl+c is pressed during tool execution
+    interruptRequested: false, // Set to true when ctrl+c is pressed in interactive mode (normal state)
     currentToolCallId: null, // Currently executing tool call ID
     currentSessionId: null, // Session currently being processed
   }
