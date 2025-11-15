@@ -87,7 +87,10 @@ export async function handleWatchCommand(args) {
   // Run initial pump
   await performWatchPump();
 
-  log('info', '👀 Watch mode started with serial execution. Press Ctrl+C to stop.');
+  const concurrencyInfo = _G.cliFlags.concurrency 
+    ? ` with concurrency limit of ${_G.cliFlags.concurrency}` 
+    : ' with parallel execution (no limit)';
+  log('info', `👀 Watch mode started${concurrencyInfo}. Press Ctrl+C to stop.`);
 
   // Keep the process alive - the watch loop will exit via process.exit() when done
   await new Promise(() => { }); // Never resolves
@@ -103,17 +106,22 @@ Description:
   Runs in an infinite loop until interrupted with Ctrl+C. Useful for background
   operation and continuous delegation workflows.
 
+  Sessions are processed in parallel by default. Use -c to limit concurrency.
+
   The watch interval is configured in config.yaml (daemon.watch_poll_interval).
 
 Options:
+  -c, --concurrency <n>   Limit concurrent session processing (default: unlimited)
   --session <id>          Only process the specified session
   --labels <a,b,c>        Only process sessions with ALL specified labels (comma-separated)
   --no-humans             Auto-reject tool requests not on allowlist (unattended mode)
 
 Examples:
-  d watch                         # Watch all sessions
+  d watch                         # Watch all sessions (parallel, no limit)
+  d watch -c 3                    # Watch all sessions (max 3 concurrent)
   d watch --session 5             # Watch only session 5
   d watch --labels subagent       # Watch only subagent sessions
   d watch --labels a,b --no-humans # Watch sessions with labels 'a' AND 'b', unattended
+  d watch -c 5 --labels subagent  # Watch subagent sessions (max 5 concurrent)
 `);
 }

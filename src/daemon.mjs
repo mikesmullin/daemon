@@ -151,6 +151,7 @@ async function parseCliArgs() {
   let interactive = false;
   let noHumans = false;
   let observePort = null;
+  let concurrency = null;
 
   // Parse -t=<n> or --timeout=<n>
   for (let i = 0; i < args.length; i++) {
@@ -165,6 +166,25 @@ async function parseCliArgs() {
     } else if (args[i] === '-t' || args[i] === '--timeout') {
       if (i + 1 < args.length) {
         timeout = parseInt(args[i + 1], 10);
+        args.splice(i, 2);
+        i--;
+      }
+    }
+  }
+
+  // Parse -c=<n> or --concurrency=<n>
+  for (let i = 0; i < args.length; i++) {
+    if (args[i].startsWith('-c=')) {
+      concurrency = parseInt(args[i].substring(3), 10);
+      args.splice(i, 1);
+      i--;
+    } else if (args[i].startsWith('--concurrency=')) {
+      concurrency = parseInt(args[i].substring(14), 10);
+      args.splice(i, 1);
+      i--;
+    } else if (args[i] === '-c' || args[i] === '--concurrency') {
+      if (i + 1 < args.length) {
+        concurrency = parseInt(args[i + 1], 10);
         args.splice(i, 2);
         i--;
       }
@@ -236,7 +256,7 @@ async function parseCliArgs() {
   }
 
   // Store global flags in _G for access throughout the app
-  _G.cliFlags = { timeout, lock, kill, interactive, noHumans, session, labels };
+  _G.cliFlags = { timeout, lock, kill, interactive, noHumans, session, labels, concurrency };
   _G.observePort = observePort;
   
   // Initialize observability if enabled
@@ -354,6 +374,7 @@ Subcommands:
 
 Global Options:
   -t, --timeout <n>   Abort if session runs longer than <n> seconds
+  -c, --concurrency <n> Limit concurrent session processing (watch mode only)
   -l, --lock          Abort if another instance of this agent type is running
   -k, --kill          Kill any running instance of this agent type before starting
   -i, --interactive   (agent only) Prompt for input using multi-line text editor

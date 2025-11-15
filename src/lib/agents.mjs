@@ -738,15 +738,42 @@ export class Agent {
 
     // log(0 == pendingSessions.length ? 'debug' : 'info', `Processing ${pendingSessions.length} pending session(s)`);
 
+    const concurrencyLimit = _G.cliFlags?.concurrency;
     let processed = 0;
-    for (const session of pendingSessions) {
+
+    // Helper function to process a single session
+    const processSession = async (session) => {
       try {
         log('debug', `🔄 Processing session ${session.session_id} (${session.agent})`);
         await Agent.eval(session.session_id);
-        processed++;
+        return { success: true, session_id: session.session_id };
       } catch (error) {
         log('error', `❌ Failed to process session ${session.session_id}: ${error.message}`);
+        return { success: false, session_id: session.session_id, error };
       }
+    };
+
+    if (concurrencyLimit && concurrencyLimit > 0) {
+      // Process in batches with concurrency limit
+      for (let i = 0; i < pendingSessions.length; i += concurrencyLimit) {
+        const batch = pendingSessions.slice(i, i + concurrencyLimit);
+        log('debug', `🔄 Processing batch of ${batch.length} sessions (limit: ${concurrencyLimit})`);
+        
+        const results = await Promise.allSettled(batch.map(processSession));
+        
+        // Count successful processes
+        processed += results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      }
+    } else {
+      // No concurrency limit - process all in parallel
+      if (pendingSessions.length > 0) {
+        log('debug', `🔄 Processing ${pendingSessions.length} sessions in parallel (no limit)`);
+      }
+      
+      const results = await Promise.allSettled(pendingSessions.map(processSession));
+      
+      // Count successful processes
+      processed = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
     }
 
     return { processed, total: pendingSessions.length };
