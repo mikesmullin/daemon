@@ -24,6 +24,11 @@ for plugin_dir in "$PLUGINS_DIR"/*; do
       echo "📦 Installing dependencies for plugin: $plugin_name"
       
       if (cd "$plugin_dir" && bun install); then
+        # Check if package.json has sharp as a dependency
+        if grep -q '"sharp"' "$package_json"; then
+          echo "🔨 Rebuilding sharp native bindings for $plugin_name..."
+          (cd "$plugin_dir" && npm rebuild sharp 2>/dev/null || true)
+        fi
         echo "✅ $plugin_name - installed successfully"
         ((installed_count++))
       else
