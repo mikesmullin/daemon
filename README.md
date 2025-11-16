@@ -231,14 +231,14 @@ The orchestrator pattern enables voice-driven, parallel multi-agent workflows. A
 
 **Terminal 1 (Secondary - Start this first):**
 ```bash
-LOG=-debug d watch --labels subagent --no-human
+d watch --labels subagent --no-human
 ```
 
 This starts the background worker that processes all subagent sessions in parallel with automatic rejection (with advice to use allowlisted commands) for non-allowlisted commands.
 
 **Terminal 2 (Primary - Your interaction point):**
 ```bash
-LOG=-debug d agent -i @ada
+d agent -i @ada
 ```
 
 This creates an orchestrator agent session that runs in a REPL-like loop.
@@ -345,9 +345,10 @@ See [config.yaml](config.yaml) for current settings.
 Filter using the `LOG` environment variable:
 
 ```bash
-LOG=*                    # (default) Enable all logging (debug, info, warn, error)
+LOG=-debug               # (default) Everything except debug messages
+LOG=*                    # Enable all logging (debug, info, warn, error)
 LOG=warn,error           # Only warnings and errors
-LOG=-debug               # Everything except debug messages
+LOG=debug                # Only debug messages
 ```
 
 ## Development

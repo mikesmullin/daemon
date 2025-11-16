@@ -407,7 +407,7 @@ Examples:
 }
 
 async function handleQuickPrompt(args) {
-  if (logWasUndefined) process.env.LOG = ''; // only show warnings
+  if (logWasUndefined) process.env.LOG = 'warn,error'; // only show warnings and errors
   await getConfig();
   const prompt = args.join(' ');
 
@@ -446,7 +446,7 @@ async function handleQuickPrompt(args) {
 (async () => {
   if (undefined == process.env.LOG) {
     logWasUndefined = true;
-    process.env.LOG = '*'; // show all logs
+    process.env.LOG = '-debug'; // show all logs except debug
   }
 
   utils.initializeDirectories();
