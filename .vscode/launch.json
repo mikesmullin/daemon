@@ -3,20 +3,18 @@
   "configurations": [
     {
       "name": "Debug Daemon Pump",
-      "type": "node",
+      "type": "bun",
       "request": "launch",
       "program": "${workspaceFolder}/src/daemon.mjs",
       "args": [
-        // "pump"
-        //"fork", "executor", "Write a Python script that prints the numbers from 1 to 10."
-        //"new", "planner", "Who are you?"
-        //"eval", "0"
-        //"tool", "--format", "yaml", "read_file", "{\"path\": \"memory/system-config.md\"}"
-        "eval",
-        "0"
+        "agent",
+        "--no-human",
+        "@solo-pty",
+        "open a ptty and type `worklappy` which is a bash alias that will open an ssh connection to my macos work laptop. then look in `~/Workspace/me`."
       ],
       "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal"
+      "stopOnEntry": false,
+      "noDebug": false,      
     }
   ]
 }
