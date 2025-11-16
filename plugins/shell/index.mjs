@@ -201,16 +201,7 @@ export default function registerShellPlugin(_G) {
       }
     },
     metadata: {
-      requiresHumanApproval: true,
-      
-      getApprovalPrompt: async (args, context) => {
-        return `Create PTY session:\n` +
-          `  Name: ${args.name || 'unnamed'}\n` +
-          `  Shell: ${args.shell || 'default'}\n` +
-          `  CWD: ${args.cwd || 'current'}\n` +
-          `  Initial commands: ${args.initialCommands || 'none'}\n\n` +
-          `⚠️  This creates a persistent terminal session with full shell access.`;
-      }
+      requiresHumanApproval: false
     },
     execute: async (args, options = {}) => {
       try {
@@ -632,12 +623,7 @@ export default function registerShellPlugin(_G) {
       }
     },
     metadata: {
-      requiresHumanApproval: true,
-      
-      getApprovalPrompt: async (args, context) => {
-        return `Close PTY session ${args.sessionId}${args.force ? ' (forced)' : ''}.\n\n` +
-          `⚠️  This will terminate the terminal session.`;
-      }
+      requiresHumanApproval: false
     },
     execute: async (args, options = {}) => {
       try {

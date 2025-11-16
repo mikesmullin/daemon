@@ -97,6 +97,34 @@ export class Tool {
         }
 
         // If 'allow' or approved, proceed to execution
+      } else if (tool.metadata?.requiresHumanApproval) {
+        // No preToolUse hook, but tool requires human approval
+        const approval = await Tool.askHuman(name, args, sessionId);
+
+        if (approval.action === 'rejected') {
+          const message = approval.autoRejected && approval.message
+            ? approval.message
+            : "The user refused to run the tool. You may try alternatives, or ask them to explain.";
+
+          return {
+            content: message,
+            metadata: {
+              rejected: true,
+              reason: approval.autoRejected ? 'auto_rejection_no_humans' : 'user_rejection'
+            },
+            success: false
+          };
+        }
+
+        if (approval.action === 'modified') {
+          return {
+            content: `The user refused to run the tool. Try this instead: ${approval.prompt}`,
+            metadata: { modified: true, user_prompt: approval.prompt },
+            success: false
+          };
+        }
+
+        // If approved, continue to execution
       }
 
       // 2. Execute the tool

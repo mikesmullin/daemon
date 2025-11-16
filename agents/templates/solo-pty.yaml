@@ -2,20 +2,26 @@
 apiVersion: daemon/v1
 kind: Agent
 metadata:
-  description: General purpose agent for complex reasoning and problem-solving tasks
+  description: General purpose agent for complex reasoning and problem-solving tasks (via SSH/PTY)
   model: copilot:claude-sonnet-4
   #model: xai:grok-code-fast-1
   # model: ollama:qwen3:8b
   tools:
-  - create_file
-  - view_file
-  - edit_file
-  - apply_patch
-  - list_directory
-  - create_directory
-  - grep_search
-  - execute_shell
+  #- create_file
+  #- view_file
+  #- edit_file
+  #- apply_patch
+  #- list_directory
+  #- create_directory
+  #- grep_search
+  #- execute_shell
   - fetch_webpage
+  - create_ptty
+  - send_command_to_ptty
+  #- send_text_to_ptty
+  #- send_keys_to_ptty
+  - read_ptty
+  - close_ptty
   labels:
   - subagent
 spec:
