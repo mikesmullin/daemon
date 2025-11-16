@@ -95,6 +95,32 @@ export class OllamaProvider extends BaseProvider {
     }));
   }
 
+  /**
+   * Convert messages to Ollama format
+   * Ollama expects tool_calls.function.arguments to be an object, not a string
+   */
+  convertMessagesToOllama(messages) {
+    return messages.map(msg => {
+      // If message has tool_calls, ensure arguments are objects not strings
+      if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
+        return {
+          ...msg,
+          tool_calls: msg.tool_calls.map(tc => ({
+            ...tc,
+            function: {
+              ...tc.function,
+              // Parse arguments if it's a string
+              arguments: typeof tc.function.arguments === 'string' 
+                ? JSON.parse(tc.function.arguments) 
+                : tc.function.arguments
+            }
+          }))
+        };
+      }
+      return msg;
+    });
+  }
+
   async createChatCompletion({ model, messages, tools = [], max_tokens }) {
     const startTime = Date.now();
     let firstTokenTime = null;
@@ -102,10 +128,11 @@ export class OllamaProvider extends BaseProvider {
 
     try {
       const ollamaTools = this.convertToolsToOllama(tools);
+      const ollamaMessages = this.convertMessagesToOllama(messages);
 
       const options = {
         model: model,
-        messages: messages,
+        messages: ollamaMessages,
         stream: false,
         options: {}
       };
