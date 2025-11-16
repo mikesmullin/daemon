@@ -238,7 +238,10 @@ export async function writeYaml(file, data) {
       lineWidth: -1,           // Disable line wrapping
       noRefs: true,            // Disable anchors and aliases
       quotingType: '"',        // Use double quotes for strings
-      forceQuotes: false       // Only quote strings when necessary
+      forceQuotes: false,       // Only quote strings when necessary
+      styles: {
+        '!!str': 'literal'     // Use literal block scalar (|) for all multi-line strings
+      }
     });
     await writeFile(file, yamlStr, 'utf8');
   } catch (error) {

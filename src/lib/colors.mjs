@@ -130,8 +130,9 @@ export const chain = createChainable;
 
 // Strip ANSI escape sequences from a string to get its visual length
 color.stripAnsi = function (str) {
-  // ANSI escape sequence regex pattern
-  const ansiRegex = /\x1b\[[0-9;]*m/g;
+  // ANSI escape sequence regex pattern - matches SGR codes (m) and other sequences like bracketed paste mode
+  // Handles: \x1b[...m (color codes), \x1b[?...h (modes), \x1b[...h/l etc
+  const ansiRegex = /\x1b\[[0-9;?]*[a-zA-Z]/g;
   return str.replace(ansiRegex, '');
 };
 

@@ -341,12 +341,12 @@ export class Tool {
               // Use the content field for API compatibility, but keep rich metadata
               const content = result.content || JSON.stringify(result, null, 2);
 
-              // Add tool result message to session
+              // Add tool result message to session (strip ANSI codes for clean YAML serialization)
               sessionContent.spec.messages.push({
                 ts: new Date().toISOString(),
                 role: 'tool',
                 tool_call_id: toolCall.id,
-                content,
+                content: color.stripAnsi(content),
               });
 
               if (result.success) {
