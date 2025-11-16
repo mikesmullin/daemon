@@ -27,6 +27,7 @@
     "@anthropic-ai/sdk": "^0.32.1",
     "@google/genai": "^0.4.0",
     "@google/generative-ai": "^0.21.0",
+    "bun-pty": "^0.3.2",
     "chokidar": "^3.6.0",
     "clipboardy": "^5.0.0",
     "dotenv": "^16.4.5",

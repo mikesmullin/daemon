@@ -448,6 +448,18 @@ _G.tools.delete_agent = {
       // Also mark the BT state as failed
       await Agent.kill(args.session_id, 'fail');
 
+      // Clean up any PTY sessions for this agent
+      try {
+        const { ptyManager } = await import('../../plugins/shell/pty-manager.mjs');
+        const closedCount = ptyManager.closeAgentSessions(args.session_id.toString());
+        if (closedCount > 0) {
+          utils.logAgent(`Closed ${closedCount} PTY session(s) for agent ${args.session_id}`);
+        }
+      } catch (error) {
+        // PTY manager might not be loaded, ignore
+        log('debug', `Could not clean up PTY sessions: ${error.message}`);
+      }
+
       // Log the operation
       utils.logAgent(`Soft-deleted subagent session ${args.session_id}`);
 
