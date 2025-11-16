@@ -2,7 +2,9 @@
 //
 // - execute_shell(command, cwd) // Execute a shell command
 // - create_ptty(name, cwd, env, shell, initialCommands) // Create a PTY session
-// - send_to_ptty(sessionId, text, wait) // Send text to PTY session
+// - send_text_to_ptty(sessionId, text, wait) // Send text to PTY session
+// - send_keys_to_ptty(sessionId, key, wait) // Send special keys to PTY session
+// - send_command_to_ptty(sessionId, command, sleep) // Send command with ENTER to PTY session
 // - read_ptty(sessionId, lines, sinceLastRead) // Read PTY buffer
 // - close_ptty(sessionId, force) // Close PTY session
 //
@@ -227,7 +229,7 @@ export default function registerShellPlugin(_G) {
             `Name: ${session.name}\n` +
             `Shell: ${session.shell}\n` +
             `Working directory: ${session.cwd}\n\n` +
-            `Use send_to_ptty to send commands and read_ptty to read output.`,
+            `Use send_command_to_ptty to execute commands, and read_ptty to read output.`,
           metadata: {
             sessionId: session.id,
             name: session.name,
@@ -245,8 +247,8 @@ export default function registerShellPlugin(_G) {
     }
   };
 
-  // Register: send_to_ptty
-  _G.tools.send_to_ptty = {
+  // Register: send_text_to_ptty
+  _G.tools.send_text_to_ptty = {
     definition: {
       type: 'function',
       function: {
@@ -439,7 +441,7 @@ export default function registerShellPlugin(_G) {
       type: 'function',
       function: {
         name: 'send_command_to_ptty',
-        description: 'Send a command to a PTY session (automatically appends ENTER) and wait to collect output. Use this as a convenience instead of send_to_ptty + send_keys_to_ptty.',
+        description: 'Send a command to a PTY session (automatically appends ENTER) and wait to collect output. Use this as a convenience instead of send_text_to_ptty + send_keys_to_ptty.',
         parameters: {
           type: 'object',
           properties: {
@@ -463,6 +465,31 @@ export default function registerShellPlugin(_G) {
     },
     metadata: {
       requiresHumanApproval: true,
+
+      preToolUse: async (args, context) => {
+        // Security check - delegate to existing allowlist system
+        // This determines if human approval is needed
+        try {
+          const checkResult = await checkCommand(args.command);
+
+          if (checkResult.approved) {
+            return 'allow';  // Execute without approval
+          } else {
+            // Check if it's explicitly denied or just needs approval
+            const isDenied = checkResult.details?.fullLineCheck?.denied ||
+              checkResult.details?.subCommandChecks?.some(c => c.denied);
+
+            if (isDenied) {
+              return 'deny';   // Block execution entirely
+            } else {
+              return 'approve'; // Request human approval
+            }
+          }
+        } catch (error) {
+          // If allowlist check fails, require approval as safety measure
+          return 'approve';
+        }
+      },
       
       getApprovalPrompt: async (args, context) => {
         return `Execute command in PTY session ${args.sessionId}:\n` +
