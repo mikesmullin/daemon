@@ -323,8 +323,12 @@ export class Tool {
 
               if (result.success) {
                 log('info', `✅ Tool ${color.bold(toolCall.function.name)} succeeded. #${toolCall.id}`);
+                // Log the tool response content immediately
+                utils.logToolResponse(content);
               } else {
                 log('error', `❌ Tool ${color.bold(toolCall.function.name)} failed. #${toolCall.id} Error: ${content}`);
+                // Still log the response for failed tools
+                utils.logToolResponse(content);
               }
 
             } catch (error) {

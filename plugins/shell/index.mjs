@@ -448,7 +448,7 @@ export default function registerShellPlugin(_G) {
       type: 'function',
       function: {
         name: 'send_command_to_ptty',
-        description: 'Execute a command in a PTY session and wait for it to complete. Automatically appends ENTER and captures exit code. Note: stdout and stderr are merged in PTY sessions.',
+        description: 'Send a command to a PTY session (automatically appends ENTER) and wait to collect output. Use this as a convenience instead of send_to_ptty + send_keys_to_ptty.',
         parameters: {
           type: 'object',
           properties: {
@@ -460,10 +460,10 @@ export default function registerShellPlugin(_G) {
               type: 'string',
               description: 'Command to execute (ENTER will be automatically appended)'
             },
-            timeout: {
+            sleep: {
               type: 'number',
-              description: 'Maximum seconds to wait for command completion (default: 30)',
-              default: 30
+              description: 'Seconds to wait after sending command before returning results (default: 1). Increase for commands that take longer to produce output.',
+              default: 1
             }
           },
           required: ['sessionId', 'command']
@@ -476,8 +476,8 @@ export default function registerShellPlugin(_G) {
       getApprovalPrompt: async (args, context) => {
         return `Execute command in PTY session ${args.sessionId}:\n` +
           `  Command: ${args.command}\n` +
-          `  Timeout: ${args.timeout || 30} seconds\n\n` +
-          `⚠️  This will execute the command and wait for completion.`;
+          `  Sleep time: ${args.sleep || 1} seconds\n\n` +
+          `⚠️  This will send the command and wait for output.`;
       }
     },
     execute: async (args, options = {}) => {
@@ -496,107 +496,31 @@ export default function registerShellPlugin(_G) {
           };
         }
         
-        const timeout = args.timeout || 30;
+        const sleepSeconds = args.sleep || 1;
         const startTime = Date.now();
         
-        // Generate unique markers
-        const startMarker = `__PTY_CMD_START_${Date.now()}__`;
-        const endMarker = `__PTY_CMD_END_${Date.now()}__`;
+        // Record buffer position before sending command
+        const bufferBefore = session.buffer.length;
         
-        // Clear any pending input and get baseline buffer size
-        const initialBufferSize = session.buffer.length;
+        // Send command followed by ENTER
+        session.write(args.command + '\r');
         
-        // Construct command with markers and exit code capture
-        // Format: echo START_MARKER; (your command); EXIT_CODE=$?; echo END_MARKER; echo "EXIT_CODE:$EXIT_CODE"
-        const wrappedCommand = `echo "${startMarker}"; (${args.command}); EXIT_CODE=$?; echo "${endMarker}"; echo "EXIT_CODE:$EXIT_CODE"\r`;
-        
-        // Send the wrapped command
-        session.write(wrappedCommand);
-        
-        // Wait for command completion by polling for end marker
-        const pollInterval = 100; // ms
-        const maxPolls = (timeout * 1000) / pollInterval;
-        let polls = 0;
-        let foundEndMarker = false;
-        
-        while (polls < maxPolls && !foundEndMarker) {
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
-          polls++;
-          
-          // Read current buffer
-          const currentBuffer = session.buffer.join('\n');
-          
-          // Check if end marker is present
-          if (currentBuffer.includes(endMarker)) {
-            foundEndMarker = true;
-            break;
-          }
-        }
+        // Wait for the specified sleep time to collect output
+        await new Promise(resolve => setTimeout(resolve, sleepSeconds * 1000));
         
         const executionTime = Date.now() - startTime;
         
-        if (!foundEndMarker) {
-          return {
-            success: false,
-            content: `Command timed out after ${timeout} seconds.\n\nPartial output:\n${session.buffer.slice(-20).join('\n')}`,
-            metadata: {
-              sessionId: args.sessionId,
-              command: args.command,
-              timedOut: true,
-              executionTime,
-              timeout
-            }
-          };
-        }
-        
-        // Extract output between markers
-        const fullBuffer = session.buffer.join('\n');
-        const startIndex = fullBuffer.indexOf(startMarker);
-        const endIndex = fullBuffer.indexOf(endMarker);
-        
-        if (startIndex === -1 || endIndex === -1) {
-          return {
-            success: false,
-            content: `Failed to parse command output (markers not found).\n\nBuffer:\n${fullBuffer.slice(-500)}`,
-            metadata: {
-              sessionId: args.sessionId,
-              command: args.command,
-              error: 'marker_parse_error'
-            }
-          };
-        }
-        
-        // Extract the output between markers
-        let output = fullBuffer.substring(startIndex + startMarker.length, endIndex).trim();
-        
-        // Remove the command echo if present (shells often echo the command)
-        // Remove lines that match the wrapped command pattern
-        const lines = output.split('\n');
-        const cleanedLines = lines.filter(line => {
-          const trimmed = line.trim();
-          return trimmed && 
-                 !trimmed.includes(startMarker) && 
-                 !trimmed.includes(endMarker) &&
-                 !trimmed.startsWith('echo "') &&
-                 trimmed !== args.command;
-        });
-        output = cleanedLines.join('\n').trim();
-        
-        // Extract exit code
-        const exitCodeMatch = fullBuffer.match(/EXIT_CODE:(\d+)/);
-        const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : null;
-        
-        const success = exitCode === 0;
+        // Get all new output since command was sent
+        const newLines = session.buffer.slice(bufferBefore);
+        const output = newLines.join('\n').trim();
         
         return {
-          success,
+          success: true,
           content: output || '(no output)',
           metadata: {
             sessionId: args.sessionId,
             command: args.command,
             output,
-            exitCode,
-            timedOut: false,
             executionTime
           }
         };

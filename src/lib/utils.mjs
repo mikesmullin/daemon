@@ -581,7 +581,8 @@ export function logTask(text) {
 
 export function logToolResponse(text, messageTimestamp = null) {
   console.log('');
-  const truncatedText = text.length > 255 ? text.slice(0, 255) + '...' : text;
+  const sz = 1024;
+  const truncatedText = text.length > sz ? text.slice(0, sz) + '...' : text;
   log('info', bqIconLabel('brightBlue', '🔧', color.brightBlue('Tool Response'), '\n' + truncatedText), messageTimestamp);
   console.log('');
 }
