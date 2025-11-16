@@ -357,7 +357,7 @@ export default function registerShellPlugin(_G) {
       }
     },
     metadata: {
-      requiresHumanApproval: true,
+      requiresHumanApproval: false,
       
       getApprovalPrompt: async (args, context) => {
         return `Send key to PTY session ${args.sessionId}:\n` +
