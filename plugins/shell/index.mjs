@@ -442,6 +442,174 @@ export default function registerShellPlugin(_G) {
     }
   };
 
+  // Register: send_command_to_ptty
+  _G.tools.send_command_to_ptty = {
+    definition: {
+      type: 'function',
+      function: {
+        name: 'send_command_to_ptty',
+        description: 'Execute a command in a PTY session and wait for it to complete. Automatically appends ENTER and captures exit code. Note: stdout and stderr are merged in PTY sessions.',
+        parameters: {
+          type: 'object',
+          properties: {
+            sessionId: {
+              type: 'string',
+              description: 'ID of the PTY session'
+            },
+            command: {
+              type: 'string',
+              description: 'Command to execute (ENTER will be automatically appended)'
+            },
+            timeout: {
+              type: 'number',
+              description: 'Maximum seconds to wait for command completion (default: 30)',
+              default: 30
+            }
+          },
+          required: ['sessionId', 'command']
+        }
+      }
+    },
+    metadata: {
+      requiresHumanApproval: true,
+      
+      getApprovalPrompt: async (args, context) => {
+        return `Execute command in PTY session ${args.sessionId}:\n` +
+          `  Command: ${args.command}\n` +
+          `  Timeout: ${args.timeout || 30} seconds\n\n` +
+          `⚠️  This will execute the command and wait for completion.`;
+      }
+    },
+    execute: async (args, options = {}) => {
+      try {
+        // Get agent session ID from context
+        const agentSessionId = options.context?.sessionId || 'unknown';
+        
+        // Get PTY session
+        const session = ptyManager.getSession(agentSessionId, args.sessionId);
+        
+        if (!session) {
+          return {
+            success: false,
+            content: `PTY session '${args.sessionId}' not found. Use create_ptty first.`,
+            metadata: { error: 'session_not_found' }
+          };
+        }
+        
+        const timeout = args.timeout || 30;
+        const startTime = Date.now();
+        
+        // Generate unique markers
+        const startMarker = `__PTY_CMD_START_${Date.now()}__`;
+        const endMarker = `__PTY_CMD_END_${Date.now()}__`;
+        
+        // Clear any pending input and get baseline buffer size
+        const initialBufferSize = session.buffer.length;
+        
+        // Construct command with markers and exit code capture
+        // Format: echo START_MARKER; (your command); EXIT_CODE=$?; echo END_MARKER; echo "EXIT_CODE:$EXIT_CODE"
+        const wrappedCommand = `echo "${startMarker}"; (${args.command}); EXIT_CODE=$?; echo "${endMarker}"; echo "EXIT_CODE:$EXIT_CODE"\r`;
+        
+        // Send the wrapped command
+        session.write(wrappedCommand);
+        
+        // Wait for command completion by polling for end marker
+        const pollInterval = 100; // ms
+        const maxPolls = (timeout * 1000) / pollInterval;
+        let polls = 0;
+        let foundEndMarker = false;
+        
+        while (polls < maxPolls && !foundEndMarker) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          polls++;
+          
+          // Read current buffer
+          const currentBuffer = session.buffer.join('\n');
+          
+          // Check if end marker is present
+          if (currentBuffer.includes(endMarker)) {
+            foundEndMarker = true;
+            break;
+          }
+        }
+        
+        const executionTime = Date.now() - startTime;
+        
+        if (!foundEndMarker) {
+          return {
+            success: false,
+            content: `Command timed out after ${timeout} seconds.\n\nPartial output:\n${session.buffer.slice(-20).join('\n')}`,
+            metadata: {
+              sessionId: args.sessionId,
+              command: args.command,
+              timedOut: true,
+              executionTime,
+              timeout
+            }
+          };
+        }
+        
+        // Extract output between markers
+        const fullBuffer = session.buffer.join('\n');
+        const startIndex = fullBuffer.indexOf(startMarker);
+        const endIndex = fullBuffer.indexOf(endMarker);
+        
+        if (startIndex === -1 || endIndex === -1) {
+          return {
+            success: false,
+            content: `Failed to parse command output (markers not found).\n\nBuffer:\n${fullBuffer.slice(-500)}`,
+            metadata: {
+              sessionId: args.sessionId,
+              command: args.command,
+              error: 'marker_parse_error'
+            }
+          };
+        }
+        
+        // Extract the output between markers
+        let output = fullBuffer.substring(startIndex + startMarker.length, endIndex).trim();
+        
+        // Remove the command echo if present (shells often echo the command)
+        // Remove lines that match the wrapped command pattern
+        const lines = output.split('\n');
+        const cleanedLines = lines.filter(line => {
+          const trimmed = line.trim();
+          return trimmed && 
+                 !trimmed.includes(startMarker) && 
+                 !trimmed.includes(endMarker) &&
+                 !trimmed.startsWith('echo "') &&
+                 trimmed !== args.command;
+        });
+        output = cleanedLines.join('\n').trim();
+        
+        // Extract exit code
+        const exitCodeMatch = fullBuffer.match(/EXIT_CODE:(\d+)/);
+        const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : null;
+        
+        const success = exitCode === 0;
+        
+        return {
+          success,
+          content: output || '(no output)',
+          metadata: {
+            sessionId: args.sessionId,
+            command: args.command,
+            output,
+            exitCode,
+            timedOut: false,
+            executionTime
+          }
+        };
+      } catch (error) {
+        return {
+          success: false,
+          content: `Failed to execute command in PTY session: ${error.message}`,
+          metadata: { error: error.message }
+        };
+      }
+    }
+  };
+
   // Register: read_ptty
   _G.tools.read_ptty = {
     definition: {

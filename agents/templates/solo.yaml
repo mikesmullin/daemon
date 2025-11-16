@@ -14,13 +14,14 @@ metadata:
   - list_directory
   - create_directory
   - grep_search
-  - execute_shell
+  #- execute_shell
   - fetch_webpage
-  #- create_ptty
+  - create_ptty
+  - send_command_to_ptty
   #- send_text_to_ptty
   #- send_keys_to_ptty
-  #- read_ptty
-  #- close_ptty
+  - read_ptty
+  - close_ptty
   labels:
   - subagent
 spec:
