@@ -255,8 +255,17 @@ async function parseCliArgs() {
     args.splice(labelsIndex, 2);
   }
 
+  // Parse --not-labels <label1,label2,...> (for watch/pump/sessions modes)
+  let notLabels = [];
+  const notLabelsIndex = args.indexOf('--not-labels');
+  if (notLabelsIndex !== -1 && notLabelsIndex + 1 < args.length) {
+    const notLabelsStr = args[notLabelsIndex + 1];
+    notLabels = notLabelsStr.split(',').map(l => l.trim()).filter(l => l.length > 0);
+    args.splice(notLabelsIndex, 2);
+  }
+
   // Store global flags in _G for access throughout the app
-  _G.cliFlags = { timeout, lock, kill, interactive, noHumans, session, labels, concurrency };
+  _G.cliFlags = { timeout, lock, kill, interactive, noHumans, session, labels, notLabels, concurrency };
   _G.observePort = observePort;
   
   // Initialize observability if enabled
@@ -295,7 +304,7 @@ async function parseCliArgs() {
   }
 
   // Package options for commands
-  const options = { truncate, flatten, labels };
+  const options = { truncate, flatten, labels, notLabels };
 
   // Determine subcommand (first non-option arg after flags are removed)
   const subcommand = (args[0] && !args[0].startsWith('-')) ? args[0] : '';

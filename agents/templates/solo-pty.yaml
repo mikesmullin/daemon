@@ -24,6 +24,7 @@ metadata:
   - close_ptty
   labels:
   - subagent
+  - pty
 spec:
   system_prompt: |
     You are an expert AI programming assistant, working with a user in an editor.

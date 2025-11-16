@@ -736,6 +736,19 @@ export class Agent {
       });
     }
 
+    // If filtering by not-labels, exclude sessions that have any of the excluded labels
+    if (_G.cliFlags?.notLabels && _G.cliFlags.notLabels.length > 0) {
+      pendingSessions = pendingSessions.filter(s => {
+        // If session doesn't have labels array, it passes the not-labels filter
+        if (!s.labels || !Array.isArray(s.labels)) {
+          return true;
+        }
+
+        // Session must NOT contain ANY of the excluded labels (NOR logic)
+        return !_G.cliFlags.notLabels.some(excludedLabel => s.labels.includes(excludedLabel));
+      });
+    }
+
     // log(0 == pendingSessions.length ? 'debug' : 'info', `Processing ${pendingSessions.length} pending session(s)`);
 
     const concurrencyLimit = _G.cliFlags?.concurrency;

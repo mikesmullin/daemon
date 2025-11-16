@@ -23,7 +23,8 @@ export async function handleWatchCommand(args) {
 
   const sessionInfo = _G.cliFlags.session ? ` session ${_G.cliFlags.session}` : '';
   const labelsInfo = _G.cliFlags.labels && _G.cliFlags.labels.length > 0 ? ` --labels ${_G.cliFlags.labels.join(',')}` : '';
-  log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump${sessionInfo}${labelsInfo} every ${_G.CONFIG.daemon.watch_poll_interval} seconds`);
+  const notLabelsInfo = _G.cliFlags.notLabels && _G.cliFlags.notLabels.length > 0 ? ` --not-labels ${_G.cliFlags.notLabels.join(',')}` : '';
+  log('debug', `👀 ${color.bold('WATCH MODE:')} Will run continuously and pump${sessionInfo}${labelsInfo}${notLabelsInfo} every ${_G.CONFIG.daemon.watch_poll_interval} seconds`);
 
   // Start periodic metric collection if observability is enabled
   if (_G.observePort) {
@@ -39,11 +40,12 @@ export async function handleWatchCommand(args) {
       const iterationStart = Date.now();
       const sessionInfo = _G.cliFlags.session ? ` session ${_G.cliFlags.session}` : '';
       const labelsInfo = _G.cliFlags.labels && _G.cliFlags.labels.length > 0 ? ` --labels ${_G.cliFlags.labels.join(',')}` : '';
-      log('debug', `👀 Checking for pending${sessionInfo}${labelsInfo}...`);
+      const notLabelsInfo = _G.cliFlags.notLabels && _G.cliFlags.notLabels.length > 0 ? ` --not-labels ${_G.cliFlags.notLabels.join(',')}` : '';
+      log('debug', `👀 Checking for pending${sessionInfo}${labelsInfo}${notLabelsInfo}...`);
       const result = await Agent.pump();
 
       if (result.processed > 0) {
-        log('debug', `👀 Pump completed. Processed ${result.processed}/${result.total}${sessionInfo}${labelsInfo}.`);
+        log('debug', `👀 Pump completed. Processed ${result.processed}/${result.total}${sessionInfo}${labelsInfo}${notLabelsInfo}.`);
       } else {
         // If watching a specific session, check if it's completed
         if (_G.cliFlags.session) {
@@ -56,7 +58,7 @@ export async function handleWatchCommand(args) {
             log('warn', `⚠️  Session ${_G.cliFlags.session} not found. Continuing to monitor...`);
           }
         }
-        log('debug', `👀 No pending${sessionInfo}${labelsInfo} to process.`);
+        log('debug', `👀 No pending${sessionInfo}${labelsInfo}${notLabelsInfo} to process.`);
       }
 
       // Calculate elapsed time for this iteration
@@ -114,6 +116,7 @@ Options:
   -c, --concurrency <n>   Limit concurrent session processing (default: unlimited)
   --session <id>          Only process the specified session
   --labels <a,b,c>        Only process sessions with ALL specified labels (comma-separated)
+  --not-labels <x,y,z>    Exclude sessions with ANY of the specified labels (comma-separated)
   --no-humans             Auto-reject tool requests not on allowlist (unattended mode)
 
 Examples:
@@ -123,5 +126,6 @@ Examples:
   d watch --labels subagent       # Watch only subagent sessions
   d watch --labels a,b --no-humans # Watch sessions with labels 'a' AND 'b', unattended
   d watch -c 5 --labels subagent  # Watch subagent sessions (max 5 concurrent)
+  d watch --labels subagent --not-labels tty # Watch subagent sessions but exclude those with 'tty' label
 `);
 }
