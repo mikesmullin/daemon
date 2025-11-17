@@ -45,7 +45,7 @@ class ObservabilityServer {
     this.agentHandlers = new AgentHandlers(this);
     this.messageHandlers = new MessageHandlers(this);
     this.ptyHandlers = new PtyHandlers(this);
-    this.sessionHandlers = new SessionHandlers(this);
+    this.sessionHandlers = new SessionHandlers(this, this.workspaceRoot);
     this.templateHandlers = new TemplateHandlers(this.workspaceRoot);
   }
 

@@ -390,6 +390,52 @@ function app() {
       } else {
         this.sessions.push(msg.session);
       }
+      
+      // Rebuild agents and events if this session belongs to current channel
+      if (this.currentChannel) {
+        const agentsForChannel = this.agents[this.currentChannel] || [];
+        const updatedSession = msg.session;
+        const isInCurrentChannel = agentsForChannel.some(a => a.session_id === updatedSession.metadata?.session_id);
+        
+        if (isInCurrentChannel) {
+          // Rebuild events for current channel
+          const channelEvents = [];
+          agentsForChannel.forEach(agent => {
+            const session = this.sessions.find(s => s.metadata?.name === agent.name);
+            if (session && session.spec?.messages) {
+              session.spec.messages.forEach(msg => {
+                const event = { ...msg };
+                if (!event.session_id) {
+                  event.session_id = session.metadata?.session_id;
+                }
+                if (!event.agent) {
+                  event.agent = session.metadata?.name;
+                }
+                if (!event.timestamp && event.ts) {
+                  event.timestamp = event.ts;
+                }
+                channelEvents.push(event);
+              });
+            }
+          });
+          
+          // Sort events by timestamp
+          channelEvents.sort((a, b) => {
+            const timeA = new Date(a.timestamp).getTime();
+            const timeB = new Date(b.timestamp).getTime();
+            return timeA - timeB;
+          });
+          
+          // Update thread view
+          const threadView = this.$refs.threadView || this.$el?.querySelector('thread-view');
+          if (threadView) {
+            threadView._events = channelEvents;
+            if (typeof threadView.render === 'function') {
+              threadView.render();
+            }
+          }
+        }
+      }
     },
     
     handlePtyAttached(msg) {
@@ -536,65 +582,24 @@ function app() {
             console.log('🔍 Found session:', session ? 'YES' : 'NO', session?.metadata?.name);
             if (session && session.spec?.messages) {
               console.log('🔍 Session has', session.spec.messages.length, 'messages');
-              // Transform session messages to event format
+              // Keep original messages but add metadata for UI rendering
               session.spec.messages.forEach(msg => {
-                const event = {
-                  timestamp: msg.ts,
-                  session_id: session.metadata?.session_id,
-                  agent: session.metadata?.name,
-                };
+                // Clone the original message to avoid mutating session data
+                const event = { ...msg };
                 
-                // Map message roles to event types
-                if (msg.role === 'user') {
-                  channelEvents.push({
-                    ...event,
-                    type: 'USER_REQUEST',
-                    content: msg.content
-                  });
-                } else if (msg.role === 'assistant') {
-                  if (msg.tool_calls) {
-                    // Tool calls
-                    msg.tool_calls.forEach(tc => {
-                      // Handle arguments - might be object or JSON string
-                      let params = {};
-                      if (tc.function?.arguments) {
-                        if (typeof tc.function.arguments === 'string') {
-                          try {
-                            params = JSON.parse(tc.function.arguments);
-                          } catch (e) {
-                            console.warn('Failed to parse tool arguments:', e);
-                            params = { raw: tc.function.arguments };
-                          }
-                        } else {
-                          params = tc.function.arguments;
-                        }
-                      }
-                      
-                      channelEvents.push({
-                        ...event,
-                        type: 'TOOL_CALL',
-                        tool_call: {
-                          name: tc.function?.name,
-                          parameters: params
-                        }
-                      });
-                    });
-                  } else if (msg.content) {
-                    // Regular assistant response
-                    channelEvents.push({
-                      ...event,
-                      type: 'RESPONSE',
-                      content: msg.content
-                    });
-                  }
-                } else if (msg.role === 'tool') {
-                  channelEvents.push({
-                    ...event,
-                    type: 'TOOL_RESPONSE',
-                    output: msg.content,
-                    success: msg.success !== false
-                  });
+                // Add metadata that UI needs (but don't overwrite if already present)
+                if (!event.session_id) {
+                  event.session_id = session.metadata?.session_id;
                 }
+                if (!event.agent) {
+                  event.agent = session.metadata?.name;
+                }
+                // Normalize timestamp field for sorting (but keep original field)
+                if (!event.timestamp && event.ts) {
+                  event.timestamp = event.ts;
+                }
+                
+                channelEvents.push(event);
               });
             }
           });
@@ -637,8 +642,13 @@ function app() {
       this.saveToLocalStorage();
     },
     
-    createChannel(channelName) {
-      this.send({ type: 'channel:create', name: channelName });
+    createChannel(event) {
+      // Extract channel name from event detail or use directly if it's a string
+      const channelName = typeof event === 'string' ? event : (event.detail?.name || event);
+      
+      if (channelName) {
+        this.send({ type: 'channel:create', name: channelName });
+      }
     },
     
     muteChannel(channelName) {
@@ -794,60 +804,80 @@ function app() {
     },
     
     editEvent(eventData) {
-      // Show editable bubble overlay
-      console.log('Edit event:', eventData);
-      
-      // The event editing is handled by the bubbles themselves
-      // When the edit button is clicked, the bubble shows the editable-bubble component
-      // This function is here to handle the save action from editable-bubble
-      
-      // Listen for save-event from editable-bubble
-      this.$el.addEventListener('save-event', (e) => {
-        const { originalEvent, updatedEvent, isDelete, yaml } = e.detail;
-        
-        if (isDelete) {
-          // Send delete request to backend
-          this.send({
-            type: 'session:delete-event',
-            session_id: originalEvent.session_id,
-            event_id: originalEvent.id || originalEvent.timestamp,
-            channel: this.currentChannel
-          });
-          
-          // Remove event from local array immediately
-          const idx = this.events.findIndex(ev => 
-            ev.session_id === originalEvent.session_id && 
-            (ev.id === originalEvent.id || ev.timestamp === originalEvent.timestamp)
-          );
-          if (idx >= 0) {
-            this.events.splice(idx, 1);
-          }
-        } else {
-          // Send update request to backend
-          this.send({
-            type: 'session:update',
-            session_id: originalEvent.session_id,
-            event: updatedEvent,
-            yaml: yaml,
-            channel: this.currentChannel
-          });
-          
-          // Update event in local array immediately
-          const idx = this.events.findIndex(ev => 
-            ev.session_id === originalEvent.session_id && 
-            (ev.id === originalEvent.id || ev.timestamp === originalEvent.timestamp)
-          );
-          if (idx >= 0) {
-            this.events[idx] = { ...this.events[idx], ...updatedEvent };
-          }
-        }
-      }, { once: false });
+      // DEPRECATED: Old method - kept for backwards compatibility
+      // Edit UI is now handled inline by thread-view component
+      console.log('Edit event (deprecated handler):', eventData);
     },
     
-    updateFilter(filter) {
+    handleEventSave(event) {
+      const { originalEvent, updatedEvent, isDelete, yaml } = event.detail;
+      
+      console.log('Event save:', { originalEvent, updatedEvent, isDelete });
+      
+      if (isDelete) {
+        // Send delete request to backend
+        this.send({
+          type: 'session:delete-event',
+          session_id: originalEvent.session_id,
+          event_id: originalEvent.id || originalEvent.timestamp,
+          channel: this.currentChannel
+        });
+        
+        // Remove event from local array immediately
+        const idx = this.events.findIndex(ev => 
+          ev.session_id === originalEvent.session_id && 
+          (ev.id === originalEvent.id || ev.timestamp === originalEvent.timestamp)
+        );
+        if (idx >= 0) {
+          this.events.splice(idx, 1);
+        }
+      } else {
+        // Send update request to backend
+        this.send({
+          type: 'session:update',
+          session_id: originalEvent.session_id,
+          event: updatedEvent,
+          yaml: yaml,
+          channel: this.currentChannel
+        });
+        
+        // Update event in local array immediately
+        const idx = this.events.findIndex(ev => 
+          ev.session_id === originalEvent.session_id && 
+          (ev.id === originalEvent.id || ev.timestamp === originalEvent.timestamp)
+        );
+        if (idx >= 0) {
+          this.events[idx] = { ...this.events[idx], ...updatedEvent };
+        }
+      }
+      
+      // Force re-render of thread view
+      this.$nextTick(() => {
+        const threadView = this.$refs.threadView || this.$el?.querySelector('thread-view');
+        if (threadView && typeof threadView.render === 'function') {
+          threadView.render();
+        }
+      });
+    },
+    
+    updateFilter(event) {
+      // Extract filter from event detail or use directly if it's a string
+      const filter = typeof event === 'string' ? event : (event.detail?.filter || '');
+      
       if (this.currentChannel) {
         this.luceneFilters[this.currentChannel] = filter;
         this.saveToLocalStorage();
+        
+        // Update thread-view component
+        this.$nextTick(() => {
+          const threadView = this.$refs.threadView || this.$el?.querySelector('thread-view');
+          if (threadView) {
+            threadView._filter = filter;
+            if (typeof threadView.render === 'function') {
+              threadView.render();
+            }
+          }
+        });
       }
     },
     
@@ -855,7 +885,62 @@ function app() {
       if (this.currentChannel) {
         this.luceneFilters[this.currentChannel] = '';
         this.saveToLocalStorage();
+        
+        // Update thread-view component
+        this.$nextTick(() => {
+          const threadView = this.$refs.threadView || this.$el?.querySelector('thread-view');
+          if (threadView) {
+            threadView._filter = '';
+            if (typeof threadView.render === 'function') {
+              threadView.render();
+            }
+          }
+        });
       }
+    },
+    
+    addFilterExclusion(event) {
+      if (!this.currentChannel) return;
+      
+      const { field, value, exclude } = event.detail;
+      const currentFilter = this.luceneFilters[this.currentChannel] || '';
+      
+      // Build the exclusion term
+      const exclusion = `NOT ${field}:${value}`;
+      
+      // Check if already in filter
+      if (currentFilter.includes(exclusion)) {
+        console.log('Filter already contains this exclusion');
+        return;
+      }
+      
+      // Append to filter
+      const newFilter = currentFilter 
+        ? `${currentFilter} AND ${exclusion}`
+        : exclusion;
+      
+      this.luceneFilters[this.currentChannel] = newFilter;
+      this.saveToLocalStorage();
+      
+      // Update the lucene-filter component display
+      this.$nextTick(() => {
+        const filterComponent = this.$refs.luceneFilter || this.$el?.querySelector('lucene-filter');
+        if (filterComponent) {
+          filterComponent._filter = newFilter;
+          if (typeof filterComponent.updateDisplay === 'function') {
+            filterComponent.updateDisplay();
+          }
+        }
+        
+        // Also update thread-view
+        const threadView = this.$refs.threadView || this.$el?.querySelector('thread-view');
+        if (threadView) {
+          threadView._filter = newFilter;
+          if (typeof threadView.render === 'function') {
+            threadView.render();
+          }
+        }
+      });
     },
     
     searchTemplates(event) {

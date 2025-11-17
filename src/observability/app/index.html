@@ -211,8 +211,9 @@ Debug Helper Functions:
               <!-- Thread -->
               <thread-view
                 x-ref="threadView"
-                @event-edit="editEvent"
+                @event-save="handleEventSave"
                 @pty-view="viewPty"
+                @filter-add="addFilterExclusion"
                 x-effect="$refs.threadView && ($refs.threadView.events = filteredEvents, $refs.threadView.filter = luceneFilter, $refs.threadView.currentChannel = currentChannel)">
               </thread-view>
               
