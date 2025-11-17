@@ -289,12 +289,13 @@ class MessageInput extends HTMLElement {
           <textarea
             class="message-textarea"
             placeholder="Type a message... Use @mention to select an agent"
+            aria-label="Message input"
             rows="1"
           ></textarea>
-          <button class="voice-btn" title="Voice dictation">🎤</button>
+          <button class="voice-btn" title="Voice dictation" aria-label="Start voice dictation">🎤</button>
         </div>
         <div class="bottom-bar">
-          <button class="send-btn">
+          <button class="send-btn" aria-label="Send message">
             <span>▶</span>
             <span>SEND</span>
           </button>

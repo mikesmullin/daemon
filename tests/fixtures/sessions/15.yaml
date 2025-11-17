@@ -1,0 +1,14 @@
+metadata:
+  name: bob
+  session_id: 15
+  created: 2025-11-16T10:00:00.000Z
+  template: '@solo'
+spec:
+  template: '@solo'
+  messages:
+    - ts: 2025-11-16T10:01:00.000Z
+      role: user
+      content: Hello bob
+    - ts: 2025-11-16T10:01:05.000Z
+      role: assistant
+      content: Hi! Ready to work.

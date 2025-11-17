@@ -1,0 +1,25 @@
+metadata:
+  name: alice
+  session_id: 12
+  created: 2025-11-16T10:00:00.000Z
+  template: '@solo'
+spec:
+  template: '@solo'
+  messages:
+    - ts: 2025-11-16T10:01:00.000Z
+      role: user
+      content: Hello alice
+    - ts: 2025-11-16T10:01:05.000Z
+      role: assistant
+      content: Hello! How can I help you today?
+    - ts: 2025-11-16T10:02:00.000Z
+      role: user
+      content: Can you run a shell command?
+    - ts: 2025-11-16T10:02:01.000Z
+      role: assistant
+      tool_calls:
+        - id: call_123
+          type: function
+          function:
+            name: execute_shell
+            arguments: '{"command":"ls -la /tmp"}'

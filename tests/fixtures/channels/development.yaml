@@ -1,0 +1,9 @@
+metadata:
+  name: development
+  created: 2025-11-16T10:00:00.000Z
+  description: Development channel for testing
+spec:
+  agent_sessions:
+    - 12
+    - 15
+    - 23

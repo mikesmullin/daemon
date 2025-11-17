@@ -11,11 +11,20 @@ class LuceneFilter extends HTMLElement {
 
   connectedCallback() {
     this.render();
+    this.setupEventListeners();
     
     // Listen for exclude events from bubbles
-    window.addEventListener('filter-exclude', (e) => {
-      this.appendExclusion(e.detail);
-    });
+    // this.handleFilterExclude = (e) => {
+    //   this.appendExclusion(e.detail);
+    // };
+    // window.addEventListener('filter-exclude', this.handleFilterExclude);
+  }
+
+  disconnectedCallback() {
+    // Clean up event listener
+    if (this.handleFilterExclude) {
+      window.removeEventListener('filter-exclude', this.handleFilterExclude);
+    }
   }
 
   static get observedAttributes() {
@@ -23,13 +32,13 @@ class LuceneFilter extends HTMLElement {
   }
 
   attributeChangedCallback() {
-    this.render();
+    this.updateDisplay();
   }
 
   // Support both property and attribute setting (for Alpine.js)
   set filter(value) {
     this._filter = value || '';
-    this.render();
+    this.updateDisplay();
   }
 
   get filter() {
@@ -41,7 +50,7 @@ class LuceneFilter extends HTMLElement {
     return this.getAttribute('filter') || '';
   }
 
-  appendExclusion(detail) {
+    appendExclusion(detail) {
     const { field, value } = detail;
     const input = this.shadowRoot.querySelector('.filter-input');
     const currentFilter = input.value.trim();
@@ -52,10 +61,23 @@ class LuceneFilter extends HTMLElement {
       : exclusion;
     
     input.value = newFilter;
-    this.shadowRoot.querySelector('.clear-btn').style.display = '';
+    this._filter = newFilter;
+    
+    // Trigger filter change event
     this.dispatchEvent(new CustomEvent('filter-change', { 
       detail: { filter: newFilter } 
     }));
+  }
+
+  updateDisplay() {
+    const input = this.shadowRoot?.querySelector('.filter-input');
+    const clearBtn = this.shadowRoot?.querySelector('.clear-btn');
+    if (input && this._filter !== input.value) {
+      input.value = this._filter;
+    }
+    if (clearBtn) {
+      clearBtn.style.display = this._filter ? '' : 'none';
+    }
   }
 
   render() {
@@ -143,14 +165,12 @@ class LuceneFilter extends HTMLElement {
           margin-top: 0.5rem;
           font-size: 0.75rem;
           color: #ff4444;
-          display: ${this.errorMessage ? 'block' : 'none'};
         }
         
         .help-text {
           margin-top: 0.5rem;
           font-size: 0.75rem;
           color: #666;
-          display: ${this.errorMessage ? 'none' : 'block'};
         }
         
         .help-text code {
@@ -167,36 +187,55 @@ class LuceneFilter extends HTMLElement {
         <div class="filter-input-wrapper">
           <input
             type="text"
-            class="filter-input ${this.errorMessage ? 'error' : ''}"
+            class="filter-input"
             placeholder="session:12 AND tool:execute_shell OR NOT agent:alice"
-            value="${this.filter}"
+            value=""
           />
-          <button class="clear-btn" title="Clear filter" ${!this.filter ? 'style="display:none;"' : ''}>✕</button>
+          <button class="clear-btn" title="Clear filter" style="display:none;">✕</button>
         </div>
       </div>
       
-      <div class="error-text">${this.errorMessage}</div>
+      <div class="error-text"></div>
       
       <div class="help-text">
         Examples: <code>session:12</code>, <code>tool:ask_human</code>, <code>NOT agent:bob</code>
       </div>
     `;
+  }
 
+  setupEventListeners() {
     const input = this.shadowRoot.querySelector('.filter-input');
     const clearBtn = this.shadowRoot.querySelector('.clear-btn');
+    
+    if (!input || !clearBtn) {
+      console.warn('LuceneFilter: input or clearBtn not found in shadow DOM');
+      return;
+    }
 
     let debounceTimer;
     input.addEventListener('input', (e) => {
       clearTimeout(debounceTimer);
+      const currentTarget = e.target;
       debounceTimer = setTimeout(() => {
-        const value = e.target.value;
-        clearBtn.style.display = value ? '' : 'none';
+        if (!currentTarget) {
+          console.warn('LuceneFilter: input event has no target');
+          return;
+        }
+        const value = currentTarget.value;
+        const currentClearBtn = this.shadowRoot?.querySelector('.clear-btn');
+        if (currentClearBtn) {
+          currentClearBtn.style.display = value ? '' : 'none';
+        }
         
         // Clear error when user types
         this.errorMessage = '';
-        input.classList.remove('error');
-        this.shadowRoot.querySelector('.error-text').style.display = 'none';
-        this.shadowRoot.querySelector('.help-text').style.display = 'block';
+        if (currentTarget) {
+          currentTarget.classList.remove('error');
+        }
+        const errorText = this.shadowRoot?.querySelector('.error-text');
+        const helpText = this.shadowRoot?.querySelector('.help-text');
+        if (errorText) errorText.style.display = 'none';
+        if (helpText) helpText.style.display = 'block';
         
         this.dispatchEvent(new CustomEvent('filter-change', { 
           detail: { filter: value } 
@@ -205,22 +244,45 @@ class LuceneFilter extends HTMLElement {
     });
 
     clearBtn.addEventListener('click', () => {
-      input.value = '';
-      clearBtn.style.display = 'none';
+      const currentInput = this.shadowRoot?.querySelector('.filter-input');
+      const currentClearBtn = this.shadowRoot?.querySelector('.clear-btn');
+      
+      if (!currentInput || !currentClearBtn) {
+        console.warn('LuceneFilter: elements not found during clear');
+        return;
+      }
+      
+      currentInput.value = '';
+      currentClearBtn.style.display = 'none';
       this.errorMessage = '';
       this.dispatchEvent(new CustomEvent('filter-clear'));
-      this.render();
+      // Don't call render() here - just update the DOM directly
     });
   }
   
   setError(message) {
     this.errorMessage = message;
-    this.render();
+    const input = this.shadowRoot?.querySelector('.filter-input');
+    const errorText = this.shadowRoot?.querySelector('.error-text');
+    const helpText = this.shadowRoot?.querySelector('.help-text');
+    
+    if (input) input.classList.add('error');
+    if (errorText) {
+      errorText.textContent = message;
+      errorText.style.display = 'block';
+    }
+    if (helpText) helpText.style.display = 'none';
   }
   
   clearError() {
     this.errorMessage = '';
-    this.render();
+    const input = this.shadowRoot?.querySelector('.filter-input');
+    const errorText = this.shadowRoot?.querySelector('.error-text');
+    const helpText = this.shadowRoot?.querySelector('.help-text');
+    
+    if (input) input.classList.remove('error');
+    if (errorText) errorText.style.display = 'none';
+    if (helpText) helpText.style.display = 'block';
   }
 }
 

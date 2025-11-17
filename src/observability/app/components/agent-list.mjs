@@ -359,7 +359,7 @@ class AgentList extends HTMLElement {
         e.stopPropagation();
         const card = nameEl.closest('.agent-card');
         const name = card.querySelector('.agent-info .agent-name').textContent.trim();
-        const sessionId = card.dataset.sessionId;
+        const sessionId = parseInt(card.dataset.sessionId, 10);
         this.dispatchEvent(new CustomEvent('agent-mention', { 
           detail: { name, sessionId } 
         }));

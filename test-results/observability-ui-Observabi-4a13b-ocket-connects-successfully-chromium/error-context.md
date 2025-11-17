@@ -1,0 +1,49 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic "Hide channels" [ref=e4] [cursor=pointer]
+    - generic [ref=e9]:
+      - link "Home" [ref=e10] [cursor=pointer]:
+        - /url: "#"
+      - text: "> Chat"
+    - generic [ref=e13]: Connected
+  - generic [ref=e14]:
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e19]: Channels
+        - button "+" [ref=e20] [cursor=pointer]
+      - generic [ref=e21]:
+        - generic [ref=e22] [cursor=pointer]:
+          - generic [ref=e23]: development
+          - button "🔔" [ref=e25]
+        - generic [ref=e26] [cursor=pointer]:
+          - generic [ref=e27]: testing
+          - button "🔔" [ref=e29]
+      - link "⚙️ Agent Templates" [ref=e31] [cursor=pointer]:
+        - /url: "#"
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - generic [ref=e36]: Filter
+          - textbox "session:12 AND tool:execute_shell OR NOT agent:alice" [ref=e38]
+        - generic [ref=e39]:
+          - text: "Examples:"
+          - code [ref=e40]: session:12
+          - text: ","
+          - code [ref=e41]: tool:ask_human
+          - text: ","
+          - code [ref=e42]: NOT agent:bob
+      - generic [ref=e46]: Select a channel to view messages
+      - generic [ref=e48]:
+        - generic [ref=e49]:
+          - textbox "Type a message... Use @mention to select an agent" [ref=e50]
+          - button "🎤" [ref=e51] [cursor=pointer]
+        - button "▶ SEND" [ref=e53] [cursor=pointer]:
+          - generic [ref=e54]: ▶
+          - generic [ref=e55]: SEND
+    - generic [ref=e57]:
+      - generic [ref=e59]: Agents
+      - generic [ref=e61]: No agents in this channel yet.
+```

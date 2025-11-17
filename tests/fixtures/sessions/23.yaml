@@ -1,0 +1,8 @@
+metadata:
+  name: charlie
+  session_id: 23
+  created: 2025-11-16T10:00:00.000Z
+  template: '@solo'
+spec:
+  template: '@solo'
+  messages: []

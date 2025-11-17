@@ -49,8 +49,95 @@
   <!-- Settings Components -->
   <script type="module" src="/components/template-editor.mjs"></script>
   
+  <!-- Alpine DevTools (for debugging) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/devtools@3.x.x/dist/cdn.min.js"></script>
+  
   <!-- Application Logic -->
   <script src="/app.js"></script>
+  
+  <!-- Debug Helpers -->
+  <script>
+    // Debug utilities available in console
+    window.debugApp = {
+      getState: () => {
+        const app = window.Alpine?.store?.('app');
+        if (!app) return null;
+        return {
+          wsState: app.wsState,
+          currentPage: app.currentPage,
+          currentChannel: app.currentChannel,
+          channels: app.channels,
+          sessions: app.sessions,
+          agents: app.agents,
+          events: app.events,
+          channelAgents: app.channelAgents,
+          workingAgents: app.workingAgents,
+          luceneFilters: app.luceneFilters,
+          mutedChannels: Array.from(app.mutedChannels || []),
+          mutedAgents: Array.from(app.mutedAgents || [])
+        };
+      },
+      
+      getComponent: (selector) => {
+        return document.querySelector(selector);
+      },
+      
+      setChannel: (name) => {
+        const app = window.Alpine?.store?.('app');
+        if (app && app.selectChannel) {
+          app.selectChannel(name);
+          return true;
+        }
+        return false;
+      },
+      
+      inspectEvents: () => {
+        const app = window.Alpine?.store?.('app');
+        return app?.events || [];
+      },
+      
+      getFilteredEvents: () => {
+        const app = window.Alpine?.store?.('app');
+        return app?.filteredEvents || [];
+      },
+      
+      sendMessage: (type, data) => {
+        const app = window.Alpine?.store?.('app');
+        if (app && app.send) {
+          app.send({ type, ...data });
+          return true;
+        }
+        return false;
+      },
+      
+      clearEvents: () => {
+        const app = window.Alpine?.store?.('app');
+        if (app) {
+          app.events = [];
+          return true;
+        }
+        return false;
+      },
+      
+      help: () => {
+        console.log(`
+Debug Helper Functions:
+  debugApp.getState()           - Get current app state
+  debugApp.getComponent(sel)    - Get DOM element by selector
+  debugApp.setChannel(name)     - Switch to a channel
+  debugApp.inspectEvents()      - Get all events
+  debugApp.getFilteredEvents()  - Get filtered events for current channel
+  debugApp.sendMessage(type, data) - Send WebSocket message
+  debugApp.clearEvents()        - Clear event buffer
+  debugApp.help()               - Show this help
+        `);
+      }
+    };
+    
+    // Auto-show help on load
+    console.log('%c🔧 Debug helpers available!', 'color: #00ff00; font-weight: bold;');
+    console.log('%cType debugApp.help() for available commands', 'color: #00ff00;');
+  </script>
 </head>
 <body>
   <div class="app-container" x-data="app()">

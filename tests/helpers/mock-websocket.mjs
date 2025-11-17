@@ -32,8 +32,9 @@ export class MockWebSocket extends EventEmitter {
       throw new Error('WebSocket is not open');
     }
     
-    this.sentMessages.push(data);
-    this.emit('send', data);
+    const message = typeof data === 'string' ? data : JSON.stringify(data);
+    this.sentMessages.push(message);
+    this.emit('send', message);
   }
 
   /**
@@ -41,10 +42,11 @@ export class MockWebSocket extends EventEmitter {
    */
   receiveMessage(data) {
     if (this.readyState !== MockWebSocket.OPEN) {
-      throw new Error('WebSocket is not open');
+      return;
     }
     
-    this.emit('message', { data });
+    const message = typeof data === 'string' ? data : JSON.stringify(data);
+    this.emit('message', { data: message });
   }
 
   /**
@@ -69,7 +71,16 @@ export class MockWebSocket extends EventEmitter {
    * Get the last sent message
    */
   getLastSentMessage() {
-    return this.sentMessages[this.sentMessages.length - 1];
+    if (this.sentMessages.length === 0) {
+      return null;
+    }
+    
+    const last = this.sentMessages[this.sentMessages.length - 1];
+    try {
+      return JSON.parse(last);
+    } catch {
+      return last;
+    }
   }
 
   /**
@@ -77,6 +88,43 @@ export class MockWebSocket extends EventEmitter {
    */
   clearSentMessages() {
     this.sentMessages = [];
+  }
+  
+  /**
+   * Alias for clearSentMessages
+   */
+  clearMessages() {
+    this.sentMessages = [];
+  }
+  
+  /**
+   * Wait for a message matching a condition
+   * @param {function} condition - Function that receives parsed message and returns true if it matches
+   * @param {number} timeout - Timeout in milliseconds
+   * @returns {Promise<object>}
+   */
+  waitForMessage(condition, timeout = 5000) {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        this.removeListener('message', handler);
+        reject(new Error('Timeout waiting for message'));
+      }, timeout);
+
+      const handler = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (condition(message)) {
+            clearTimeout(timeoutId);
+            this.removeListener('message', handler);
+            resolve(message);
+          }
+        } catch (err) {
+          // Ignore parse errors
+        }
+      };
+
+      this.on('message', handler);
+    });
   }
 }
 
@@ -147,4 +195,23 @@ export class MockWebSocketServer extends EventEmitter {
   getClients() {
     return Array.from(this.clients);
   }
+}
+
+/**
+ * Create a mock WebSocket client
+ * @param {string} url - WebSocket URL
+ * @returns {MockWebSocket}
+ */
+export function createMockWebSocket(url = 'ws://localhost:3002') {
+  const ws = new MockWebSocket();
+  ws.url = url;
+  return ws;
+}
+
+/**
+ * Create a mock WebSocket server
+ * @returns {MockWebSocketServer}
+ */
+export function createMockWebSocketServer() {
+  return new MockWebSocketServer();
 }
