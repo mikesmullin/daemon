@@ -28,7 +28,7 @@ function getPluginInfo() {
 async function startServer(port) {
   const servePath = join(__dirname, 'serve.mjs');
   
-  console.log(`🔍 Starting Observability Dashboard on port ${port}...`);
+  console.log(`Starting Observability Dashboard on port ${port}...`);
   console.log(`📊 Dashboard: http://localhost:${port}`);
   console.log(`📡 Listening for UDP events from daemons with --observe ${port}`);
   console.log('');

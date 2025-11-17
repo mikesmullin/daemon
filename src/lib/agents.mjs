@@ -80,22 +80,18 @@ async function loadPlugins() {
 await loadPlugins();
 
 export class Agent {
-  // Agents follow BehaviorTree (BT) patterns
-  // each Agent can have zero or more Sessions
-  // every Session has a corresponding BT state
-  // states are now recorded in session YAML metadata
-  // where metadata.bt_state contains the current state
-
-  static _isValidBtState(state) {
-    return Session._isValidBtState(state);
-  }
-
-  // if bt_state is given, write the BT state for a given session_id
-  // else return the current BT state for a given session_id
-  // aborts if the state file does not exist, is invalid, or any error occurs
-  static async state(session_id, bt_state) {
-    return Session.state(session_id, bt_state);
-  }
+  // =============================================================================
+  // V3 ARCHITECTURE NOTE
+  // =============================================================================
+  // Agent class is being refactored to focus on template discovery and CRUD.
+  // State management has moved to FSMEngine (observability/fsm-engine.mjs).
+  // AI orchestration logic will move to FSMEngine in Phase 2.
+  //
+  // V2 → V3 Migration:
+  // - BT states (pending/running/success/fail) → FSM states (managed by FSMEngine)
+  // - Agent.pump() → FSMEngine.run() (browser-first architecture)
+  // - Agent.state() → REMOVED (use fsmEngine.transitionState())
+  // =============================================================================
 
   // list agent sessions and their BT state
   static async list() {
@@ -163,9 +159,13 @@ export class Agent {
     return Session.nextId();
   }
 
-  // mark an agent session with a new BT state
+  // DEPRECATED in V3: Use fsmEngine.stopSession() instead
+  // Kept for backwards compatibility with v2 CLI tools
   static async kill(session_id, bt_state = 'fail') {
-    return Session.state(session_id, bt_state);
+    log('warn', '⚠️  Agent.kill() is deprecated in v3. Use fsmEngine.stopSession() instead.');
+    // For now, do nothing - FSMEngine manages state
+    // This prevents crashes in old code paths
+    return null;
   }
 
   // append a new user message to an agent session
@@ -179,7 +179,9 @@ export class Agent {
       // Generate new session ID
       const new_session_id = await Agent.nextId();
 
-      await Agent.state(new_session_id, 'success');
+      // V3: Do NOT set BT state here - FSMEngine will manage state
+      // Session is created in 'created' state by default
+      // FSMEngine.registerSession() will be called by the handler that invokes fork()
 
       let sessionContent = {};
       if (null != session_id) {
@@ -324,13 +326,12 @@ export class Agent {
       utils.abort(error);
     }
   }  // evaluate an agent session by sending its context to the LLM as a prompt
+  // V3 NOTE: This method is called by v2 CLI mode (d watch, d agent)
+  // In v3 browser mode, FSMEngine.processSession() should handle this instead
   static async eval(session_id) {
     try {
-      const state = await Agent.state(session_id);
-      // if (state !== 'success') {
-      //   utils.abort(`Cannot eval session ${session_id} in state ${state}`);
-      // }
-      await Agent.state(session_id, 'running');
+      // V3: Removed BT state checks - FSMEngine manages state in browser mode
+      // For v2 CLI compatibility, we just process the session directly
 
       const sessionFileName = `${session_id}.yaml`;
       const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
@@ -500,8 +501,8 @@ export class Agent {
             // Update lastRead to prevent re-logging
             await Session.updateLastRead(session_id, newUserMessage.ts);
             
-            // Set state to pending so agent will be re-evaluated with new message
-            await Agent.state(session_id, 'pending');
+            // V3 NOTE: In browser mode, FSMEngine would handle state transition
+            // For v2 CLI compatibility, we just return and let pump() re-invoke eval()
             return;
           } else {
             // User provided empty input, continue with normal flow
@@ -656,7 +657,9 @@ export class Agent {
       // This prevents repetitive output in watch mode on subsequent iterations
       await Session.updateLastRead(session_id);
 
-      await Agent.state(session_id, finalState);
+      // V3 NOTE: In browser mode, FSMEngine manages state
+      // For v2 CLI compatibility, we return the final_state but don't persist it
+      // (BT state management removed in v3)
       
       return {
         session_id,
@@ -667,7 +670,8 @@ export class Agent {
         final_state: finalState,
       };
     } catch (error) {
-      await Agent.state(session_id, 'fail');
+      // V3 NOTE: Don't set BT state on error - FSMEngine handles this in browser mode
+      log('error', `Session ${session_id} evaluation failed: ${error.message}`);
       utils.abort(error);
     }
   }

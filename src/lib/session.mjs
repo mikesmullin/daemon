@@ -1,10 +1,11 @@
-const fs = await import('fs/promises');
-const path = await import('path');
 import yaml from 'js-yaml';
 import ejs from 'ejs';
 import { _G } from './globals.mjs';
 import utils, { log } from './utils.mjs';
 import os from 'os';
+import fs from 'fs/promises';
+import path from 'path';
+import { Agent } from './agents.mjs';
 
 /**
  * Session Management Class
@@ -15,73 +16,17 @@ import os from 'os';
 export class Session {
 
   // =============================================================================
-  // BT STATE MANAGEMENT (moved from Agent class)
+  // BT STATE MANAGEMENT - REMOVED IN V3
   // =============================================================================
-
-  /**
-   * Validate BT (Behavior Tree) state values
-   */
-  static _isValidBtState(state) {
-    return ['pending', 'running', 'fail', 'success'].includes(state);
-  }
-
-  /**
-   * Set or get BT state for a session
-   * BT states are now stored in session YAML metadata
-   * 
-   * @param {string} session_id - The session identifier
-   * @param {string} bt_state - Optional state to set
-   * @returns {Promise<string>} The BT state
-   */
-  static async state(session_id, bt_state) {
-    if (bt_state) { // write
-      if (!Session._isValidBtState(bt_state)) {
-        utils.abort(`Invalid BT state for session ${session_id}: ${bt_state}`);
-      }
-      try {
-        const sessionContent = await Session.load(session_id);
-        if (!sessionContent.metadata) {
-          sessionContent.metadata = {};
-        }
-        sessionContent.metadata.bt_state = bt_state;
-        await Session.save(session_id, sessionContent);
-        log('debug', `Set BT state for session ${session_id}: ${bt_state}`);
-        return bt_state;
-      } catch (err) {
-        utils.abort(`Failed to set BT state for session ${session_id}: ${err.message}`);
-      }
-    }
-    else { // read
-      try {
-        const sessionContent = await Session.load(session_id);
-        const bt_state = sessionContent.metadata?.bt_state || 'pending';
-        if (!Session._isValidBtState(bt_state)) {
-          utils.abort(`Invalid BT state "${bt_state}" for session ${session_id}`);
-        }
-        return bt_state;
-      } catch (error) {
-        if (error.code === 'ENOENT') {
-          utils.abort(`BT state file for session ${session_id} not found`);
-        } else {
-          utils.abort(`Failed to read BT state for session ${session_id}: ${error.message}`);
-        }
-      }
-    }
-  }
-
-  /**
-   * Set BT state for a session
-   */
-  static async setState(session_id, bt_state) {
-    return await Session.state(session_id, bt_state);
-  }
-
-  /**
-   * Get BT state for a session
-   */
-  static async getState(session_id) {
-    return await Session.state(session_id);
-  }
+  // V2 used BT (Behavior Tree) states stored in session YAML metadata.bt_state
+  // V3 uses FSM (Finite State Machine) managed by FSMEngine with in-memory state
+  // 
+  // Migration: All state management now handled by FSMEngine
+  // - Old: Agent.state(session_id, 'pending')
+  // - New: fsmEngine.transitionState(sessionFSM, SessionState.PENDING)
+  //
+  // DEPRECATED - DO NOT USE
+  // =============================================================================
 
   // =============================================================================
   // FSM STATE MANAGEMENT (v3.0 - for crash recovery)
@@ -143,21 +88,33 @@ export class Session {
 
   /**
    * Generate the next session ID (monotonically increasing integer)
+   * V3: Uses timestamp-based approach instead of file-based counter
    */
   static async nextId() {
     try {
-      const raw = await fs.readFile(_G.NEXT_PATH, 'utf-8');
-      if (!/^\d+$/.test(raw)) {
-        utils.abort(`Corrupt next file value "${raw}"`);
+      // V3 approach: Use timestamp + random suffix for uniqueness
+      // This eliminates the need for _G.NEXT_PATH file-based counter
+      // Format: <timestamp><3-digit-random>
+      // Example: 17633590134091 (13 digits)
+      const timestamp = Date.now();
+      const random = Math.floor(Math.random() * 1000);
+      const sessionId = `${timestamp}${random.toString().padStart(3, '0')}`;
+      
+      // Verify uniqueness by checking if session file already exists
+      const sessionPath = path.join(_G.SESSIONS_DIR, `${sessionId}.yaml`);
+      try {
+        await fs.access(sessionPath);
+        // Session already exists, recurse to try again with new timestamp
+        log('debug', `Session ID ${sessionId} collision, retrying...`);
+        return Session.nextId();
+      } catch (err) {
+        if (err.code === 'ENOENT') {
+          // Session doesn't exist, we can use this ID
+          return sessionId;
+        }
+        throw err;
       }
-      const next = String(+raw + 1);
-      await fs.writeFile(_G.NEXT_PATH, next, 'utf-8');
-      return raw;
     } catch (err) {
-      if (err.code === 'ENOENT') {
-        await fs.writeFile(_G.NEXT_PATH, '1', 'utf-8');
-        return '0';
-      }
       utils.abort(`Failed allocating next session id: ${err.message}`);
     }
   }
@@ -226,32 +183,63 @@ export class Session {
       return null;
     }
   }  /**
-   * Create a new session from an agent template
+   * Create a new session from an agent template (low-level CRUD)
    */
   static async new(agent, prompt = null) {
     try {
       const new_session_id = await Session.nextId();
 
-      // Set initial state based on whether there's work to do
-      const initialState = prompt ? 'pending' : 'success';
-      await Session.setState(new_session_id, initialState);
+      // V3: No state setting here - FSMEngine handles it
 
-      const templateFileName = `${agent}.yaml`;
-      const templatePath = path.join(_G.TEMPLATES_DIR, templateFileName);
-      const sessionContent = await utils.readYaml(templatePath);
+      // Support multi-path template resolution (from Agent.fork logic)
+      const agentName = agent.endsWith('.yaml') ? agent.slice(0, -5) : agent;
+      const searchPaths = [
+        path.join(process.cwd(), `${agentName}.yaml`),
+        path.join(_G.TEMPLATES_DIR, `${agentName}.yaml`),
+        path.join(_G.TEMPLATES_DIR, agent.endsWith('.yaml') ? agent : `${agent}.yaml`)
+      ];
+      
+      let templatePath = null;
+      let foundPath = null;
+      
+      for (const searchPath of searchPaths) {
+        try {
+          await fs.access(searchPath);
+          foundPath = searchPath;
+          log('debug', `✅ Found agent template at: ${searchPath}`);
+          break;
+        } catch (error) {
+          log('debug', `❌ Agent template not found at: ${searchPath}`);
+        }
+      }
+      
+      if (!foundPath) {
+        const available = await Agent.listAvailable().then(t => t.map(a => a.name).join(', '));
+        utils.abort(
+          `Agent template "${agent}" not found.\n\n` +
+          `Searched in: ${searchPaths.map(p => `\n  - ${p}`).join('')}\n\n` +
+          `Available templates: ${available}`
+        );
+      }
+      
+      templatePath = foundPath;
+      let sessionContent = await utils.readYaml(templatePath);
 
-      // Render EJS in system prompt template, if present
-      if (sessionContent.spec.system_prompt) {
-        sessionContent.spec.system_prompt = ejs.render(sessionContent.spec.system_prompt, {
-          os,
-        });
+      // Ensure spec exists
+      if (!sessionContent.spec) {
+        sessionContent.spec = {};
       }
 
-      // Store the template name in metadata.name for session tracking
+      // Render EJS in system prompt
+      if (sessionContent.spec.system_prompt) {
+        sessionContent.spec.system_prompt = ejs.render(sessionContent.spec.system_prompt, { os });
+      }
+
+      // Store template name
       if (!sessionContent.metadata) {
         sessionContent.metadata = {};
       }
-      sessionContent.metadata.name = agent;
+      sessionContent.metadata.name = agentName;
 
       await Session.save(new_session_id, sessionContent);
 
@@ -261,7 +249,7 @@ export class Session {
 
       return {
         session_id: new_session_id,
-        agent,
+        agent: agentName,
         prompt,
       };
     } catch (error) {
@@ -270,15 +258,13 @@ export class Session {
   }
 
   /**
-   * Fork an existing session
+   * Fork an existing session (low-level CRUD)
    */
   static async fork(session_id, prompt = null) {
     try {
       const new_session_id = await Session.nextId();
 
-      // Set initial state based on whether there's work to do
-      const initialState = prompt ? 'pending' : 'success';
-      await Session.setState(new_session_id, initialState);
+      // V3: No state setting - FSMEngine handles
 
       const sessionContent = await Session.load(session_id);
       utils.assert(sessionContent.apiVersion == 'daemon/v1');
@@ -290,9 +276,11 @@ export class Session {
         await Session.push(new_session_id, prompt);
       }
 
+      const agent = sessionContent.metadata?.name || 'unknown';
+
       return {
         session_id: new_session_id,
-        agent: sessionContent.metadata?.name || 'unknown',
+        agent,
         prompt,
       };
     } catch (error) {
@@ -324,8 +312,8 @@ export class Session {
 
       await Session.save(session_id, sessionContent);
 
-      // Set session to pending since new work was added
-      await Session.setState(session_id, 'pending');
+      // V3: No BT state setting - FSMEngine manages state
+      // The session will be transitioned to pending by the caller if needed
 
       return {
         session_id: session_id,
@@ -341,6 +329,9 @@ export class Session {
 
   /**
    * List all agent sessions with their current state
+   * V3 NOTE: Returns FSM state (metadata.fsm_state) if available,
+   * falls back to BT state (metadata.bt_state) for v2 compatibility,
+   * defaults to 'created' if neither exists
    */
   static async list() {
     try {
@@ -359,7 +350,10 @@ export class Session {
           const sessionContent = await fs.readFile(sessionPath, 'utf-8');
           const sessionData = yaml.load(sessionContent);
 
-          const bt_state = sessionData.metadata?.bt_state || 'pending';
+          // V3: Prefer FSM state over BT state, default to 'created'
+          const state = sessionData.metadata?.fsm_state 
+            || sessionData.metadata?.bt_state 
+            || 'created';
           const agent = sessionData.metadata?.name || 'unknown';
           const model = sessionData.metadata?.model || 'unknown';
           const pid = sessionData.metadata?.pid || null;
@@ -376,7 +370,7 @@ export class Session {
 
           sessions.push({
             session_id: session_id,
-            state: bt_state,
+            state: state,
             agent,
             model,
             pid,

@@ -30,7 +30,6 @@ class ChannelList extends HTMLElement {
 
   // Support both property and attribute setting (for Alpine.js)
   set channels(value) {
-    console.log('🔍 channel-list setter called with:', value);
     if (Array.isArray(value)) {
       this._channels = value;
       this.render();
@@ -153,14 +152,6 @@ class ChannelList extends HTMLElement {
     const channels = this.channels;
     const current = this.currentChannel;
     
-    console.log('🔍 channel-list render:', {
-      channelsLength: channels.length,
-      channels: JSON.stringify(channels, null, 2),
-      current,
-      _channels: this._channels,
-      attribute: this.getAttribute('channels')
-    });
-
     this.shadowRoot.innerHTML = `
       <style>
         :host {

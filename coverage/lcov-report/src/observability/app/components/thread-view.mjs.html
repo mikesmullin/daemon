@@ -1451,13 +1451,10 @@ class ThreadView extends HTMLElement {
 &nbsp;
 <span class="fstat-no" title="function not covered" >  get events() {</span>
 <span class="cstat-no" title="statement not covered" >    // First try internal property (set by Alpine.js)</span>
-<span class="cstat-no" title="statement not covered" >    console.log('🔍 thread-view events getter: _events:', this._events, 'length:', this._events?.length);</span>
 <span class="cstat-no" title="statement not covered" >    if (this._events &amp;&amp; this._events.length &gt; 0) {</span>
-<span class="cstat-no" title="statement not covered" >      console.log('🔍 Returning _events array');</span>
 <span class="cstat-no" title="statement not covered" >      return this._events;</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" >    // Fall back to attribute</span>
-<span class="cstat-no" title="statement not covered" >    console.log('🔍 Falling back to attribute');</span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >      return JSON.parse(this.getAttribute('events') || '[]');</span>
 <span class="cstat-no" title="statement not covered" >    } catch {</span>
@@ -1532,7 +1529,6 @@ class ThreadView extends HTMLElement {
   render() {
     // Use _events directly instead of getter to avoid timing issues
     const events = this._events <span class="branch-0 cbranch-no" title="branch not covered" >|| [];</span>
-    console.log('🔍 thread-view render: _events:', this._events?.length, 'using:', events.length, 'currentChannel:', this._currentChannel);
 &nbsp;
     this.shadowRoot.innerHTML = `
       &lt;style&gt;

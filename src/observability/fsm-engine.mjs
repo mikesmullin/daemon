@@ -18,8 +18,12 @@
 //    - Replacement: FSM in-memory state + Session YAML persistence
 //    - Migration: No migration needed, proc files no longer written or read
 //
+import { _G } from '../lib/globals.mjs';
 import { log } from '../lib/utils.mjs';
 import { Session } from '../lib/session.mjs';
+import _ from 'lodash';
+import { Tool } from '../lib/tool.mjs';
+import { Agent } from '../lib/agents.mjs';
 
 export const SessionState = {
   CREATED: 'created',         // Session YAML created, not started
@@ -51,7 +55,6 @@ export class FSMEngine {
     this.running = false;
     this.tickInterval = 100; // 100ms = 10 ticks/sec
     this.activeSessions = new Map(); // session_id → SessionFSM
-    this.aiCallbacks = new Map(); // session_id → Promise for non-blocking AI calls
   }
 
   async start() {
@@ -115,8 +118,8 @@ export class FSMEngine {
         break;
 
       case SessionState.RUNNING:
-        // Check if AI call finished (non-blocking)
-        await this.checkAIResponse(sessionFSM);
+        // Call AI to process the session
+        await this.callAI(sessionFSM);
         break;
 
       case SessionState.TOOL_EXEC:
@@ -151,65 +154,161 @@ export class FSMEngine {
       session_id: sessionFSM.sessionId
     });
 
-    // Initiate AI call (non-blocking)
-    // This would integrate with Agent.prompt() or similar
-    // For now, stub it out
-    this.aiCallbacks.set(sessionFSM.sessionId, this.callAI(sessionFSM));
+    // Initiate AI call
+    await this.callAI(sessionFSM);
   }
 
   async checkAIResponse(sessionFSM) {
-    const callback = this.aiCallbacks.get(sessionFSM.sessionId);
-    if (!callback) {
-      return; // No active AI call
-    }
-
-    // Check if promise is resolved (non-blocking check)
-    // Note: JavaScript doesn't have native non-blocking promise inspection
-    // We'd need to track this separately in production
-    // For now, we await (this would block)
-    
-    // TODO: Implement proper non-blocking AI call tracking
-    // For now, this is a simplified version
+    // Removed - using synchronous AI calls in RUNNING state
   }
 
   async callAI(sessionFSM) {
-    // Stub: This would call Agent.prompt() or equivalent
-    // Return mock response after delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    return {
-      type: 'response',
-      content: 'AI response...',
-      tool_calls: []
-    };
+    const sessionId = sessionFSM.sessionId;
+    try {
+      const sessionContent = await Session.load(sessionId);
+      const capabilities = sessionContent.metadata.tools || [];
+      const availableTools = [];
+      for (const name in _G.tools) {
+        if (capabilities.includes(name)) {
+          availableTools.push(_G.tools[name]);
+        }
+      }
+      const toolDefinitions = Tool.prepareToolsForAPI(availableTools);
+      
+      // Process any pending tool calls first
+      let sessionUpdated = await Tool.processPendingCalls(sessionContent, sessionId);
+      
+      const system_prompt = sessionContent.spec.system_prompt || 'You are a helpful assistant.';
+      const messages = [{ role: 'system', content: system_prompt }];
+      const allMessages = sessionContent.spec.messages || [];
+      for (const message of allMessages) {
+        messages.push(_.omit(message, ['ts']));
+      }
+      
+      const last_message = allMessages[allMessages.length - 1] || {};
+      if (last_message.role !== 'user' && last_message.role !== 'tool') {
+        log('debug', `Session ${sessionId} no new input, skipping AI call`);
+        return;
+      }
+      
+      const response = await Agent.prompt({
+        model: sessionContent.metadata.model || 'claude-sonnet-4',
+        messages: messages,
+        tools: toolDefinitions,
+      });
+      
+      sessionContent.metadata.usage = response.usage;
+      sessionContent.metadata.provider = response.provider;
+      
+      const emptyResponse = !response.choices || response.choices.length === 0;
+      if (emptyResponse) {
+        allMessages.push({
+          ts: new Date().toISOString(),
+          role: 'assistant',
+          content: '',
+          finish_reason: 'empty'
+        });
+        sessionUpdated = true;
+      } else {
+        for (const choice of response.choices) {
+          const msg = {
+            ts: new Date().toISOString(),
+            role: choice.message.role,
+            content: choice.message.content,
+            tool_calls: choice.message.tool_calls,
+            finish_reason: choice.finish_reason
+          };
+          allMessages.push(msg);
+          sessionUpdated = true;
+        }
+      }
+      
+      if (sessionUpdated) {
+        sessionContent.spec.messages = allMessages;
+        await Session.save(sessionId, sessionContent);
+      }
+      
+      // Immediately process any tool calls from the response
+      const toolCallsAdded = response.choices.some(choice =>
+        choice.message.tool_calls && choice.message.tool_calls.length > 0
+      );
+      
+      if (toolCallsAdded) {
+        const toolsExecuted = await Tool.processPendingCalls(sessionContent, sessionId);
+        if (toolsExecuted) {
+          await Session.save(sessionId, sessionContent);
+        }
+      }
+      
+      // Determine next state
+      const lastMsg = allMessages[allMessages.length - 1];
+      const hasToolCalls = lastMsg.tool_calls && lastMsg.tool_calls.length > 0;
+      
+      if (hasToolCalls) {
+        this.transitionState(sessionFSM, SessionState.TOOL_EXEC, { hasToolCalls: true });
+      } else if (lastMsg.finish_reason === 'stop') {
+        this.transitionState(sessionFSM, SessionState.SUCCESS);
+      } else {
+        this.transitionState(sessionFSM, SessionState.PENDING);
+      }
+      
+      // Update last_read to prevent re-logging
+      await Session.updateLastRead(sessionId);
+      
+      // Emit events for new messages
+      const newMsgsCount = response.choices ? response.choices.length : 1;
+      for (let i = allMessages.length - newMsgsCount; i < allMessages.length; i++) {
+        const msg = allMessages[i];
+        this.channelManager.emit('event', {
+          channel: this.channelManager.getChannelForSession(sessionId),
+          event: {
+            type: msg.role.toUpperCase(),
+            session_id: sessionId,
+            content: msg.content,
+            tool_calls: msg.tool_calls,
+            finish_reason: msg.finish_reason,
+            ts: msg.ts
+          }
+        });
+      }
+      
+    } catch (error) {
+      log('error', `AI call failed for session ${sessionId}: ${error.message}`);
+      this.transitionState(sessionFSM, SessionState.FAILED, { error: error.message });
+    }
   }
 
   async executeTool(sessionFSM) {
-    log('debug', `🔧 Executing tool for session ${sessionFSM.sessionId}`);
-    
-    // Stub: Execute the pending tool
-    // Get tool call from session state
-    const { pendingToolCall } = sessionFSM.stateData;
-    
-    if (!pendingToolCall) {
-      log('error', `No pending tool call for session ${sessionFSM.sessionId}`);
-      this.transitionState(sessionFSM, SessionState.FAILED);
-      return;
+    const sessionId = sessionFSM.sessionId;
+    try {
+      const sessionContent = await Session.load(sessionId);
+      const updated = await Tool.processPendingCalls(sessionContent, sessionId);
+      if (updated) {
+        await Session.save(sessionId, sessionContent);
+        // Emit tool response events - find new tool messages
+        const allMessages = sessionContent.spec.messages || [];
+        // Simple: emit the last messages if role 'tool'
+        for (let i = allMessages.length - 5; i < allMessages.length; i++) { // last 5
+          if (i >= 0 && allMessages[i].role === 'tool') {
+            this.channelManager.emit('event', {
+              channel: this.channelManager.getChannelForSession(sessionId),
+              event: {
+                type: 'TOOL_RESPONSE',
+                session_id: sessionId,
+                content: allMessages[i].content,
+                tool_call_id: allMessages[i].tool_call_id,
+                ts: allMessages[i].ts
+              }
+            });
+          }
+        }
+      }
+      // After tools, back to RUNNING
+      this.transitionState(sessionFSM, SessionState.RUNNING);
+    } catch (error) {
+      log('error', `Tool execution failed for session ${sessionId}: ${error.message}`);
+      this.transitionState(sessionFSM, SessionState.FAILED, { error: error.message });
     }
-
-    // Check if tool requires human approval
-    if (this.requiresHumanApproval(pendingToolCall)) {
-      this.transitionState(sessionFSM, SessionState.HUMAN_INPUT, {
-        pendingToolCall
-      });
-      return;
-    }
-
-    // Execute tool (stub)
-    // const result = await Tool.execute(pendingToolCall);
-    
-    // Transition back to RUNNING
-    this.transitionState(sessionFSM, SessionState.RUNNING);
   }
 
   requiresHumanApproval(toolCall) {
@@ -260,7 +359,6 @@ export class FSMEngine {
    * This allows the FSM to restore state after a daemon restart
    */
   async persistSessionState(sessionFSM) {
-    const { Session } = await import('./session.mjs');
     await Session.setFSMState(
       sessionFSM.sessionId,
       sessionFSM.state,
@@ -287,7 +385,6 @@ export class FSMEngine {
 
   unregisterSession(sessionId) {
     this.activeSessions.delete(String(sessionId));
-    this.aiCallbacks.delete(String(sessionId));
     
     log('debug', `📝 Unregistered session ${sessionId}`);
   }

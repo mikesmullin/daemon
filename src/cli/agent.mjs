@@ -110,7 +110,7 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
     if (continueSessionId) {
       // Continue existing session by pushing new message
       log('debug', `🔄 Continuing session ${continueSessionId} with prompt: ${prompt}`);
-      const pushResult = await Agent.push(continueSessionId, prompt);
+      const pushResult = await Session.push(continueSessionId, prompt);
       sessionId = continueSessionId;
 
       // In interactive mode, update lastRead to the message timestamp to prevent re-logging the user message
@@ -120,10 +120,10 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
     } else {
       // Check for --lock flag: abort if another agent of same type is running
       if (_G.cliFlags.lock) {
-        const sessions = await Agent.list();
+        const sessions = await Session.list();
         const runningSession = sessions.find(s =>
           s.agent === agent &&
-          s.state === 'running'
+          (s.state === 'running' || s.state === SessionState.RUNNING)
         );
 
         if (runningSession) {
@@ -136,10 +136,10 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
 
       // Check for --kill flag: kill any running agent of same type
       if (_G.cliFlags.kill) {
-        const sessions = await Agent.list();
+        const sessions = await Session.list();
         const runningSessions = sessions.filter(s =>
           s.agent === agent &&
-          s.state === 'running'
+          (s.state === 'running' || s.state === SessionState.RUNNING)
         );
 
         for (const runningSession of runningSessions) {
@@ -171,7 +171,7 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
         }
       }
 
-      // Create new agent session
+      // Create new agent session via Agent.fork() (CLI wrapper)
       log('debug', `🤖 Creating new ${agent} agent session with prompt: ${prompt}`);
       const result = await Agent.fork({ agent, prompt });
       sessionId = result.session_id;
@@ -210,11 +210,17 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
       }, _G.cliFlags.timeout * 1000);
     }
 
-    // Enter focused watch mode for this specific session
-    const watchIntervalMs = _G.CONFIG.daemon.watch_poll_interval * 1000;
-    let lastIterationStart = 0;
+    // V3: Use temp FSM for CLI one-shot watch
+    const { FSMEngine, SessionState } = await import('../observability/fsm-engine.mjs');
+    const { ChannelManager } = await import('../observability/channel-manager.mjs');
+    const tempChannelManager = new ChannelManager(process.cwd(), new FSMEngine(tempChannelManager)); // Self-reference for emit
+    await tempChannelManager.initialize();
+    const fsmEngine = tempChannelManager.fsmEngine;
 
-    // Promise resolver for interactive mode completion
+    // Ensure session registered (fork() may have done it)
+    fsmEngine.registerSession(sessionId, SessionState.RUNNING); // Start immediately for one-shot
+
+    // Promise resolver for completion
     let completeWatch = null;
     const watchCompletionPromise = isInteractive ? new Promise((resolve, reject) => {
       completeWatch = { resolve, reject };
@@ -222,15 +228,10 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
 
     const performAgentWatch = async () => {
       try {
-        const iterationStart = Date.now();
-        log('debug', `👀 Checking session ${sessionId}...`);
-
-        // Check session state before pumping
-        const sessions = await Agent.list();
-        const targetSession = sessions.find(s => s.session_id === sessionId);
-
-        if (!targetSession) {
-          log('error', `❌ Session ${sessionId} not found`);
+        // Check FSM state
+        const sessionFSM = fsmEngine.getSession(sessionId);
+        if (!sessionFSM) {
+          log('error', `❌ Session ${sessionId} not found in FSM`);
           if (isInteractive) {
             completeWatch.reject(new Error(`Session ${sessionId} not found`));
             return;
@@ -238,27 +239,22 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
           process.exit(1);
         }
 
-        // If session is already in terminal state, we're done
-        if (['success', 'fail'].includes(targetSession.state)) {
-          log('debug', `✅ Session ${sessionId} completed with state: ${targetSession.state}`);
+        const state = sessionFSM.state;
 
-          // Clear timeout if set
-          if (timeoutHandle) {
-            clearTimeout(timeoutHandle);
-          }
+        // Terminal states
+        if ([SessionState.SUCCESS, SessionState.FAILED, SessionState.STOPPED].includes(state)) {
+          log('debug', `✅ Session ${sessionId} completed with state: ${state}`);
 
-          // Output the final assistant response to console (only in non-interactive mode)
-          // In interactive mode, logAssistant() already displayed it
+          // Clear timeout
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+
+          // Output final response (non-interactive)
           if (!suppressLogs && !isInteractive) {
             try {
-              const sessionFileName = `${sessionId}.yaml`;
-              const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-              const sessionContent = await utils.readYaml(sessionPath);
+              const sessionContent = await Session.load(sessionId);
               const messages = sessionContent.spec.messages || [];
-
-              // Find the last assistant message with content
               for (let i = messages.length - 1; i >= 0; i--) {
-                if (messages[i].role === 'assistant' && messages[i].content && messages[i].content.trim()) {
+                if (messages[i].role === 'assistant' && messages[i].content?.trim()) {
                   console.log('\n\n' + messages[i].content);
                   break;
                 }
@@ -268,92 +264,56 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
             }
           }
 
-          // In interactive mode, resolve promise to continue the REPL
-          // In non-interactive mode, exit the process
+          // Resolve/exit
           if (isInteractive) {
-            if (targetSession.state === 'fail') {
+            if (state === SessionState.FAILED) {
               completeWatch.reject(new Error('Agent session failed'));
             } else {
               completeWatch.resolve();
             }
             return;
           } else {
-            if (targetSession.state === 'fail') {
-              process.exit(1);
-            } else {
-              process.exit(0);
-            }
+            process.exit(state === SessionState.FAILED ? 1 : 0);
           }
         }
 
-        // Process the session if it's pending
-        if (targetSession.state === 'pending') {
-          log('debug', `🔄 Processing session ${sessionId} (${targetSession.agent})`);
-          await Agent.eval(sessionId);
+        // Process via FSM tick (single session focus)
+        await fsmEngine.processSession(sessionFSM);
 
-          // Immediately re-check session state after processing
-          const updatedSessions = await Agent.list();
-          const updatedSession = updatedSessions.find(s => s.session_id === sessionId);
-
-          if (updatedSession && ['success', 'fail'].includes(updatedSession.state)) {
-            log('debug', `✅ Session ${sessionId} completed with state: ${updatedSession.state}`);
-
-            // Clear timeout if set
-            if (timeoutHandle) {
-              clearTimeout(timeoutHandle);
-            }
-
-            // Output the final assistant response to console (only in non-interactive mode)
-            // In interactive mode, logAssistant() already displayed it
-            if (!suppressLogs && !isInteractive) {
-              try {
-                const sessionFileName = `${sessionId}.yaml`;
-                const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
-                const sessionContent = await utils.readYaml(sessionPath);
-                const messages = sessionContent.spec.messages || [];
-
-                // Find the last assistant message with content
-                for (let i = messages.length - 1; i >= 0; i--) {
-                  if (messages[i].role === 'assistant' && messages[i].content && messages[i].content.trim()) {
-                    console.log('\n\n' + messages[i].content);
-                    break;
-                  }
+        // Re-check after tick
+        const updatedFSM = fsmEngine.getSession(sessionId);
+        if (updatedFSM && [SessionState.SUCCESS, SessionState.FAILED, SessionState.STOPPED].includes(updatedFSM.state)) {
+          // Handle as above
+          log('debug', `✅ Session ${sessionId} completed with state: ${updatedFSM.state}`);
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+          if (!suppressLogs && !isInteractive) {
+            try {
+              const sessionContent = await Session.load(sessionId);
+              const messages = sessionContent.spec.messages || [];
+              for (let i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].role === 'assistant' && messages[i].content?.trim()) {
+                  console.log('\n\n' + messages[i].content);
+                  break;
                 }
-              } catch (error) {
-                log('debug', `Could not retrieve final response: ${error.message}`);
               }
+            } catch (error) {
+              log('debug', `Could not retrieve final response: ${error.message}`);
             }
-
-            // In interactive mode, resolve promise to continue the REPL
-            // In non-interactive mode, exit the process
-            if (isInteractive) {
-              if (updatedSession.state === 'fail') {
-                completeWatch.reject(new Error('Agent session failed'));
-              } else {
-                completeWatch.resolve();
-              }
-              return;
+          }
+          if (isInteractive) {
+            if (updatedFSM.state === SessionState.FAILED) {
+              completeWatch.reject(new Error('Agent session failed'));
             } else {
-              if (updatedSession.state === 'fail') {
-                process.exit(1);
-              } else {
-                process.exit(0);
-              }
+              completeWatch.resolve();
             }
+            return;
+          } else {
+            process.exit(updatedFSM.state === SessionState.FAILED ? 1 : 0);
           }
         }
 
-        // Calculate timing for next iteration
-        const iterationEnd = Date.now();
-        const iterationDuration = iterationEnd - iterationStart;
-        const timeSinceLastStart = lastIterationStart ? iterationStart - lastIterationStart : 0;
-        lastIterationStart = iterationStart;
-
-        const remainingDelay = Math.max(0, watchIntervalMs - timeSinceLastStart);
-        log('debug', `⏱️ Iteration took ${iterationDuration}ms, next run in ${remainingDelay}ms`);
-
-        // Schedule next iteration
-        setTimeout(performAgentWatch, remainingDelay);
+        // Schedule next tick (100ms as in FSM)
+        setTimeout(performAgentWatch, 100);
 
       } catch (error) {
         log('error', `❌ Agent watch failed: ${error.message}`);
@@ -365,16 +325,14 @@ async function executeAgent(agent, prompt, suppressLogs = false, continueSession
       }
     };
 
-    // Start the focused watch loop
+    // Start watch
     performAgentWatch();
 
     if (isInteractive) {
-      // In interactive mode, await completion and return session ID
       await watchCompletionPromise;
-      return sessionId; // Return session ID to continue REPL
+      return sessionId;
     } else {
-      // In non-interactive mode, keep process alive until watch exits via process.exit()
-      await new Promise(() => { }); // Never resolves
+      await new Promise(() => {}); // Keep alive
     }
 
   } catch (error) {

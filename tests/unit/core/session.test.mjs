@@ -31,78 +31,7 @@ describe('Session', () => {
     }
   });
 
-  describe('BT state management', () => {
-    test('validates valid BT states', () => {
-      expect(Session._isValidBtState('pending')).toBe(true);
-      expect(Session._isValidBtState('running')).toBe(true);
-      expect(Session._isValidBtState('fail')).toBe(true);
-      expect(Session._isValidBtState('success')).toBe(true);
-    });
 
-    test('rejects invalid BT states', () => {
-      expect(Session._isValidBtState('invalid')).toBe(false);
-      expect(Session._isValidBtState('RUNNING')).toBe(false);
-      expect(Session._isValidBtState('')).toBe(false);
-    });
-
-    test('sets BT state for session', async () => {
-      // Create a test session
-      const sessionData = {
-        metadata: { created_at: new Date().toISOString() },
-        messages: []
-      };
-      const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
-      writeFileSync(sessionPath, yaml.dump(sessionData));
-
-      await Session.setState(1, 'running');
-
-      const content = await Session.load(1);
-      expect(content.metadata.bt_state).toBe('running');
-    });
-
-    test('gets BT state for session', async () => {
-      // Create a test session with BT state
-      const sessionData = {
-        metadata: {
-          created_at: new Date().toISOString(),
-          bt_state: 'success'
-        },
-        messages: []
-      };
-      const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
-      writeFileSync(sessionPath, yaml.dump(sessionData));
-
-      const state = await Session.getState(1);
-
-      expect(state).toBe('success');
-    });
-
-    test('returns pending as default BT state', async () => {
-      // Create a test session without BT state
-      const sessionData = {
-        metadata: { created_at: new Date().toISOString() },
-        messages: []
-      };
-      const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
-      writeFileSync(sessionPath, yaml.dump(sessionData));
-
-      const state = await Session.getState(1);
-
-      expect(state).toBe('pending');
-    });
-
-    test('throws error for invalid BT state value', async () => {
-      // Create a test session
-      const sessionData = {
-        metadata: { created_at: new Date().toISOString() },
-        messages: []
-      };
-      const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
-      writeFileSync(sessionPath, yaml.dump(sessionData));
-
-      await expect(Session.setState(1, 'invalid')).rejects.toThrow();
-    });
-  });
 
   describe('FSM state management', () => {
     test('sets FSM state for session', async () => {
@@ -143,77 +72,75 @@ describe('Session', () => {
 
   describe('session CRUD operations', () => {
     test('creates a new session', async () => {
-      const sessionId = await Session.create({
-        template: 'test-agent',
-        prompt: 'Hello, world!'
-      });
-
-      expect(sessionId).toBeDefined();
-      expect(typeof sessionId).toBe('number');
-
+      const result = await Session.new('test-agent', 'Hello, world!');
+      expect(result).toBeDefined();
+      expect(result.session_id).toBeDefined();
+      const sessionId = result.session_id;
+      expect(typeof sessionId).toBe('string');
       const sessionPath = join(_G.SESSIONS_DIR, `${sessionId}.yaml`);
       expect(existsSync(sessionPath)).toBe(true);
+      const content = await Session.load(sessionId);
+      expect(content.spec.messages.length).toBe(1);
+      expect(content.spec.messages[0].role).toBe('user');
+      expect(content.spec.messages[0].content).toBe('Hello, world!');
     });
 
     test('loads an existing session', async () => {
       // Create a test session
       const sessionData = {
+        apiVersion: 'daemon/v1',
+        kind: 'Agent',
         metadata: {
           created_at: new Date().toISOString(),
-          template: 'test-agent'
+          name: 'test-agent'
         },
-        messages: [
-          { type: 'USER_REQUEST', content: 'Hello' }
-        ]
+        spec: {
+          messages: [
+            { role: 'user', content: 'Hello' }
+          ]
+        }
       };
       const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
       writeFileSync(sessionPath, yaml.dump(sessionData));
 
-      const content = await Session.load(1);
-
-      expect(content.metadata.template).toBe('test-agent');
-      expect(content.messages.length).toBe(1);
-      expect(content.messages[0].content).toBe('Hello');
+      const content = await Session.load('1');
+      expect(content.metadata.name).toBe('test-agent');
+      expect(content.spec.messages.length).toBe(1);
+      expect(content.spec.messages[0].content).toBe('Hello');
     });
 
     test('saves session data', async () => {
       const sessionData = {
+        apiVersion: 'daemon/v1',
+        kind: 'Agent',
         metadata: {
           created_at: new Date().toISOString(),
-          template: 'test-agent'
+          name: 'test-agent'
         },
-        messages: []
+        spec: {
+          messages: []
+        }
       };
 
-      await Session.save(1, sessionData);
+      await Session.save('1', sessionData);
 
       const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
       expect(existsSync(sessionPath)).toBe(true);
 
-      const content = await Session.load(1);
-      expect(content.metadata.template).toBe('test-agent');
-    });
-
-    test('deletes a session', async () => {
-      // Create a test session
-      const sessionData = {
-        metadata: { created_at: new Date().toISOString() },
-        messages: []
-      };
-      const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
-      writeFileSync(sessionPath, yaml.dump(sessionData));
-
-      await Session.delete(1);
-
-      expect(existsSync(sessionPath)).toBe(false);
+      const content = await Session.load('1');
+      expect(content.metadata.name).toBe('test-agent');
     });
 
     test('lists all sessions', async () => {
       // Create multiple test sessions
       for (let i = 1; i <= 3; i++) {
         const sessionData = {
+          apiVersion: 'daemon/v1',
+          kind: 'Agent',
           metadata: { created_at: new Date().toISOString() },
-          messages: []
+          spec: {
+            messages: []
+          }
         };
         const sessionPath = join(_G.SESSIONS_DIR, `${i}.yaml`);
         writeFileSync(sessionPath, yaml.dump(sessionData));
@@ -221,125 +148,49 @@ describe('Session', () => {
 
       const sessions = await Session.list();
 
-      expect(sessions.length).toBeGreaterThanOrEqual(3);
-      expect(sessions).toContain('1');
-      expect(sessions).toContain('2');
-      expect(sessions).toContain('3');
+      expect(sessions.length).toBe(3);
+      expect(sessions.map(s => s.session_id)).toContain('1');
+      expect(sessions.map(s => s.session_id)).toContain('2');
+      expect(sessions.map(s => s.session_id)).toContain('3');
     });
   });
 
   describe('message operations', () => {
-    test('appends message to session', async () => {
+    test('pushes user message to session', async () => {
       // Create a test session
-      const sessionData = {
-        metadata: { created_at: new Date().toISOString() },
-        messages: []
-      };
-      const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
-      writeFileSync(sessionPath, yaml.dump(sessionData));
+      const result = await Session.new('test-agent');
+      const sessionId = result.session_id;
+      await Session.push(sessionId, 'Test message');
 
-      await Session.appendMessage(1, {
-        type: 'USER_REQUEST',
-        content: 'Test message'
-      });
-
-      const content = await Session.load(1);
-      expect(content.messages.length).toBe(1);
-      expect(content.messages[0].type).toBe('USER_REQUEST');
-      expect(content.messages[0].content).toBe('Test message');
+      const content = await Session.load(sessionId);
+      expect(content.spec.messages.length).toBe(1);
+      expect(content.spec.messages[0].role).toBe('user');
+      expect(content.spec.messages[0].content).toBe('Test message');
     });
 
-    test('gets all messages from session', async () => {
-      // Create a test session with messages
-      const sessionData = {
-        metadata: { created_at: new Date().toISOString() },
-        messages: [
-          { type: 'USER_REQUEST', content: 'Message 1' },
-          { type: 'RESPONSE', content: 'Message 2' }
-        ]
-      };
-      const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
-      writeFileSync(sessionPath, yaml.dump(sessionData));
-
-      const messages = await Session.getMessages(1);
-
-      expect(messages.length).toBe(2);
-      expect(messages[0].content).toBe('Message 1');
-      expect(messages[1].content).toBe('Message 2');
-    });
-
-    test('transforms messages for API', async () => {
-      // Create a test session with messages
-      const sessionData = {
-        metadata: { created_at: new Date().toISOString() },
-        messages: [
-          { type: 'USER_REQUEST', content: 'Hello' },
-          { type: 'RESPONSE', content: 'Hi there!' },
-          { type: 'TOOL_CALL', name: 'execute_shell', arguments: { command: 'ls' } },
-          { type: 'TOOL_RESPONSE', result: 'file1.txt\nfile2.txt' }
-        ]
-      };
-      const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
-      writeFileSync(sessionPath, yaml.dump(sessionData));
-
-      const apiMessages = await Session.transformMessagesForAPI(1);
-
-      expect(apiMessages.length).toBeGreaterThan(0);
-      // Should include user and assistant messages
-      expect(apiMessages.some(m => m.role === 'user')).toBe(true);
+    test('prepares messages for API', () => {
+      const messages = [
+        { ts: '2023-01-01T00:00:00Z', role: 'user', content: 'Hello' },
+        { ts: '2023-01-01T00:00:01Z', role: 'assistant', content: 'Hi', tool_calls: [{ id: '1', function: { name: 'test' } }] }
+      ];
+      const apiMessages = Session.prepareMessagesForAPI(messages);
+      expect(apiMessages.length).toBe(2);
+      expect(apiMessages[0].role).toBe('user');
+      expect(apiMessages[0].content).toBe('Hello');
+      expect(apiMessages[0].ts).toBeUndefined();
+      expect(apiMessages[1].tool_calls).toBeDefined();
+      expect(apiMessages[1].ts).toBeUndefined();
     });
   });
 
-  describe('session metadata', () => {
-    test('updates session metadata', async () => {
-      // Create a test session
-      const sessionData = {
-        metadata: {
-          created_at: new Date().toISOString(),
-          template: 'test-agent'
-        },
-        messages: []
-      };
-      const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
-      writeFileSync(sessionPath, yaml.dump(sessionData));
 
-      await Session.updateMetadata(1, {
-        custom_field: 'custom_value'
-      });
-
-      const content = await Session.load(1);
-      expect(content.metadata.custom_field).toBe('custom_value');
-      expect(content.metadata.template).toBe('test-agent'); // Should preserve existing metadata
-    });
-
-    test('gets session metadata', async () => {
-      // Create a test session
-      const sessionData = {
-        metadata: {
-          created_at: new Date().toISOString(),
-          template: 'test-agent',
-          custom_field: 'test'
-        },
-        messages: []
-      };
-      const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');
-      writeFileSync(sessionPath, yaml.dump(sessionData));
-
-      const metadata = await Session.getMetadata(1);
-
-      expect(metadata.template).toBe('test-agent');
-      expect(metadata.custom_field).toBe('test');
-    });
-  });
 
   describe('session validation', () => {
     test('throws error when loading non-existent session', async () => {
       await expect(Session.load(9999)).rejects.toThrow();
     });
 
-    test('throws error when deleting non-existent session', async () => {
-      await expect(Session.delete(9999)).rejects.toThrow();
-    });
+
 
     test('handles corrupted session YAML gracefully', async () => {
       const sessionPath = join(_G.SESSIONS_DIR, '1.yaml');

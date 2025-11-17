@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { ptyManager } from '../../plugins/shell/pty-manager.mjs';
 import { templateManager } from '../lib/templates.mjs';
+import { ChannelManager } from './channel-manager.mjs';
+import { FSMEngine } from './fsm-engine.mjs';
 import { ChannelHandlers } from './handlers/channel-handlers.mjs';
 import { AgentHandlers } from './handlers/agent-handlers.mjs';
 import { MessageHandlers } from './handlers/message-handlers.mjs';
@@ -37,6 +39,13 @@ class ObservabilityServer {
     this.baseDir = __dirname;
     this.workspaceRoot = join(__dirname, '..', '..');
     
+    // Initialize Channel Manager and FSM Engine
+    this.channelManager = new ChannelManager(this.workspaceRoot);
+    this.fsmEngine = new FSMEngine(this.channelManager);
+    
+    // Set FSM Engine reference in Channel Manager
+    this.channelManager.setFSMEngine(this.fsmEngine);
+    
     // PTY streaming setup
     this.ptyStreamIntervals = new Map(); // Map of sessionKey -> interval
     
@@ -49,11 +58,66 @@ class ObservabilityServer {
     this.templateHandlers = new TemplateHandlers(this.workspaceRoot);
   }
 
-  start() {
+  async start() {
+    // Start HTTP/WebSocket server FIRST so clients can connect immediately
+    // This ensures the browser doesn't wait for initialization before connecting
     this.startHttpServer();
     this.startStatusChecker();
+    console.log(`Observability server running on http://localhost:${this.port}`);
+    
+    // Initialize Channel Manager (load existing channels) in background
+    await this.channelManager.initialize();
+    
+    // Load existing sessions and register with FSM engine
+    await this.loadAndRegisterSessions();
+    
+    // Start FSM Engine (main processing loop)
+    this.fsmEngine.start().catch(err => {
+      console.error('FSM Engine error:', err);
+    });
+    
     templateManager.initialize(); // Initialize centralized template cache
-    console.log(`🔍 Observability server running on http://localhost:${this.port}`);
+    console.log(`🤖 FSM Engine started - processing agent sessions`);
+  }
+
+  async loadAndRegisterSessions() {
+    const sessions = await this.loadSessions();
+    
+    for (const sessionData of sessions) {
+      if (sessionData.metadata && sessionData.metadata.session_id) {
+        const sessionId = sessionData.metadata.session_id;
+        
+        // Get FSM state from session metadata, or default to CREATED
+        let fsmState = sessionData.metadata.fsm_state || 'created';
+        const stateData = sessionData.metadata.state_data || {};
+        
+        // Check if session has pending user messages and should be in PENDING state
+        const messages = sessionData.spec?.messages || [];
+        const hasPendingUserMessage = messages.length > 0 && 
+          messages[messages.length - 1].role === 'user' &&
+          (!sessionData.metadata.fsm_state || sessionData.metadata.fsm_state === 'created' || sessionData.metadata.fsm_state === 'success');
+        
+        if (hasPendingUserMessage) {
+          fsmState = 'pending';
+          console.log(`📝 Session ${sessionId} has pending user message, setting state to PENDING`);
+        }
+        
+        // Register session with FSM engine
+        const sessionFSM = this.fsmEngine.registerSession(sessionId, fsmState);
+        sessionFSM.stateData = stateData;
+        
+        // Register with ChannelManager for tracking
+        this.channelManager.registerSession(sessionId, {
+          name: sessionData.metadata.name,
+          template: sessionData.metadata.template,
+          created_at: sessionData.metadata.created_at
+        });
+        
+        console.log(`📝 Registered session ${sessionId} with FSM state: ${fsmState}`);
+      }
+    }
+    
+    console.log(`✅ Loaded ${sessions.length} existing sessions`);
   }
 
   handleEvent(event) {
@@ -249,11 +313,14 @@ class ObservabilityServer {
       websocket: {
         open: async (ws) => {
           this.clients.add(ws);
+          // Register with ChannelManager for broadcasting
+          this.channelManager.wsClients.add(ws);
+          
           // Initialize PTY subscriptions set for this client
           ws.ptySubscriptions = new Set();
           
           // Load channels and sessions from disk
-          const channels = await this.loadChannels();
+          const channels = this.channelManager.getAllChannels();
           const sessions = await this.loadSessions();
           
           // Send initial state
@@ -286,6 +353,8 @@ class ObservabilityServer {
             this.ptyHandlers.cleanup(ws);
           }
           this.clients.delete(ws);
+          // Unregister from ChannelManager
+          this.channelManager.wsClients.delete(ws);
         }
       }
     });
@@ -472,6 +541,10 @@ class ObservabilityServer {
             const sessionData = yaml.load(content);
             
             if (sessionData && sessionData.metadata) {
+              // Add session_id to metadata (derived from filename)
+              const sessionId = file.replace('.yaml', '');
+              sessionData.metadata.session_id = sessionId;
+              
               sessions.push(sessionData);
             }
           } catch (err) {
@@ -643,6 +716,11 @@ class ObservabilityServer {
       clearInterval(this.statusCheckInterval);
     }
     
+    // Stop FSM Engine
+    if (this.fsmEngine) {
+      this.fsmEngine.stop();
+    }
+    
     // Clean up all PTY streaming intervals
     for (const [streamKey, interval] of this.ptyStreamIntervals.entries()) {
       clearInterval(interval);
@@ -660,7 +738,12 @@ class ObservabilityServer {
 if (import.meta.main) {
   const port = parseInt(process.argv[2] || DEFAULT_PORT);
   const server = new ObservabilityServer(port);
-  server.start();
+  
+  // Start is now async
+  server.start().catch(err => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
 
   process.on('SIGINT', () => {
     console.log('\nShutting down...');

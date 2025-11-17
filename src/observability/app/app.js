@@ -207,7 +207,6 @@ function app() {
     },
     
     handleInit(data) {
-      console.log('🔍 handleInit received:', JSON.stringify(data, null, 2));
       
       // Reset currentChannel to clear any bad values from localStorage
       this.currentChannel = null;
@@ -215,12 +214,6 @@ function app() {
       this.channels = data.channels || [];
       this.sessions = data.sessions || [];
       this.events = data.events || [];
-      
-      console.log('🔍 After assignment:', {
-        channelsCount: this.channels.length,
-        sessionsCount: this.sessions.length,
-        eventsCount: this.events.length
-      });
       
       // Build agents list from sessions and channels
       this.agents = {};
@@ -230,7 +223,7 @@ function app() {
         const channelName = channel.metadata.name;
         this.agents[channelName] = [];
         
-        const sessionIds = channel.spec?.agent_sessions || [];
+        const sessionIds = channel.spec?.agent_sessions || channel.spec?.sessions || [];
         
         for (const sessionId of sessionIds) {
           // Find the session with this ID
@@ -248,38 +241,13 @@ function app() {
         }
       }
       
-      console.log('🔍 Built agents:', JSON.stringify(this.agents, null, 2));
-      
-      console.log('🔍 BEFORE auto-select: currentChannel=', this.currentChannel, 'type=', typeof this.currentChannel);
-      if (this.currentChannel && typeof this.currentChannel === 'object') {
-        console.log('🔍 currentChannel is an object! Keys:', Object.keys(this.currentChannel));
-        console.log('🔍 currentChannel stringified:', JSON.stringify(this.currentChannel));
-      }
-      
-      // Don't auto-select - let user choose
-      // Auto-select first channel if none selected
-      // if (!this.currentChannel && this.channels.length > 0) {
-      //   const firstChannelName = this.channels[0].metadata.name;
-      //   console.log('🔍 About to set currentChannel to:', firstChannelName, 'type:', typeof firstChannelName);
-      //   this.currentChannel = firstChannelName;
-      //   console.log('🔍 After setting, currentChannel is:', this.currentChannel, 'type:', typeof this.currentChannel);
-      // } else {
-      //   console.log('🔍 NOT auto-selecting. currentChannel=', this.currentChannel, 'channels.length=', this.channels.length);
-      // }
-      
       // Force update web components
       this.$nextTick(() => {
-        console.log('🔍 Forcing component updates...');
-        console.log('🔍 this.currentChannel:', this.currentChannel, 'type:', typeof this.currentChannel);
-        console.log('🔍 this.agents:', JSON.stringify(this.agents, null, 2));
-        
         const channelList = this.$el?.querySelector('channel-list');
         if (channelList) {
           // Convert Alpine.js Proxy to plain array
           const plainChannels = JSON.parse(JSON.stringify(this.channels));
           const plainCurrentChannel = this.currentChannel ? String(this.currentChannel) : null;
-          console.log('🔍 Setting channelList.channels to:', plainChannels);
-          console.log('🔍 plainCurrentChannel:', plainCurrentChannel);
           
           // Try setting directly
           channelList._channels = plainChannels;
@@ -287,7 +255,6 @@ function app() {
           
           // Manually trigger render
           if (typeof channelList.render === 'function') {
-            console.log('🔍 Calling channelList.render() manually');
             channelList.render();
           }
         }
@@ -297,20 +264,16 @@ function app() {
         if (agentList && this.currentChannel) {
           const plainCurrentChannel = String(this.currentChannel);
           const agentsForChannel = this.agents[plainCurrentChannel] || [];
-          console.log('🔍 agentsForChannel for "' + plainCurrentChannel + '":', agentsForChannel);
           
           // Convert Alpine.js Proxy to plain array
           const plainAgents = JSON.parse(JSON.stringify(agentsForChannel));
-          console.log('🔍 Setting agentList.agents to:', plainAgents);
           agentList._agents = plainAgents;
           agentList._currentChannel = plainCurrentChannel;
           if (typeof agentList.render === 'function') {
-            console.log('🔍 Calling agentList.render() manually');
             agentList.render();
           }
         } else if (agentList) {
           // No channel selected - clear agents
-          console.log('🔍 No channel selected, clearing agents');
           agentList._agents = [];
           agentList._currentChannel = null;
           if (typeof agentList.render === 'function') {
@@ -323,7 +286,6 @@ function app() {
         if (threadView) {
           const plainEvents = JSON.parse(JSON.stringify(this.events));
           const plainCurrentChannel = this.currentChannel ? String(this.currentChannel) : null;
-          console.log('🔍 Setting threadView.events to:', plainEvents.length, 'events');
           threadView._events = plainEvents;
           threadView._currentChannel = plainCurrentChannel;
           if (typeof threadView.render === 'function') {
@@ -338,7 +300,7 @@ function app() {
       event.channel = msg.channel || event.channel;
       event.timestamp = event.timestamp || Date.now();
       
-      this.events.push(event);
+      this.events = [...this.events, event];
       
       // Notify channel-list component about new event (handles unread count + sound)
       if (event.channel && event.channel !== this.currentChannel) {
@@ -360,6 +322,18 @@ function app() {
       const existing = this.channels.find(c => c.metadata.name === channel.metadata.name);
       if (!existing) {
         this.channels.push(channel);
+        
+        // Trigger UI update
+        this.$nextTick(() => {
+          const channelList = this.$refs.channelList;
+          if (channelList) {
+            const plainChannels = JSON.parse(JSON.stringify(this.channels));
+            channelList._channels = plainChannels;
+            if (typeof channelList.render === 'function') {
+              channelList.render();
+            }
+          }
+        });
       }
     },
     
@@ -379,6 +353,21 @@ function app() {
         name: agent,
         session_id,
         status: 'pending'
+      });
+      
+      // Trigger UI updates
+      this.$nextTick(() => {
+        // Update agent-list if this is the current channel
+        if (channel === this.currentChannel) {
+          const agentList = this.$refs.agentList;
+          if (agentList) {
+            const plainAgents = JSON.parse(JSON.stringify(this.channelAgents));
+            agentList._agents = plainAgents;
+            if (typeof agentList.render === 'function') {
+              agentList.render();
+            }
+          }
+        }
       });
     },
     
@@ -528,8 +517,6 @@ function app() {
     selectChannel(event) {
       // Extract channel name from event detail
       const channelName = event.detail?.channel || event;
-      console.log('🔍 selectChannel called with:', event, 'extracted channelName:', channelName);
-      console.log('🔍 this.agents at time of selection:', JSON.stringify(this.agents, null, 2));
       
       this.currentChannel = channelName;
       
@@ -547,41 +534,27 @@ function app() {
         
         // Update agent-list with agents for this channel
         const agentList = this.$refs.agentList;
-        console.log('🔍 agentList element:', agentList);
         if (agentList) {
           const agentsForChannel = this.agents[channelName] || [];
-          console.log('🔍 this.agents[channelName]:', this.agents[channelName]);
           const plainAgents = JSON.parse(JSON.stringify(agentsForChannel));
-          console.log('🔍 Updating agentList for channel:', channelName, 'agents:', plainAgents);
           agentList._agents = plainAgents;
           agentList._currentChannel = channelName;
-          console.log('🔍 agentList._agents after set:', agentList._agents);
           if (typeof agentList.render === 'function') {
-            console.log('🔍 Calling agentList.render()');
             agentList.render();
-          } else {
-            console.log('🔍 agentList.render is not a function!');
           }
-        } else {
-          console.log('🔍 agentList element not found!');
         }
         
         // Update thread-view with events for this channel
         const threadView = this.$refs.threadView;
-        console.log('🔍 threadView ref:', threadView);
         if (threadView) {
           // Get all agents for this channel
           const agentsForChannel = this.agents[channelName] || [];
-          console.log('🔍 agentsForChannel:', agentsForChannel.length, 'agents');
           
           // Collect all messages from sessions for this channel's agents
           const channelEvents = [];
           agentsForChannel.forEach(agent => {
-            console.log('🔍 Looking for session for agent:', agent.name);
             const session = this.sessions.find(s => s.metadata?.name === agent.name);
-            console.log('🔍 Found session:', session ? 'YES' : 'NO', session?.metadata?.name);
             if (session && session.spec?.messages) {
-              console.log('🔍 Session has', session.spec.messages.length, 'messages');
               // Keep original messages but add metadata for UI rendering
               session.spec.messages.forEach(msg => {
                 // Clone the original message to avoid mutating session data
@@ -611,22 +584,11 @@ function app() {
             return timeA - timeB;
           });
           
-          console.log('🔍 Channel events for', channelName, ':', channelEvents.length, 'events');
-          console.log('🔍 threadView element:', threadView);
-          console.log('🔍 Setting threadView._events to:', channelEvents.length, 'events');
           threadView._events = channelEvents;
           threadView._currentChannel = channelName;
-          console.log('🔍 threadView._events after set:', threadView._events?.length);
-          console.log('🔍 threadView.render is function?', typeof threadView.render === 'function');
           if (typeof threadView.render === 'function') {
-            console.log('🔍 Calling threadView.render()');
             threadView.render();
-            console.log('🔍 threadView.render() completed');
-          } else {
-            console.log('🔍 threadView.render is not a function!');
           }
-        } else {
-          console.log('🔍 threadView element not found!');
         }
         
         // Update the filter display for this channel
@@ -656,8 +618,10 @@ function app() {
       this.saveToLocalStorage();
     },
     
-    submitMessage(data) {
-      const { agent, content } = data;
+    submitMessage(event) {
+      const { agent, content } = event.detail;
+      
+      console.log('Submitting message:', { channel: this.currentChannel, agent, content });
       
       // Regular message
       this.send({

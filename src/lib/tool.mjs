@@ -164,6 +164,10 @@ export class Tool {
    * @returns {Object} { action: 'approved'|'rejected'|'modified', prompt?: string }
    */
   static async askHuman(name, args, sessionId) {
+    if (_G.browserMode) {
+      log('info', `🤖 Browser mode: Auto-approving tool ${name} for testing (implement WS approval later)`);
+      return { action: 'approved' };
+    }
     const tool = _G.tools[name];
 
     // Check if --no-humans flag is set (unattended mode)

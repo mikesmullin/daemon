@@ -48,13 +48,10 @@ class ThreadView extends HTMLElement {
 
   get events() {
     // First try internal property (set by Alpine.js)
-    console.log('🔍 thread-view events getter: _events:', this._events, 'length:', this._events?.length);
     if (this._events && this._events.length > 0) {
-      console.log('🔍 Returning _events array');
       return this._events;
     }
     // Fall back to attribute
-    console.log('🔍 Falling back to attribute');
     try {
       return JSON.parse(this.getAttribute('events') || '[]');
     } catch {
@@ -129,7 +126,6 @@ class ThreadView extends HTMLElement {
   render() {
     // Use _events directly instead of getter to avoid timing issues
     let events = this._events || [];
-    console.log('🔍 thread-view render: _events:', this._events?.length, 'using:', events.length, 'currentChannel:', this._currentChannel, 'filter:', this._filter);
 
     // Apply filter if present
     if (this._filter && this._filter.trim()) {
@@ -143,7 +139,6 @@ class ThreadView extends HTMLElement {
       
       // For now, do simple client-side filtering until we implement full Lucene parser in component
       events = this.simpleFilter(events, this._filter);
-      console.log('🔍 After filtering:', events.length, 'events remain');
     }
 
     this.shadowRoot.innerHTML = `

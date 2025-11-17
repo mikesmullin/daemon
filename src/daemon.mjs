@@ -220,25 +220,34 @@ async function parseCliArgs() {
     args.splice(sessionIndex, 2);
   }
 
-  // Parse --labels <label1,label2,...>
+  // DEPRECATED: --labels and --not-labels removed in v3 (use channels in browser)
   let labels = [];
   const labelsIndex = args.indexOf('--labels');
-  if (labelsIndex !== -1 && labelsIndex + 1 < args.length) {
-    const labelsStr = args[labelsIndex + 1];
-    labels = labelsStr.split(',').map(l => l.trim()).filter(l => l.length > 0);
-    args.splice(labelsIndex, 2);
+  if (labelsIndex !== -1) {
+    console.warn('⚠️  --labels is deprecated in v3. Use channels in "d browser" instead.');
+    if (labelsIndex + 1 < args.length) {
+      const labelsStr = args[labelsIndex + 1];
+      labels = labelsStr.split(',').map(l => l.trim()).filter(l => l.length > 0);
+      args.splice(labelsIndex, 2);
+    } else {
+      args.splice(labelsIndex, 1);
+    }
   }
 
-  // Parse --not-labels <label1,label2,...>
   let notLabels = [];
   const notLabelsIndex = args.indexOf('--not-labels');
-  if (notLabelsIndex !== -1 && notLabelsIndex + 1 < args.length) {
-    const notLabelsStr = args[notLabelsIndex + 1];
-    notLabels = notLabelsStr.split(',').map(l => l.trim()).filter(l => l.length > 0);
-    args.splice(notLabelsIndex, 2);
+  if (notLabelsIndex !== -1) {
+    console.warn('⚠️  --not-labels is deprecated in v3. Use channels in "d browser" instead.');
+    if (notLabelsIndex + 1 < args.length) {
+      const notLabelsStr = args[notLabelsIndex + 1];
+      notLabels = notLabelsStr.split(',').map(l => l.trim()).filter(l => l.length > 0);
+      args.splice(notLabelsIndex, 2);
+    } else {
+      args.splice(notLabelsIndex, 1);
+    }
   }
 
-  // Store global flags in _G for access throughout the app
+  // Store global flags in _G for access throughout the app (labels kept for legacy)
   _G.cliFlags = { timeout, lock, kill, interactive, noHumans, session, labels, notLabels, concurrency };
 
   // Parse --format flag
@@ -369,12 +378,36 @@ Examples:
 `);
 }
 
+async function waitForSessionCompletion(sessionId) {
+  const maxWait = _G.cliFlags.timeout ? _G.cliFlags.timeout * 1000 : 300000; // 5 min default
+  const startTime = Date.now();
+  while (Date.now() - startTime < maxWait) {
+    const state = await Session.getFSMState(sessionId);
+    if (state.state === SessionState.SUCCESS || state.state === SessionState.STOPPED || state.state === SessionState.FAILED) {
+      log('info', `Session ${sessionId} completed with state: ${state.state}`);
+      // Log conversation
+      const sessionContent = await Session.load(sessionId);
+      Session.logConversation(sessionContent.spec.messages || [], sessionId);
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every sec
+  }
+  log('warn', `Session ${sessionId} timed out`);
+}
+
 async function handleQuickPrompt(args) {
   if (logWasUndefined) process.env.LOG = 'warn,error'; // only show warnings and errors
   await getConfig();
   const prompt = args.join(' ');
 
-  const result = await Agent.prompt({
+  // V3: Direct AI call via registry (no Agent)
+  const { registry } = await import('./lib/ai-providers/registry.mjs');
+  const modelName = 'claude-sonnet-4'; // Default for quick prompt
+  const provider = await registry.getProvider(modelName);
+  const cleanModelName = registry.stripProviderPrefix(modelName);
+
+  const result = await provider.createChatCompletion({
+    model: cleanModelName,
     messages: [
       {
         role: 'system',

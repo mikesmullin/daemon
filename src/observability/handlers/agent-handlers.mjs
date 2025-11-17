@@ -5,6 +5,8 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { Agent } from '../../lib/agents.mjs';
+import utils from '../../lib/utils.mjs';
 
 const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
@@ -17,7 +19,6 @@ export class AgentHandlers {
     this.sessionsDir = join(this.workspaceRoot, 'agents', 'sessions');
     this.channelsDir = join(this.workspaceRoot, 'agents', 'channels');
     this.templatesDir = join(this.workspaceRoot, 'agents', 'templates');
-    this.procDir = join(this.workspaceRoot, 'agents', 'proc');
   }
 
   async handleInvite(ws, msg) {
@@ -30,68 +31,15 @@ export class AgentHandlers {
     const finalPrompt = prompt || 'You have been invited to the channel';
 
     try {
-      // Generate unique session ID
-      const sessionId = Date.now();
-      
-      // Create session file
-      const sessionData = {
-        metadata: {
-          name: template,
-          session_id: sessionId,
-          created: new Date().toISOString(),
-          channel: channel
-        },
-        spec: {
-          template: template,
-          messages: [
-            {
-              ts: new Date().toISOString(),
-              role: 'user',
-              content: finalPrompt
-            }
-          ]
-        }
-      };
-
-      // Ensure sessions directory exists
-      await fs.mkdir(this.sessionsDir, { recursive: true });
-      await fs.mkdir(this.procDir, { recursive: true });
-      
-      const sessionFile = join(this.sessionsDir, `${sessionId}.yaml`);
-      await fs.writeFile(sessionFile, yaml.dump(sessionData), 'utf8');
-      
-      // Mark as pending
-      await fs.writeFile(join(this.procDir, String(sessionId)), 'pending', 'utf8');
-      
-      // Add session to channel
-      const channelFile = join(this.channelsDir, `${channel}.yaml`);
-      try {
-        const content = await fs.readFile(channelFile, 'utf8');
-        const channelData = yaml.load(content);
-        
-        if (!channelData.spec.sessions.includes(sessionId)) {
-          channelData.spec.sessions.push(sessionId);
-          await fs.writeFile(channelFile, yaml.dump(channelData), 'utf8');
-        }
-      } catch (err) {
-        console.warn(`Failed to update channel file: ${err.message}`);
-      }
-
-      ws.send(JSON.stringify({
-        type: 'agent:invited',
-        session_id: sessionId,
-        channel: channel,
-        agent: template
-      }));
-      
-      // Broadcast to all clients
-      this.server.broadcast({
-        type: 'agent:invited',
-        session_id: sessionId,
-        channel: channel,
-        agent: template
+      // V3: Use ChannelManager for consolidated creation + FSM registration
+      const sessionId = await this.server.channelManager.createSession({
+        channel,
+        template,
+        prompt: finalPrompt,
+        labels: ['subagent']
       });
-      
+
+      // Response sent via ChannelManager.emit()
     } catch (err) {
       throw new Error(`Failed to invite agent: ${err.message}`);
     }
@@ -104,9 +52,9 @@ export class AgentHandlers {
       throw new Error('Session ID is required');
     }
 
-    // Mark session as paused by updating proc file
+    // V3: Use FSMEngine for state management
     try {
-      await fs.writeFile(join(this.procDir, String(session_id)), 'paused', 'utf8');
+      this.server.fsmEngine.pauseSession(session_id);
       
       ws.send(JSON.stringify({
         type: 'agent:paused',
@@ -129,9 +77,9 @@ export class AgentHandlers {
       throw new Error('Session ID is required');
     }
 
-    // Mark session as pending to resume
+    // V3: Use FSMEngine for state management
     try {
-      await fs.writeFile(join(this.procDir, String(session_id)), 'pending', 'utf8');
+      this.server.fsmEngine.resumeSession(session_id);
       
       ws.send(JSON.stringify({
         type: 'agent:resumed',
@@ -154,9 +102,9 @@ export class AgentHandlers {
       throw new Error('Session ID is required');
     }
 
-    // Mark session as stopped by removing proc file
+    // V3: Use FSMEngine for state management
     try {
-      await fs.unlink(join(this.procDir, String(session_id))).catch(() => {});
+      this.server.fsmEngine.stopSession(session_id);
       
       ws.send(JSON.stringify({
         type: 'agent:stopped',

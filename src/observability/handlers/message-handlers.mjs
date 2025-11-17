@@ -54,9 +54,11 @@ export class MessageHandlers {
       const [, agentName, sessionIdStr] = match;
       
       // Get channel to find session IDs
-      const channelPath = join(this.workspaceRoot, 'agents', 'channels', `${channel}.yaml`);
-      const channelTxt = await fs.readFile(channelPath, 'utf8');
-      const channelData = yaml.load(channelTxt);
+      const channelData = this.server.channelManager.getChannel(channel);
+      if (!channelData) {
+        ws.send(JSON.stringify({ type: 'message:submitted', ok: false, error: 'channel not found' }));
+        return;
+      }
 
       // Determine session ID
       let sessionId;
@@ -65,7 +67,7 @@ export class MessageHandlers {
       } else {
         // Find sessions matching agent name
         const matchingSessions = [];
-        for (const sid of channelData.spec.agent_sessions) {
+        for (const sid of channelData.agentSessions) {
           const sessionPath = join(this.workspaceRoot, 'agents', 'sessions', `${sid}.yaml`);
           try {
             const sessionTxt = await fs.readFile(sessionPath, 'utf8');
@@ -90,6 +92,14 @@ export class MessageHandlers {
 
       // Append message to session
       const result = await this.appendUserMessage(sessionId, content);
+      
+      // Ensure session is registered with FSM and transition to PENDING for processing
+      let sessionFSM = this.server.fsmEngine.getSession(sessionId);
+      if (!sessionFSM) {
+        sessionFSM = this.server.fsmEngine.registerSession(sessionId, 'pending');
+      } else {
+        this.server.fsmEngine.transitionState(sessionFSM, 'pending');
+      }
       
       ws.send(JSON.stringify({ type: 'message:submitted', ok: true, session_id: sessionId }));
 
@@ -169,7 +179,6 @@ export class MessageHandlers {
   async appendUserMessage(sessionId, content) {
     // sessions directory relative to workspace
     const sessionsDir = join(this.workspaceRoot, 'agents', 'sessions');
-    const procDir = join(this.workspaceRoot, 'agents', 'proc');
     const sessionFile = join(sessionsDir, `${sessionId}.yaml`);
 
     // Read session YAML
@@ -199,14 +208,6 @@ export class MessageHandlers {
       await fs.writeFile(sessionFile, out, 'utf8');
     } catch (err) {
       throw new Error(`Failed to write session ${sessionId}: ${err.message}`);
-    }
-
-    // Mark session pending by writing proc file
-    try {
-      await fs.writeFile(join(procDir, String(sessionId)), 'pending', 'utf8');
-    } catch (err) {
-      // Non-fatal, but report
-      console.error('Failed to mark session pending:', err.message);
     }
 
     return { ok: true, agent: sessionData.metadata?.name };

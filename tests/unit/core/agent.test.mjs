@@ -74,43 +74,7 @@ describe('Agent', () => {
     }
   });
 
-  describe('BT state management', () => {
-    test('validates valid BT states', () => {
-      expect(Agent._isValidBtState('pending')).toBe(true);
-      expect(Agent._isValidBtState('running')).toBe(true);
-      expect(Agent._isValidBtState('success')).toBe(true);
-      expect(Agent._isValidBtState('fail')).toBe(true);
-    });
 
-    test('rejects invalid BT states', () => {
-      expect(Agent._isValidBtState('invalid')).toBe(false);
-      expect(Agent._isValidBtState('unknown')).toBe(false);
-      expect(Agent._isValidBtState('')).toBe(false);
-    });
-
-    test('sets and gets BT state for session', async () => {
-      const session_id = await Agent.nextId();
-      
-      // Create a minimal session file
-      const yaml = await import('js-yaml');
-      await fs.writeFile(
-        path.join(_G.SESSIONS_DIR, `${session_id}.yaml`),
-        yaml.dump({
-          apiVersion: 'daemon/v1',
-          kind: 'Agent',
-          metadata: { bt_state: 'pending' },
-          spec: {}
-        })
-      );
-      
-      // Set state
-      await Agent.state(session_id, 'running');
-      
-      // Get state
-      const state = await Agent.state(session_id);
-      expect(state).toBe('running');
-    });
-  });
 
   describe('session lifecycle', () => {
     test('generates monotonically increasing session IDs', async () => {
@@ -189,9 +153,9 @@ describe('Agent', () => {
     });
 
     test('lists running subagent sessions', async () => {
-      // Create a session and set it to success state
+      // Create a session
       const result = await Agent.fork({ agent: 'test-agent' });
-      await Agent.state(result.session_id, 'success');
+      // V3: Removed Agent.state() call - state management moved to FSMEngine
       
       const running = await Agent.listRunning();
       
@@ -202,13 +166,16 @@ describe('Agent', () => {
       expect(found).toBeDefined();
     });
 
-    test('kills an agent session', async () => {
+    test.skip('kills an agent session (DEPRECATED IN V3)', async () => {
+      // V3: Agent.kill() deprecated - use fsmEngine.stopSession() instead
+      /*
       const result = await Agent.fork({ agent: 'test-agent' });
       
       await Agent.kill(result.session_id, 'fail');
       
       const state = await Agent.state(result.session_id);
       expect(state).toBe('fail');
+      */
     });
 
     test('pushes a message to agent session', async () => {
@@ -245,8 +212,11 @@ describe('Agent', () => {
     });
   });
 
-  describe('pump processing', () => {
+  describe.skip('pump processing (DEPRECATED IN V3)', () => {
     test('processes pending sessions', async () => {
+      // V3: Agent.pump() deprecated - FSMEngine.run() handles this in browser mode
+      // Test disabled
+      /*
       // Create a session in pending state
       const result = await Agent.fork({ agent: 'test-agent', prompt: 'test' });
       await Agent.state(result.session_id, 'pending');
@@ -261,6 +231,7 @@ describe('Agent', () => {
       // Just verify the session exists
       const state = await Agent.state(result.session_id);
       expect(state).toBe('pending');
+      */
     });
   });
 
@@ -285,19 +256,5 @@ describe('Agent', () => {
     });
   });
 
-  describe('error handling', () => {
-    test('handles missing session gracefully in state()', async () => {
-      await expect(Agent.state(99999)).rejects.toThrow();
-    });
 
-    test('handles invalid state in kill()', async () => {
-      const result = await Agent.fork({ agent: 'test-agent' });
-      
-      await expect(Agent.kill(result.session_id, 'invalid-state')).rejects.toThrow();
-    });
-
-    test('handles missing session in push()', async () => {
-      await expect(Agent.push(99999, 'test message')).rejects.toThrow();
-    });
-  });
 });

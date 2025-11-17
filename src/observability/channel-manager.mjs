@@ -4,6 +4,10 @@ import yaml from 'js-yaml';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { log } from '../lib/utils.mjs';
+import { Session } from '../lib/session.mjs';
+import { Agent } from '../lib/agents.mjs';
+import { SessionState } from './fsm-engine.mjs';
+import { _G } from '../lib/globals.mjs';
 
 export class Channel {
   constructor(data) {
@@ -47,7 +51,7 @@ export class Channel {
 }
 
 export class ChannelManager {
-  constructor(baseDir) {
+  constructor(baseDir, fsmEngine = null) {
     this.baseDir = baseDir || process.cwd();
     this.channelsDir = join(this.baseDir, 'agents', 'channels');
     this.sessionsDir = join(this.baseDir, 'agents', 'sessions');
@@ -56,12 +60,19 @@ export class ChannelManager {
     this.sessions = new Map(); // session_id → Session metadata
     this.wsClients = new Set(); // WebSocket connections
     this.sessionToChannel = new Map(); // session_id → channel_name
+    this.fsmEngine = fsmEngine;
+  }
+
+  setFSMEngine(fsmEngine) {
+    this.fsmEngine = fsmEngine;
   }
 
   async initialize() {
     // Ensure directories exist
     await fs.mkdir(this.channelsDir, { recursive: true });
     await fs.mkdir(this.sessionsDir, { recursive: true });
+
+    _G.browserMode = true;
 
     // Load existing channels
     await this.loadChannels();
@@ -90,7 +101,7 @@ export class ChannelManager {
               updated_at: data.metadata.updated_at,
               description: data.spec.description,
               labels: data.spec.labels,
-              agent_sessions: data.spec.agent_sessions || []
+              agent_sessions: data.spec.agent_sessions || data.spec.sessions || []
             });
 
             this.channels.set(channel.name, channel);
@@ -219,19 +230,45 @@ export class ChannelManager {
 
   // Event emission
   emit(eventType, data) {
-    // Determine which channel this event belongs to (if applicable)
-    let channelName = null;
+    let message;
     
-    if (data.session_id) {
-      channelName = this.getChannelForSession(data.session_id);
-    }
+    // Handle channel events differently - they expect channel data directly
+    if (eventType === 'channel:created') {
+      message = {
+        type: eventType,
+        channel: data.channel,
+        timestamp: new Date().toISOString()
+      };
+    } else if (eventType === 'channel:deleted') {
+      message = {
+        type: eventType,
+        channel: data.channel,
+        timestamp: new Date().toISOString()
+      };
+    } else if (eventType === 'agent:invited') {
+      // Agent invited events need data fields promoted to top level
+      message = {
+        type: eventType,
+        channel: data.channel,
+        session_id: data.session_id,
+        agent: data.template,
+        timestamp: new Date().toISOString()
+      };
+    } else {
+      // Determine which channel this event belongs to (if applicable)
+      let channelName = null;
+      
+      if (data.session_id) {
+        channelName = this.getChannelForSession(data.session_id);
+      }
 
-    const message = {
-      type: eventType,
-      channel: channelName,
-      data: data,
-      timestamp: new Date().toISOString()
-    };
+      message = {
+        type: eventType,
+        channel: channelName,
+        data: data,
+        timestamp: new Date().toISOString()
+      };
+    }
 
     this.broadcast(message);
   }
@@ -271,5 +308,68 @@ export class ChannelManager {
 
   unregisterSession(sessionId) {
     this.sessions.delete(String(sessionId));
+  }
+
+  /**
+   * Create a new session and add it to a channel
+   * @param {Object} options - { channel: string, template: string, prompt?: string, labels?: string[] }
+   * @returns {Promise<string>} sessionId
+   */
+  async createSession({ channel, template, prompt = null, labels = [] }) {
+    if (!this.channels.has(channel)) {
+      throw new Error(`Channel '${channel}' does not exist`);
+    }
+
+    // Create session using Session.new (low-level)
+    const agent = template; // template is agent name
+    const result = await Session.new(agent, prompt);
+
+    const { session_id: sessionId } = result;
+
+    // Merge labels if provided
+    const sessionContent = await Session.load(sessionId);
+    if (!sessionContent.metadata) sessionContent.metadata = {};
+    const templateLabels = sessionContent.metadata.labels || [];
+    sessionContent.metadata.labels = [...new Set([...templateLabels, ...labels])];
+    await Session.save(sessionId, sessionContent);
+
+    // Register with FSMEngine
+    this.fsmEngine.registerSession(sessionId, SessionState.PENDING);
+
+    // Add to channel
+    await this.addSessionToChannel(channel, sessionId);
+
+    // Emit event
+    this.emit('agent:invited', { session_id: sessionId, channel, template });
+
+    log('info', `🆕 Created session ${sessionId} for ${template} in channel ${channel}`);
+    return sessionId;
+  }
+
+  /**
+   * Fork an existing session into a channel
+   * @param {Object} options - { channel: string, session_id: string, prompt?: string }
+   * @returns {Promise<string>} newSessionId
+   */
+  async forkSessionIntoChannel({ channel, session_id, prompt = null }) {
+    if (!this.channels.has(channel)) {
+      throw new Error(`Channel '${channel}' does not exist`);
+    }
+
+    // Fork using Session.fork
+    const result = await Session.fork(session_id, prompt);
+    const { session_id: newSessionId } = result;
+
+    // Register with FSMEngine
+    this.fsmEngine.registerSession(newSessionId, SessionState.PENDING);
+
+    // Add to channel
+    await this.addSessionToChannel(channel, newSessionId);
+
+    // Emit event
+    this.emit('session:forked', { new_session_id: newSessionId, original_session_id: session_id, channel });
+
+    log('info', `🔄 Forked session ${session_id} to ${newSessionId} in channel ${channel}`);
+    return newSessionId;
   }
 }
