@@ -2,6 +2,7 @@ node_modules/
 /PROMPT.md
 /.tokens.yaml
 /tmp/
+/agents/channels/
 /agents/proc/
 /agents/sessions/
 /agents/mcp/

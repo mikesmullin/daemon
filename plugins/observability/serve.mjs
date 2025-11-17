@@ -4,6 +4,13 @@ import fs from 'fs/promises';
 import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { ptyManager } from '../shell/pty-manager.mjs';
+import { ChannelHandlers } from './server/channel-handlers.mjs';
+import { AgentHandlers } from './server/agent-handlers.mjs';
+import { MessageHandlers } from './server/message-handlers.mjs';
+import { PtyHandlers } from './server/pty-handlers.mjs';
+import { SessionHandlers } from './server/session-handlers.mjs';
+import { TemplateHandlers } from './server/template-handlers.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,12 +37,29 @@ class ObservabilityServer {
     };
     this.agentStates = new Map();
     this.statusCheckInterval = null;
+    this.templateCache = null;
+    this.templateCacheTime = 0;
+    this.TEMPLATE_CACHE_TTL = 60000; // 1 minute in milliseconds
+    this.baseDir = __dirname;
+    this.workspaceRoot = join(__dirname, '..', '..');
+    
+    // PTY streaming setup
+    this.ptyStreamIntervals = new Map(); // Map of sessionKey -> interval
+    
+    // Initialize handlers
+    this.channelHandlers = new ChannelHandlers(this);
+    this.agentHandlers = new AgentHandlers(this);
+    this.messageHandlers = new MessageHandlers(this);
+    this.ptyHandlers = new PtyHandlers(this);
+    this.sessionHandlers = new SessionHandlers(this);
+    this.templateHandlers = new TemplateHandlers(this.workspaceRoot);
   }
 
   start() {
     this.startUdpServer();
     this.startHttpServer();
     this.startStatusChecker();
+    this.initializeTemplateCache(); // Load templates on startup
     console.log(`🔍 Observability server running on http://localhost:${this.port}`);
     console.log(`📡 Listening for UDP events on port ${this.port}`);
   }
@@ -198,13 +222,36 @@ class ObservabilityServer {
 
         // Serve static files
         if (url.pathname === '/' || url.pathname === '/index.html') {
-          return new Response(Bun.file(join(__dirname, 'public', 'index.html')));
+          return new Response(Bun.file(join(__dirname, 'app', 'index.html')));
+        }
+
+        if (url.pathname === '/test-notification-sound.html') {
+          return new Response(Bun.file(join(__dirname, 'app', 'test-notification-sound.html')));
+        }
+
+        if (url.pathname === '/app.css') {
+          return new Response(Bun.file(join(__dirname, 'app', 'app.css')), {
+            headers: { 'Content-Type': 'text/css' }
+          });
+        }
+
+        if (url.pathname === '/app.js') {
+          return new Response(Bun.file(join(__dirname, 'app', 'app.js')), {
+            headers: { 'Content-Type': 'application/javascript' }
+          });
         }
 
         if (url.pathname.startsWith('/components/')) {
-          const componentPath = join(__dirname, 'components', url.pathname.slice('/components/'.length));
+          const componentPath = join(__dirname, 'app', 'components', url.pathname.slice('/components/'.length));
           return new Response(Bun.file(componentPath), {
             headers: { 'Content-Type': 'application/javascript' }
+          });
+        }
+
+        if (url.pathname.startsWith('/audio/')) {
+          const audioPath = join(__dirname, 'app', 'audio', url.pathname.slice('/audio/'.length));
+          return new Response(Bun.file(audioPath), {
+            headers: { 'Content-Type': 'audio/ogg' }
           });
         }
 
@@ -227,6 +274,9 @@ class ObservabilityServer {
       websocket: {
         open: (ws) => {
           this.clients.add(ws);
+          // Initialize PTY subscriptions set for this client
+          ws.ptySubscriptions = new Set();
+          
           // Send initial state
           ws.send(JSON.stringify({
             type: 'init',
@@ -250,6 +300,10 @@ class ObservabilityServer {
           }
         },
         close: (ws) => {
+          // Clean up PTY subscriptions for this client
+          if (this.ptyHandlers) {
+            this.ptyHandlers.cleanup(ws);
+          }
           this.clients.delete(ws);
         }
       }
@@ -259,47 +313,183 @@ class ObservabilityServer {
   }
 
   handleClientMessage(ws, msg) {
-    switch (msg.type) {
-      case 'clear':
-        this.eventBuffer = [];
-        this.broadcast({ type: 'clear' });
-        break;
+    try {
+      switch (msg.type) {
+        case 'clear':
+          this.eventBuffer = [];
+          this.broadcast({ type: 'clear' });
+          break;
 
-      case 'ping':
-        ws.send(JSON.stringify({ type: 'pong' }));
-        break;
+        case 'ping':
+          ws.send(JSON.stringify({ type: 'pong' }));
+          break;
 
-      // Client requests to submit a new user message for a session
-      // payload: { type: 'submit', session_id: '123', content: 'Hello' }
-      case 'submit':
-        (async () => {
-          const sessionId = String(msg.session_id || msg.sessionId || msg.session);
-          const content = String(msg.content || '');
-          if (!sessionId || !content) {
-            ws.send(JSON.stringify({ type: 'submit:response', ok: false, error: 'missing session_id or content' }));
-            return;
-          }
+        // Client requests to submit a new user message for a session
+        case 'submit':
+          this.messageHandlers.handleSubmit(ws, msg, this);
+          break;
 
-          try {
-            const result = await this.appendUserMessage(sessionId, content);
-            ws.send(JSON.stringify({ type: 'submit:response', ok: true, session_id: sessionId }));
+        // Channel operations
+        case 'channel:create':
+        case 'channel:join':
+          this.channelHandlers.handleCreate(ws, msg);
+          break;
 
-            // Broadcast the new USER_REQUEST event to all clients
-            const event = {
-              type: 'USER_REQUEST',
-              timestamp: new Date().toISOString(),
-              daemon_pid: process.pid,
-              session_id: sessionId,
-              agent: result.agent || 'unknown',
-              content,
-            };
-            this.handleEvent(event);
-          } catch (err) {
-            ws.send(JSON.stringify({ type: 'submit:response', ok: false, error: err.message }));
-          }
-        })();
-        break;
+        case 'channel:delete':
+        case 'channel:part':
+          this.channelHandlers.handleDelete(ws, msg);
+          break;
+
+        case 'channel:add_agent':
+          this.channelHandlers.handleAddAgent(ws, msg);
+          break;
+
+        case 'channel:remove_agent':
+          this.channelHandlers.handleRemoveAgent(ws, msg);
+          break;
+
+        case 'channel:list':
+          this.channelHandlers.handleList(ws, msg);
+          break;
+
+        // Agent operations
+        case 'agent:invite':
+          this.agentHandlers.handleInvite(ws, msg);
+          break;
+
+        case 'agent:pause':
+          this.agentHandlers.handlePause(ws, msg);
+          break;
+
+        case 'agent:resume':
+          this.agentHandlers.handleResume(ws, msg);
+          break;
+
+        case 'agent:stop':
+          this.agentHandlers.handleStop(ws, msg);
+          break;
+
+        // Message operations
+        case 'message:submit':
+          this.messageHandlers.handleMessageSubmit(ws, msg);
+          break;
+
+        // Tool interactions
+        case 'tool:approve':
+          this.messageHandlers.handleToolApprove(ws, msg);
+          break;
+
+        case 'tool:reject':
+          this.messageHandlers.handleToolReject(ws, msg);
+          break;
+
+        case 'tool:reply':
+          this.messageHandlers.handleToolReply(ws, msg);
+          break;
+
+        // PTY operations
+        case 'pty:attach':
+          this.ptyHandlers.handleAttach(ws, msg);
+          break;
+
+        case 'pty:detach':
+          this.ptyHandlers.handleDetach(ws, msg);
+          break;
+
+        case 'pty:input':
+          this.ptyHandlers.handleInput(ws, msg);
+          break;
+
+        case 'pty:close':
+          this.ptyHandlers.handleClose(ws, msg);
+          break;
+
+        // Session YAML editing
+        case 'session:update':
+          this.sessionHandlers.handleUpdate(ws, msg);
+          break;
+
+        // Template management
+        case 'template:list':
+          this.templateHandlers.handleList(ws, msg);
+          break;
+
+        case 'template:get':
+          this.templateHandlers.handleGet(ws, msg);
+          break;
+
+        case 'template:save':
+          this.templateHandlers.handleSave(ws, msg);
+          break;
+
+        case 'template:delete':
+          this.templateHandlers.handleDelete(ws, msg);
+          break;
+
+        case 'template:autocomplete':
+          this.templateHandlers.handleAutocomplete(ws, msg);
+          break;
+
+        default:
+          ws.send(JSON.stringify({ 
+            type: 'error', 
+            error: `Unknown message type: ${msg.type}` 
+          }));
+      }
+    } catch (err) {
+      console.error('Error handling client message:', err);
+      ws.send(JSON.stringify({ 
+        type: 'error', 
+        error: err.message 
+      }));
     }
+  }
+
+  // === Utility Methods ===
+
+  async getTemplates() {
+    // Check cache
+    const now = Date.now();
+    if (this.templateCache && (now - this.templateCacheTime) < this.TEMPLATE_CACHE_TTL) {
+      return this.templateCache;
+    }
+
+    // Load templates
+    const templatesDir = join(__dirname, '..', '..', 'agents', 'templates');
+    const files = await fs.readdir(templatesDir);
+    
+    const templates = [];
+    for (const file of files) {
+      if (file.endsWith('.yaml')) {
+        templates.push({
+          name: file.replace('.yaml', ''),
+          path: join('agents', 'templates', file)
+        });
+      }
+    }
+
+    // Cache for TTL duration
+    this.templateCache = templates;
+    this.templateCacheTime = now;
+    
+    return templates;
+  }
+
+  /**
+   * Initialize template cache on server startup
+   * This ensures the first autocomplete request is fast
+   */
+  initializeTemplateCache() {
+    this.getTemplates().then(templates => {
+      console.log(`📚 Loaded ${templates.length} agent templates`);
+    }).catch(err => {
+      console.error('Failed to initialize template cache:', err);
+    });
+  }
+
+  clearTemplateCache() {
+    this.templateCache = null;
+    this.templateCacheTime = 0;
   }
 
   async appendUserMessage(sessionId, content) {
@@ -360,10 +550,120 @@ class ObservabilityServer {
     }
   }
 
+  /**
+   * Start streaming PTY output to a WebSocket client
+   * @param {string} sessionKey - Combined session ID (agentId:ptyId)
+   * @param {string} agentSessionId - Agent session ID
+   * @param {string} ptySessionId - PTY session ID
+   * @param {WebSocket} ws - WebSocket client
+   */
+  startPtyStreaming(sessionKey, agentSessionId, ptySessionId, ws) {
+    // Create unique key for this client's stream
+    const streamKey = `${sessionKey}:${ws}`;
+    
+    // Clear any existing interval for this stream
+    if (this.ptyStreamIntervals.has(streamKey)) {
+      clearInterval(this.ptyStreamIntervals.get(streamKey));
+    }
+
+    // Poll for new output every 100ms
+    const interval = setInterval(() => {
+      try {
+        const session = ptyManager.getSession(agentSessionId, ptySessionId);
+        
+        // Stop if session is gone or closed
+        if (!session || session.closed) {
+          this.stopPtyStreaming(sessionKey, ws);
+          ws.send(JSON.stringify({
+            type: 'pty:closed',
+            session_id: sessionKey,
+            exit_code: session?.exitCode,
+            signal: session?.signal
+          }));
+          return;
+        }
+
+        // Check if client is still subscribed
+        if (!ws.ptySubscriptions || !ws.ptySubscriptions.has(sessionKey)) {
+          this.stopPtyStreaming(sessionKey, ws);
+          return;
+        }
+
+        // Read new content since last read
+        const result = session.read({ sinceLastRead: true });
+        
+        // Only send if there's new content
+        if (result.content && result.content.length > 0) {
+          ws.send(JSON.stringify({
+            type: 'pty:output',
+            session_id: sessionKey,
+            data: result.content
+          }));
+        }
+      } catch (err) {
+        console.error('PTY streaming error:', err);
+        this.stopPtyStreaming(sessionKey, ws);
+      }
+    }, 100);
+
+    this.ptyStreamIntervals.set(streamKey, interval);
+  }
+
+  /**
+   * Stop streaming PTY output to a WebSocket client
+   * @param {string} sessionKey - Combined session ID
+   * @param {WebSocket} ws - WebSocket client
+   */
+  stopPtyStreaming(sessionKey, ws) {
+    const streamKey = `${sessionKey}:${ws}`;
+    
+    if (this.ptyStreamIntervals.has(streamKey)) {
+      clearInterval(this.ptyStreamIntervals.get(streamKey));
+      this.ptyStreamIntervals.delete(streamKey);
+    }
+  }
+
+  /**
+   * Close a PTY session
+   * @param {string} agentSessionId - Agent session ID
+   * @param {string} ptySessionId - PTY session ID
+   */
+  closePtySession(agentSessionId, ptySessionId) {
+    const sessionKey = `${agentSessionId}:${ptySessionId}`;
+    
+    // Stop all streaming for this PTY
+    for (const [streamKey, interval] of this.ptyStreamIntervals.entries()) {
+      if (streamKey.startsWith(sessionKey + ':')) {
+        clearInterval(interval);
+        this.ptyStreamIntervals.delete(streamKey);
+      }
+    }
+
+    // Close the PTY session
+    const closed = ptyManager.closeSession(agentSessionId, ptySessionId, true);
+    
+    // Notify all clients
+    if (closed) {
+      this.broadcast({
+        type: 'pty:closed',
+        session_id: sessionKey
+      });
+    }
+    
+    return closed;
+  }
+
   stop() {
     if (this.statusCheckInterval) {
       clearInterval(this.statusCheckInterval);
     }
+    
+    // Clean up all PTY streaming intervals
+    for (const [streamKey, interval] of this.ptyStreamIntervals.entries()) {
+      clearInterval(interval);
+    }
+    this.ptyStreamIntervals.clear();
+    
     if (this.udpServer) {
       this.udpServer.close();
     }

@@ -3,7 +3,7 @@ apiVersion: daemon/v1
 kind: Agent
 metadata:
   description: General purpose agent for complex reasoning and problem-solving tasks
-  model: copilot:claude-sonnet-4
+  model: copilot:claude-sonnet-4.5
   #model: xai:grok-code-fast-1
   # model: ollama:qwen3:8b
   tools:

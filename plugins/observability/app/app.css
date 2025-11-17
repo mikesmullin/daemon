@@ -1,0 +1,175 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #0f0f0f;
+  color: #e0e0e0;
+  overflow: hidden;
+  height: 100vh;
+}
+
+.app-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.header {
+  background: #1a1a1a;
+  border-bottom: 1px solid #333;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 50px;
+}
+
+.hamburger {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.hamburger:hover {
+  background: #2a2a2a;
+}
+
+.hamburger span {
+  width: 100%;
+  height: 2px;
+  background: #e0e0e0;
+  border-radius: 1px;
+  transition: all 0.3s;
+}
+
+.breadcrumbs {
+  font-size: 0.875rem;
+  color: #888;
+  flex: 1;
+}
+
+.breadcrumbs a {
+  color: #00d4ff;
+  text-decoration: none;
+}
+
+.breadcrumbs a:hover {
+  text-decoration: underline;
+}
+
+/* Connection Status */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background 0.3s;
+}
+
+.status-dot.connected {
+  background: #00ff88;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+}
+
+.status-dot.connecting {
+  background: #ffaa00;
+  animation: pulse 1.5s infinite;
+}
+
+.status-dot.disconnected {
+  background: #ff4444;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Main Layout */
+.main-layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.channels-sidebar {
+  width: 250px;
+  background: #0f0f0f;
+  border-right: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.3s;
+}
+
+.channels-sidebar.collapsed {
+  margin-left: -250px;
+}
+
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #0f0f0f;
+  overflow: hidden;
+}
+
+.agents-sidebar {
+  width: 300px;
+  background: #0f0f0f;
+  border-left: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
+
+/* Utility classes */
+.hidden {
+  display: none !important;
+}
+
+.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  background: #0f0f0f;
+}

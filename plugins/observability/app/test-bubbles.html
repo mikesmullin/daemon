@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bubble Components Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    h1, h2 {
+      color: #fff;
+      margin-bottom: 16px;
+    }
+
+    .test-section {
+      margin-bottom: 40px;
+    }
+
+    .description {
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    .code {
+      background: rgba(40, 40, 40, 0.8);
+      border: 1px solid rgba(80, 80, 80, 0.5);
+      border-radius: 6px;
+      padding: 12px;
+      margin: 16px 0;
+      font-family: monospace;
+      font-size: 13px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Event Bubble Components Test</h1>
+    <p class="description">
+      Testing the base bubble components for user and agent messages.
+      Hover over bubbles to see timestamps and action buttons.
+    </p>
+
+    <div class="test-section">
+      <h2>User Message Bubble</h2>
+      <p class="description">Right-aligned with blue gradient background</p>
+      <user-bubble id="user1"></user-bubble>
+      <div class="code">
+        <pre>{
+  "user": "John",
+  "content": "Can you help me analyze this codebase?",
+  "timestamp": "2024-11-16T10:30:45.123Z",
+  "session_id": "12"
+}</pre>
+      </div>
+    </div>
+
+    <div class="test-section">
+      <h2>Agent Response Bubble</h2>
+      <p class="description">Left-aligned with dark background</p>
+      <agent-bubble id="agent1"></agent-bubble>
+      <div class="code">
+        <pre>{
+  "agent": "alice",
+  "session_id": "12",
+  "content": "I'll analyze the codebase for you. Let me start by examining the main files.",
+  "timestamp": "2024-11-16T10:30:47.456Z",
+  "status": "success"
+}</pre>
+      </div>
+    </div>
+
+    <div class="test-section">
+      <h2>Agent with Markdown Content</h2>
+      <p class="description">Testing markdown rendering in agent bubble</p>
+      <agent-bubble id="agent2"></agent-bubble>
+      <div class="code">
+        <pre>{
+  "agent": "bob",
+  "session_id": "15",
+  "content": "Here's what I found:\n\n**Main files:**\n- `src/daemon.mjs` - Entry point\n- `lib/agents.mjs` - Agent manager\n\nThe code uses `async/await` for asynchronous operations.",
+  "timestamp": "2024-11-16T10:31:00.789Z",
+  "format": "markdown"
+}</pre>
+      </div>
+    </div>
+
+    <div class="test-section">
+      <h2>Agent with Working Status</h2>
+      <p class="description">Testing status indicator (pulsing yellow)</p>
+      <agent-bubble id="agent3"></agent-bubble>
+      <div class="code">
+        <pre>{
+  "agent": "charlie",
+  "session_id": "23",
+  "content": "Processing your request...",
+  "timestamp": "2024-11-16T10:31:15.234Z",
+  "status": "working"
+}</pre>
+      </div>
+    </div>
+
+    <div class="test-section">
+      <h2>Conversation Thread</h2>
+      <p class="description">Multiple messages in sequence</p>
+      <user-bubble id="user2"></user-bubble>
+      <agent-bubble id="agent4"></agent-bubble>
+      <agent-bubble id="agent5"></agent-bubble>
+      <user-bubble id="user3"></user-bubble>
+    </div>
+  </div>
+
+  <script type="module">
+    import './components/bubbles/base-bubble.mjs';
+    import './components/bubbles/user-bubble.mjs';
+    import './components/bubbles/agent-bubble.mjs';
+
+    // Set up user bubble 1
+    document.getElementById('user1').event = {
+      user: "John",
+      content: "Can you help me analyze this codebase?",
+      timestamp: "2024-11-16T10:30:45.123Z",
+      session_id: "12"
+    };
+
+    // Set up agent bubble 1
+    document.getElementById('agent1').event = {
+      agent: "alice",
+      session_id: "12",
+      content: "I'll analyze the codebase for you. Let me start by examining the main files.",
+      timestamp: "2024-11-16T10:30:47.456Z",
+      status: "success"
+    };
+
+    // Set up agent bubble 2 (with markdown)
+    document.getElementById('agent2').event = {
+      agent: "bob",
+      session_id: "15",
+      content: "Here's what I found:\n\n**Main files:**\n- `src/daemon.mjs` - Entry point\n- `lib/agents.mjs` - Agent manager\n\nThe code uses `async/await` for asynchronous operations.",
+      timestamp: "2024-11-16T10:31:00.789Z",
+      format: "markdown"
+    };
+
+    // Set up agent bubble 3 (working status)
+    document.getElementById('agent3').event = {
+      agent: "charlie",
+      session_id: "23",
+      content: "Processing your request...",
+      timestamp: "2024-11-16T10:31:15.234Z",
+      status: "working"
+    };
+
+    // Conversation thread
+    document.getElementById('user2').event = {
+      user: "Sarah",
+      content: "What's the status of the build?",
+      timestamp: "2024-11-16T10:32:00.123Z"
+    };
+
+    document.getElementById('agent4').event = {
+      agent: "alice",
+      session_id: "12",
+      content: "The build is currently running. I'll monitor the output.",
+      timestamp: "2024-11-16T10:32:02.456Z",
+      status: "working"
+    };
+
+    document.getElementById('agent5').event = {
+      agent: "alice",
+      session_id: "12",
+      content: "Build completed successfully! All tests passed.",
+      timestamp: "2024-11-16T10:32:45.789Z",
+      status: "success"
+    };
+
+    document.getElementById('user3').event = {
+      user: "Sarah",
+      content: "Great! Thanks for the update.",
+      timestamp: "2024-11-16T10:32:50.234Z"
+    };
+
+    // Event listeners for testing
+    document.addEventListener('add-filter', (e) => {
+      console.log('Filter event:', e.detail);
+      alert(`Add filter: NOT ${e.detail.field}:${e.detail.value}`);
+    });
+
+    document.addEventListener('edit-event', (e) => {
+      console.log('Edit event:', e.detail);
+      alert('Edit YAML for event');
+    });
+
+    console.log('Bubble components test loaded successfully');
+  </script>
+</body>
+</html>
