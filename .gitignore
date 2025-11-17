@@ -8,5 +8,4 @@ node_modules/
 /agents/mcp/
 /agents/templates/
 /.env
-.*_cache*.json
 /plugins/**/*

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daemon - Multi-Agent Orchestration</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  
+  <!-- Alpine.js for reactivity -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  
+  <!-- Marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <!-- xterm.js for terminal -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  
+  <!-- js-yaml for YAML parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+  
+  <!-- Application Styles -->
+  <link rel="stylesheet" href="/app.css">
+  
+  <!-- Web Components -->
+  <script type="module" src="/components/channel-list.mjs"></script>
+  <script type="module" src="/components/thread-view.mjs"></script>
+  <script type="module" src="/components/agent-list.mjs"></script>
+  <script type="module" src="/components/lucene-filter.mjs"></script>
+  <script type="module" src="/components/message-input.mjs"></script>
+  <script type="module" src="/components/presence-indicator.mjs"></script>
+  <script type="module" src="/components/pty-viewer.mjs"></script>
+  
+  <!-- Event Bubble Components -->
+  <script type="module" src="/components/bubbles/user-bubble.mjs"></script>
+  <script type="module" src="/components/bubbles/agent-bubble.mjs"></script>
+  <script type="module" src="/components/bubbles/ask-human-widget.mjs"></script>
+  <script type="module" src="/components/bubbles/execute-shell-widget.mjs"></script>
+  <script type="module" src="/components/bubbles/thinking-widget.mjs"></script>
+  <script type="module" src="/components/bubbles/speak-human-widget.mjs"></script>
+  <script type="module" src="/components/bubbles/generic-tool-widget.mjs"></script>
+  <script type="module" src="/components/bubbles/editable-bubble.mjs"></script>
+  
+  <!-- Settings Components -->
+  <script type="module" src="/components/template-editor.mjs"></script>
+  
+  <!-- Application Logic -->
+  <script src="/app.js"></script>
+</head>
+<body>
+  <div class="app-container" x-data="app()">
+    <!-- Header -->
+    <div class="header">
+      <div class="hamburger" @click="toggleChannelsSidebar" :title="channelsSidebarOpen ? 'Hide channels' : 'Show channels'">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="breadcrumbs">
+        <template x-if="currentPage === 'chat' && currentChannel">
+          <span><a href="#" @click.prevent="goHome">Home</a> &gt; Chat &gt; <span x-text="currentChannel"></span></span>
+        </template>
+        <template x-if="currentPage === 'chat' && !currentChannel">
+          <span><a href="#" @click.prevent="goHome">Home</a> &gt; Chat</span>
+        </template>
+        <template x-if="currentPage === 'settings'">
+          <span><a href="#" @click.prevent="goHome">Home</a> &gt; Settings &gt; Agent Templates</span>
+        </template>
+      </div>
+      
+      <!-- Connection Status -->
+      <div class="connection-status">
+        <div class="status-dot" :class="{
+          'connected': wsState === 'connected',
+          'connecting': wsState === 'connecting',
+          'disconnected': wsState === 'disconnected'
+        }"></div>
+        <span x-text="wsState === 'connected' ? 'Connected' : wsState === 'connecting' ? 'Connecting...' : 'Disconnected'"></span>
+      </div>
+    </div>
+    
+    <!-- Main Layout -->
+    <div class="main-layout">
+      <!-- Channels Sidebar -->
+      <div class="channels-sidebar" :class="{ 'collapsed': !channelsSidebarOpen }">
+        <div x-effect="if ($refs.channelList) { $refs.channelList.channels = channels; $refs.channelList.currentChannel = currentChannel; }">
+          <channel-list
+            x-ref="channelList"
+            @channel-select="selectChannel"
+            @channel-create="createChannel"
+            @channel-mute="muteChannel"
+            @settings-open="goToSettings">
+          </channel-list>
+        </div>
+      </div>
+      
+      <!-- Chat Area (or Settings) -->
+      <div class="chat-area">
+        <!-- Chat View -->
+        <template x-if="currentPage === 'chat'">
+          <div style="display: flex; flex-direction: column; height: 100%;">
+            <!-- Filter Bar -->
+            <lucene-filter
+              x-ref="luceneFilter"
+              @filter-change="updateFilter"
+              @filter-clear="clearFilter"
+              x-effect="$refs.luceneFilter && ($refs.luceneFilter.filter = luceneFilter)">
+            </lucene-filter>
+            
+            <!-- Thread View -->
+            <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;">
+              <!-- Presence Indicator -->
+              <presence-indicator
+                x-ref="presenceIndicator"
+                x-show="workingAgents.length > 0"
+                x-effect="$refs.presenceIndicator && ($refs.presenceIndicator.workingAgents = workingAgents)">
+              </presence-indicator>
+              
+              <!-- Thread -->
+              <thread-view
+                x-ref="threadView"
+                @event-edit="editEvent"
+                @pty-view="viewPty"
+                x-effect="$refs.threadView && ($refs.threadView.events = filteredEvents, $refs.threadView.filter = luceneFilter, $refs.threadView.currentChannel = currentChannel)">
+              </thread-view>
+              
+              <!-- PTY Fullscreen Overlay -->
+              <template x-if="ptyViewSession">
+                <pty-viewer
+                  class="fullscreen"
+                  :session-id="ptyViewSession"
+                  @close="closePty">
+                </pty-viewer>
+              </template>
+            </div>
+            
+            <!-- Message Input -->
+            <message-input
+              x-ref="messageInput"
+              @message-submit="submitMessage"
+              @slash-command="handleSlashCommand"
+              @template-search="searchTemplates"
+              x-effect="$refs.messageInput && ($refs.messageInput.currentChannel = currentChannel, $refs.messageInput.agents = channelAgents)">
+            </message-input>
+          </div>
+        </template>
+        
+        <!-- Settings View -->
+        <template x-if="currentPage === 'settings'">
+          <template-editor
+            x-ref="templateEditor"
+            @template:list-request="handleTemplateListRequest"
+            @template:get-request="handleTemplateGetRequest"
+            @template:save-request="handleTemplateSaveRequest"
+            @template:delete-request="handleTemplateDeleteRequest">
+          </template-editor>
+        </template>
+      </div>
+      
+      <!-- Agents Sidebar -->
+      <div class="agents-sidebar" x-show="currentPage === 'chat'">
+        <agent-list
+          x-ref="agentList"
+          @agent-pause="pauseAgent"
+          @agent-resume="resumeAgent"
+          @agent-stop="stopAgent"
+          @agent-mute="muteAgent"
+          @agent-mention="handleAgentMention"
+          @pty-view="viewPty"
+          @pty-close="closePtyForAgent"
+          x-effect="$refs.agentList && ($refs.agentList.agents = channelAgents, $refs.agentList.currentChannel = currentChannel)">
+        </agent-list>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

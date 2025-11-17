@@ -5,7 +5,6 @@ import ejs from 'ejs';
 import { _G } from './globals.mjs';
 import utils, { log } from './utils.mjs';
 import os from 'os';
-import * as observability from './observability.mjs';
 
 /**
  * Session Management Class
@@ -28,7 +27,7 @@ export class Session {
 
   /**
    * Set or get BT state for a session
-   * BT states are stored as lock files in _G.PROC_DIR
+   * BT states are now stored in session YAML metadata
    * 
    * @param {string} session_id - The session identifier
    * @param {string} bt_state - Optional state to set
@@ -36,28 +35,26 @@ export class Session {
    */
   static async state(session_id, bt_state) {
     if (bt_state) { // write
-      const procPath = path.join(_G.PROC_DIR, `${session_id}`);
       if (!Session._isValidBtState(bt_state)) {
-        utils.abort(`Refuse to write ${procPath}. session: ${session_id}, invalid_state: ${bt_state}`);
+        utils.abort(`Invalid BT state for session ${session_id}: ${bt_state}`);
       }
       try {
-        await fs.writeFile(procPath, bt_state, 'utf-8');
-        log('debug', `Wrote ${procPath}. session: ${session_id}, state: ${bt_state}`);
+        const sessionContent = await Session.load(session_id);
+        if (!sessionContent.metadata) {
+          sessionContent.metadata = {};
+        }
+        sessionContent.metadata.bt_state = bt_state;
+        await Session.save(session_id, sessionContent);
+        log('debug', `Set BT state for session ${session_id}: ${bt_state}`);
         return bt_state;
       } catch (err) {
-        utils.abort(`Failed to write ${procPath}. session: ${session_id}, state: ${err.message}`);
+        utils.abort(`Failed to set BT state for session ${session_id}: ${err.message}`);
       }
     }
     else { // read
       try {
-        const sessionPath = path.join(_G.PROC_DIR, session_id);
-        const stats = await fs.stat(sessionPath);
-        if (!stats.isFile()) {
-          utils.abort(`BT state path for session ${session_id} is not a file`);
-        }
-
-        const bt_state_raw = await fs.readFile(sessionPath, 'utf-8');
-        const bt_state = bt_state_raw.trim();
+        const sessionContent = await Session.load(session_id);
+        const bt_state = sessionContent.metadata?.bt_state || 'pending';
         if (!Session._isValidBtState(bt_state)) {
           utils.abort(`Invalid BT state "${bt_state}" for session ${session_id}`);
         }
@@ -84,6 +81,60 @@ export class Session {
    */
   static async getState(session_id) {
     return await Session.state(session_id);
+  }
+
+  // =============================================================================
+  // FSM STATE MANAGEMENT (v3.0 - for crash recovery)
+  // =============================================================================
+
+  /**
+   * Set FSM state for a session (used by FSMEngine for crash recovery)
+   * This stores the current FSM state in session YAML so it can be recovered
+   * after a crash or restart.
+   * 
+   * @param {string} session_id - The session identifier
+   * @param {string} fsm_state - The FSM state (created, pending, running, etc.)
+   * @param {Object} fsm_state_data - Additional state data (optional)
+   * @returns {Promise<void>}
+   */
+  static async setFSMState(session_id, fsm_state, fsm_state_data = {}) {
+    try {
+      const sessionContent = await Session.load(session_id);
+      if (!sessionContent.metadata) {
+        sessionContent.metadata = {};
+      }
+      sessionContent.metadata.fsm_state = fsm_state;
+      sessionContent.metadata.fsm_state_data = fsm_state_data;
+      sessionContent.metadata.fsm_updated_at = new Date().toISOString();
+      await Session.save(session_id, sessionContent);
+      log('debug', `Set FSM state for session ${session_id}: ${fsm_state}`);
+    } catch (err) {
+      log('error', `Failed to set FSM state for session ${session_id}: ${err.message}`);
+    }
+  }
+
+  /**
+   * Get FSM state for a session
+   * 
+   * @param {string} session_id - The session identifier
+   * @returns {Promise<Object>} Object with {state, stateData, updatedAt}
+   */
+  static async getFSMState(session_id) {
+    try {
+      const sessionContent = await Session.load(session_id);
+      return {
+        state: sessionContent.metadata?.fsm_state || 'created',
+        stateData: sessionContent.metadata?.fsm_state_data || {},
+        updatedAt: sessionContent.metadata?.fsm_updated_at || null
+      };
+    } catch (error) {
+      log('debug', `Could not get FSM state for session ${session_id}: ${error.message}`);
+      return {
+        state: 'created',
+        stateData: {},
+        updatedAt: null
+      };
+    }
   }
 
   // =============================================================================
@@ -208,9 +259,6 @@ export class Session {
         await Session.push(new_session_id, prompt);
       }
 
-      // Emit session start event
-      observability.emitSessionStart(new_session_id, agent, agent);
-
       return {
         session_id: new_session_id,
         agent,
@@ -279,13 +327,6 @@ export class Session {
       // Set session to pending since new work was added
       await Session.setState(session_id, 'pending');
 
-      // Emit user request event
-      observability.emitUserRequest(
-        session_id,
-        sessionContent.metadata?.name || 'unknown',
-        prompt
-      );
-
       return {
         session_id: session_id,
         message_id: messageId,
@@ -303,46 +344,34 @@ export class Session {
    */
   static async list() {
     try {
-      log('debug', `Listing sessions in ${_G.PROC_DIR}`);
+      log('debug', `Listing sessions in ${_G.SESSIONS_DIR}`);
 
-      const session_ids = await fs.readdir(_G.PROC_DIR);
+      const sessionFiles = await fs.readdir(_G.SESSIONS_DIR);
       const sessions = [];
 
-      for (const session_id of session_ids) {
-        if ('_next' == session_id || /_last_read$/.test(session_id)) continue;
-        const bt_state = await Session.getState(session_id);
-        if (bt_state) {
-          // Read session file to get additional details
-          const sessionFileName = `${session_id}.yaml`;
-          const sessionPath = path.join(_G.SESSIONS_DIR, sessionFileName);
+      for (const fileName of sessionFiles) {
+        if (!fileName.endsWith('.yaml')) continue;
+        
+        const session_id = fileName.replace('.yaml', '');
+        const sessionPath = path.join(_G.SESSIONS_DIR, fileName);
 
-          let agent = 'unknown';
-          let model = 'unknown';
+        try {
+          const sessionContent = await fs.readFile(sessionPath, 'utf-8');
+          const sessionData = yaml.load(sessionContent);
+
+          const bt_state = sessionData.metadata?.bt_state || 'pending';
+          const agent = sessionData.metadata?.name || 'unknown';
+          const model = sessionData.metadata?.model || 'unknown';
+          const pid = sessionData.metadata?.pid || null;
+          const labels = sessionData.metadata?.labels || [];
+
+          // Extract last message
           let last_message = '';
-          let pid = null;
-          let labels = [];
-
-          try {
-            const sessionContent = await fs.readFile(sessionPath, 'utf-8');
-            const sessionData = yaml.load(sessionContent);
-
-            // Extract agent and model from metadata
-            if (sessionData.metadata) {
-              agent = sessionData.metadata.name || 'unknown';
-              model = sessionData.metadata.model || 'unknown';
-              pid = sessionData.metadata.pid || null;
-              labels = sessionData.metadata.labels || [];
-            }
-
-            // Extract last message
-            if (sessionData.spec.messages && sessionData.spec.messages.length > 0) {
-              const lastMsg = sessionData.spec.messages[sessionData.spec.messages.length - 1];
-              // Format as "timestamp role: content" (no truncation here - let outputAs handle it)
-              const content = lastMsg.content || '';
-              last_message = `${lastMsg.ts || ''} ${lastMsg.role || ''}: ${content}`;
-            }
-          } catch (fileError) {
-            log('debug', `Could not read session file ${sessionFileName}: ${fileError.message}`);
+          if (sessionData.spec.messages && sessionData.spec.messages.length > 0) {
+            const lastMsg = sessionData.spec.messages[sessionData.spec.messages.length - 1];
+            // Format as "timestamp role: content" (no truncation here - let outputAs handle it)
+            const content = lastMsg.content || '';
+            last_message = `${lastMsg.ts || ''} ${lastMsg.role || ''}: ${content}`;
           }
 
           sessions.push({
@@ -354,6 +383,8 @@ export class Session {
             labels,
             last_message
           });
+        } catch (fileError) {
+          log('debug', `Could not read session file ${fileName}: ${fileError.message}`);
         }
       }
 

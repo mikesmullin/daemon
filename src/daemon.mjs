@@ -13,17 +13,14 @@ import { _G } from './lib/globals.mjs';
 import utils, { log } from './lib/utils.mjs';
 import { Agent } from './lib/agents.mjs';
 import color from './lib/colors.mjs';
-import { MCPClient } from './lib/mcp-client.mjs';
-import * as observability from './lib/observability.mjs';
 
 // Import CLI command handlers
 import { handleSessionsCommand } from './cli/sessions.mjs';
 import { handleModelsCommand } from './cli/models.mjs';
 import { handleCleanCommand } from './cli/clean.mjs';
-import { handleWatchCommand } from './cli/watch.mjs';
 import { handleAgentCommand } from './cli/agent.mjs';
 import { handleToolCommand } from './cli/tool.mjs';
-import { handleMcpCommand } from './cli/mcp.mjs';
+import { handleBrowserCommand } from './cli/browser.mjs';
 
 // Get directory of this script to find .env file
 const __filename = fileURLToPath(import.meta.url);
@@ -33,7 +30,7 @@ const workspaceRoot = join(__dirname, '..');
 // Load environment variables from workspace root
 dotenv.config({ path: join(workspaceRoot, '.env') });
 
-// Cleanup MCP servers on exit
+// Cleanup on exit
 let ctrlCPressCount = 0;
 let ctrlCTimeout = null;
 
@@ -87,7 +84,6 @@ process.on('SIGINT', async () => {
         }
       }
       _G.childProcesses.clear();
-      await MCPClient.stopAllServers();
       process.exit(0);
     }
   }
@@ -114,7 +110,6 @@ process.on('SIGINT', async () => {
     }
   }
   _G.childProcesses.clear();
-  await MCPClient.stopAllServers();
   process.exit(0);
 });
 
@@ -130,7 +125,6 @@ process.on('SIGTERM', async () => {
     }
   }
   _G.childProcesses.clear();
-  await MCPClient.stopAllServers();
   process.exit(0);
 });
 
@@ -150,7 +144,6 @@ async function parseCliArgs() {
   let kill = false;
   let interactive = false;
   let noHumans = false;
-  let observePort = null;
   let concurrency = null;
 
   // Parse -t=<n> or --timeout=<n>
@@ -219,26 +212,7 @@ async function parseCliArgs() {
     args.splice(noHumansIndex, 1);
   }
 
-  // Parse --observe <port>
-  const observeIndex = args.indexOf('--observe');
-  if (observeIndex !== -1) {
-    if (observeIndex + 1 < args.length && !args[observeIndex + 1].startsWith('-') && !args[observeIndex + 1].startsWith('@')) {
-      const portValue = parseInt(args[observeIndex + 1], 10);
-      if (!isNaN(portValue)) {
-        observePort = portValue;
-        args.splice(observeIndex, 2);
-      } else {
-        // Next arg is not a valid number, use default port
-        observePort = 3002;
-        args.splice(observeIndex, 1);
-      }
-    } else {
-      observePort = 3002; // Default port
-      args.splice(observeIndex, 1);
-    }
-  }
-
-  // Parse --session <session_id> (for watch/pump modes)
+  // Parse --session <session_id>
   let session = null;
   const sessionIndex = args.indexOf('--session');
   if (sessionIndex !== -1 && sessionIndex + 1 < args.length) {
@@ -246,7 +220,7 @@ async function parseCliArgs() {
     args.splice(sessionIndex, 2);
   }
 
-  // Parse --labels <label1,label2,...> (for watch/pump/sessions modes)
+  // Parse --labels <label1,label2,...>
   let labels = [];
   const labelsIndex = args.indexOf('--labels');
   if (labelsIndex !== -1 && labelsIndex + 1 < args.length) {
@@ -255,7 +229,7 @@ async function parseCliArgs() {
     args.splice(labelsIndex, 2);
   }
 
-  // Parse --not-labels <label1,label2,...> (for watch/pump/sessions modes)
+  // Parse --not-labels <label1,label2,...>
   let notLabels = [];
   const notLabelsIndex = args.indexOf('--not-labels');
   if (notLabelsIndex !== -1 && notLabelsIndex + 1 < args.length) {
@@ -266,10 +240,6 @@ async function parseCliArgs() {
 
   // Store global flags in _G for access throughout the app
   _G.cliFlags = { timeout, lock, kill, interactive, noHumans, session, labels, notLabels, concurrency };
-  _G.observePort = observePort;
-  
-  // Initialize observability if enabled
-  observability.init();
 
   // Parse --format flag
   let format = 'table';
@@ -325,11 +295,6 @@ async function parseCliArgs() {
       await handleModelsCommand(args, format);
       break;
 
-    case 'mcp':
-      await getConfig();
-      await handleMcpCommand(args, format, options);
-      break;
-
     case 'agent':
       await handleAgentCommand(args, last);
       break;
@@ -339,8 +304,8 @@ async function parseCliArgs() {
       await handleToolCommand(args, format, options);
       break;
 
-    case 'watch':
-      await handleWatchCommand(args);
+    case 'browser':
+      await handleBrowserCommand(args);
       break;
 
     case 'help':
@@ -373,22 +338,19 @@ Usage: d <prompt>                (quick-prompt mode)
 
 Subcommands:
   help          Show this help message
-  clean         Remove transient state (proc, sessions, workspaces)
-  watch         Run continuously, monitoring sessions
+  browser       Start browser-based orchestration interface (v3.0)
+  clean         Remove transient state (proc, sessions, workspaces, channels)
   sessions      List all agent sessions
   models        List available AI models from all providers
   agent         Create and run agent until completion
   tool          Execute an agent tool directly
-  mcp           Manage MCP servers
 
 Global Options:
   -t, --timeout <n>   Abort if session runs longer than <n> seconds
-  -c, --concurrency <n> Limit concurrent session processing (watch mode only)
   -l, --lock          Abort if another instance of this agent type is running
   -k, --kill          Kill any running instance of this agent type before starting
   -i, --interactive   (agent only) Prompt for input using multi-line text editor
   --no-humans         Auto-reject tool requests not on allowlist (unattended mode)
-  --observe [port]    Enable observability emission via UDP (default port: 3002)
 
 Format Options:
   --format <format>   Output format: table (default), json, yaml, csv
@@ -400,8 +362,9 @@ For detailed help on a specific subcommand, run:
 
 Examples:
   d help                    # Show this help
+  d browser                 # Start browser-based interface (v3.0)
+  d browser 8080            # Start browser on custom port
   d sessions help           # Show sessions subcommand help
-  d watch help              # Show watch subcommand help
   d "how to list files"     # Quick-prompt mode
 `);
 }

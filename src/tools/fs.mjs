@@ -81,7 +81,7 @@ function getFileContentHash(filePath) {
 }
 
 function getLastReadFilePath(sessionId = 'default') {
-  return join(_G.PROC_DIR || 'agents/proc', `${sessionId}_last_read`);
+  return join(_G.SESSIONS_DIR || 'agents/sessions', `${sessionId}_last_read`);
 }
 
 function readFileReverse(filePath, maxBytes = 8192) {

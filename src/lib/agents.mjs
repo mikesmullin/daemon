@@ -13,7 +13,6 @@ import _ from 'lodash';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import * as observability from './observability.mjs';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -24,7 +23,7 @@ import '../tools/fs.mjs';
 import '../tools/agent.mjs';
 import '../tools/web.mjs';
 import '../tools/gemini-image.mjs';
-import '../tools/mcp.mjs';
+// import '../tools/mcp.mjs'; // Removed in v3.0
 import '../tools/human.mjs';
 
 // Auto-register all plugins
@@ -84,9 +83,8 @@ export class Agent {
   // Agents follow BehaviorTree (BT) patterns
   // each Agent can have zero or more Sessions
   // every Session has a corresponding BT state
-  // states are recorded as lock files in _G.PROC_DIR
-  // where a lock file is named <session_id>
-  // and its contents are the BT state
+  // states are now recorded in session YAML metadata
+  // where metadata.bt_state contains the current state
 
   static _isValidBtState(state) {
     return Session._isValidBtState(state);
@@ -341,6 +339,8 @@ export class Agent {
       const capabilities = sessionContent.metadata.tools || [];
 
       // Smart MCP initialization: only load if agent needs MCP tools
+      // MCP support removed in v3.0
+      /*
       if (capabilities.length === 0) {
         // No tools specified - load all tools including MCP (backwards compat)
         const { ensureMCPInitialized } = await import('../tools/mcp.mjs');
@@ -354,6 +354,7 @@ export class Agent {
         }
         // else: Skip MCP entirely for better performance
       }
+      */
 
       const availableTools = [];
       for (const name in _G.tools) {
@@ -508,31 +509,6 @@ export class Agent {
           }
         }
 
-        // Emit observability event for assistant response
-        if (response.choices && response.choices.length > 0) {
-          const choice = response.choices[0];
-          if (choice.message.content) {
-            observability.emitResponse(
-              session_id,
-              sessionContent.metadata.name,
-              choice.message.content,
-              sessionContent.metadata.model,
-              response.usage?.total_cost,
-              response.usage?.total_tokens
-            );
-          }
-          if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
-            for (const tool_call of choice.message.tool_calls) {
-              observability.emitToolCall(
-                session_id,
-                sessionContent.metadata.name,
-                tool_call.function.name,
-                JSON.parse(tool_call.function.arguments || '{}')
-              );
-            }
-          }
-        }
-
         sessionContent.metadata.usage = response.usage;
         sessionContent.metadata.provider = response.provider; // Store provider name
 
@@ -681,13 +657,6 @@ export class Agent {
       await Session.updateLastRead(session_id);
 
       await Agent.state(session_id, finalState);
-      
-      // Emit STOP hook if session completed
-      if (finalState === 'success') {
-        observability.emitHook('STOP', session_id, sessionContent.metadata.name, {
-          reason: lastMessage?.finish_reason || 'completed'
-        });
-      }
       
       return {
         session_id,

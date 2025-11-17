@@ -251,24 +251,23 @@ export async function writeYaml(file, data) {
 
 // initialize directory skeleton on first run
 export function initializeDirectories() {
-  _G.PROC_DIR = relWS('agents', 'proc');
   _G.TEMPLATES_DIR = relWS('agents', 'templates');
   _G.SESSIONS_DIR = relWS('agents', 'sessions');
   _G.WORKSPACES_DIR = relWS('agents', 'workspaces');
+  _G.CHANNELS_DIR = relWS('agents', 'channels');
   _G.MCP_DIR = relWS('agents', 'mcp');
   _G.STORAGE_DIR = relWS('plugins', 'shell', 'storage');
 
   _G.CONFIG_PATH = relWS('config.yaml');
   _G.TOKENS_PATH = relWS('.tokens.yaml');
-  _G.NEXT_PATH = path.join(_G.PROC_DIR, '_next');
   _G.ALLOWLIST_PATH = path.join(_G.STORAGE_DIR, 'terminal-cmd-allowlist.yaml');
 }
 
 export async function makeDirectories() {
-  await mkdirp(_G.PROC_DIR);
   await mkdirp(_G.TEMPLATES_DIR);
   await mkdirp(_G.SESSIONS_DIR);
   await mkdirp(_G.WORKSPACES_DIR);
+  await mkdirp(_G.CHANNELS_DIR);
   await mkdirp(_G.MCP_DIR);
   await mkdirp(_G.STORAGE_DIR);
 }

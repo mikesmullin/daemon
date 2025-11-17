@@ -1,0 +1,26 @@
+id: 1
+name: test-session
+template: solo
+state: created
+channelName: test-channel
+metadata:
+  created_at: 2025-11-16T12:00:00.000Z
+  updated_at: 2025-11-16T12:00:00.000Z
+messages:
+  - type: USER_REQUEST
+    timestamp: 2025-11-16T12:00:01.000Z
+    content: Hello, test agent!
+  - type: RESPONSE
+    timestamp: 2025-11-16T12:00:02.000Z
+    content: Hello! How can I help you?
+  - type: TOOL_CALL
+    timestamp: 2025-11-16T12:00:03.000Z
+    tool_call_id: call_123
+    name: execute_shell
+    arguments:
+      command: echo "test"
+  - type: TOOL_RESPONSE
+    timestamp: 2025-11-16T12:00:04.000Z
+    tool_call_id: call_123
+    success: true
+    result: test

@@ -19,7 +19,7 @@ export async function handleCleanCommand(args) {
   }
 
   // Perform cleanup
-  for (const dir of [_G.PROC_DIR, _G.SESSIONS_DIR, _G.WORKSPACES_DIR]) {
+  for (const dir of [_G.CHANNELS_DIR, _G.SESSIONS_DIR, _G.WORKSPACES_DIR]) {
     if (dir && fs.existsSync(dir)) {
       await fs.promises.rm(dir, { recursive: true, force: true });
       log('debug', `🧹 Cleaned directory: ${dir}`);
@@ -38,13 +38,13 @@ Usage: d clean
 
 Description:
   Removes all transient state files and directories including:
-  - agents/proc/      (process state files)
-  - agents/sessions/  (session YAML files)
+  - agents/channels/   (channel configuration)
+  - agents/sessions/   (session YAML files)
   - agents/workspaces/ (workspace data)
 
   This command is useful for:
   - Resetting the daemon to a clean state
-  - Clearing out old/stale sessions
+  - Clearing out old/stale sessions and channels
   - Troubleshooting session-related issues
 
 Examples:

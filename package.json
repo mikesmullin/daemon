@@ -10,7 +10,10 @@
   "scripts": {
     "help": "bun src/daemon.mjs help",
     "clean": "bun src/daemon.mjs clean",
-    "postinstall": "bash scripts/install-plugins.sh"
+    "postinstall": "bash scripts/install-plugins.sh",
+    "test": "./run-tests.sh",
+    "test:watch": "bun test --watch tests/",
+    "test:coverage": "bun test --coverage"
   },
   "keywords": [
     "github",

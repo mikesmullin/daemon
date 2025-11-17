@@ -2,7 +2,6 @@ import { _G } from './globals.mjs';
 import utils, { log } from './utils.mjs';
 import color from './colors.mjs';
 import readline from 'readline';
-import * as observability from './observability.mjs';
 
 /**
  * Tool Management Class
@@ -129,18 +128,6 @@ export class Tool {
 
       // 2. Execute the tool
       const result = await tool.execute(args, { sessionId });
-      
-      // Emit tool response event
-      if (sessionId) {
-        const session = await import('./session.mjs').then(m => m.Session.load(sessionId)).catch(() => null);
-        observability.emitToolResponse(
-          sessionId,
-          session?.metadata?.name || 'unknown',
-          name,
-          result.content,
-          result.success !== false
-        );
-      }
       
       return result;
 

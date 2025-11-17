@@ -1,0 +1,13 @@
+name: test-agent
+provider: openai
+model: gpt-4
+temperature: 0.7
+max_tokens: 2000
+system_prompt: You are a helpful test agent.
+tools:
+  - execute_shell
+  - view_file
+  - edit_file
+labels:
+  - test
+  - development
