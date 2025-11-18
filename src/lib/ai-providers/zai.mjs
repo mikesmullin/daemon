@@ -45,7 +45,7 @@ export class ZAIProvider extends BaseProvider {
     );
   }
 
-  async createChatCompletion({ model, messages, tools = [], max_tokens }) {
+  async createChatCompletion({ model, messages, tools = [], max_tokens, signal }) {
     throw new Error('z.ai provider not yet implemented');
   }
 

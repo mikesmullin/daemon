@@ -34,5 +34,7 @@ export let _G = {
     interruptRequested: false, // Set to true when ctrl+c is pressed in interactive mode (normal state)
     currentToolCallId: null, // Currently executing tool call ID
     currentSessionId: null, // Session currently being processed
+    apiAbortController: null, // Current API request AbortController for cancellation
+    discardLastUserMessage: false, // Set to true when API call is aborted to discard the triggering user message
   }
 };

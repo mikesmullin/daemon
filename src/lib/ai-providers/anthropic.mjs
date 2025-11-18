@@ -49,7 +49,7 @@ export class AnthropicProvider extends BaseProvider {
     );
   }
 
-  async createChatCompletion({ model, messages, tools = [], max_tokens }) {
+  async createChatCompletion({ model, messages, tools = [], max_tokens, signal }) {
     throw new Error('Anthropic provider not yet implemented');
   }
 

@@ -55,18 +55,23 @@ export class CopilotProvider extends BaseProvider {
     this.initialized = true;
   }
 
-  async createChatCompletion({ model, messages, tools = [], max_tokens }) {
+  async createChatCompletion({ model, messages, tools = [], max_tokens, signal }) {
     const startTime = Date.now();
     let firstTokenTime = null;
 
     try {
-      const response = await this.client.chat.completions.create({
+      const requestOptions = {
         model: model || 'claude-sonnet-4',
         messages: messages,
         tools: tools.length > 0 ? tools : undefined,
         max_tokens: max_tokens,
         stream: false,
-      });
+      };
+      
+      // Add signal to options if provided
+      const sdkOptions = signal ? { signal } : undefined;
+      
+      const response = await this.client.chat.completions.create(requestOptions, sdkOptions);
 
       // Measure time to first token (approximation since we're not streaming)
       firstTokenTime = Date.now();
@@ -89,7 +94,7 @@ export class CopilotProvider extends BaseProvider {
         this.client = null;
         await this.init();
         // Retry once
-        return this.createChatCompletion({ model, messages, tools, max_tokens });
+        return this.createChatCompletion({ model, messages, tools, max_tokens, signal });
       }
       throw error;
     }

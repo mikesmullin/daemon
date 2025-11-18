@@ -111,7 +111,7 @@ export class GeminiProvider extends BaseProvider {
     }));
   }
 
-  async createChatCompletion({ model, messages, tools = [], max_tokens }) {
+  async createChatCompletion({ model, messages, tools = [], max_tokens, signal }) {
     const startTime = Date.now();
 
     // Convert messages
@@ -128,23 +128,39 @@ export class GeminiProvider extends BaseProvider {
 
     try {
       let result;
-      if (geminiTools && geminiTools.length > 0) {
-        // Note: Gemini's function calling API is different from OpenAI's
-        // For now, we'll use basic chat without tool support
-        log('warn', '⚠️  Gemini provider does not yet support tool calls, proceeding without tools');
-        result = await geminiModel.generateContent({
-          contents: contents,
-          generationConfig: {
-            maxOutputTokens: max_tokens,
-          },
-        });
+      const generatePromise = (async () => {
+        if (geminiTools && geminiTools.length > 0) {
+          // Note: Gemini's function calling API is different from OpenAI's
+          // For now, we'll use basic chat without tool support
+          log('warn', '⚠️  Gemini provider does not yet support tool calls, proceeding without tools');
+          return await geminiModel.generateContent({
+            contents: contents,
+            generationConfig: {
+              maxOutputTokens: max_tokens,
+            },
+          });
+        } else {
+          return await geminiModel.generateContent({
+            contents: contents,
+            generationConfig: {
+              maxOutputTokens: max_tokens,
+            },
+          });
+        }
+      })();
+      
+      // If signal provided, race against abort
+      if (signal) {
+        result = await Promise.race([
+          generatePromise,
+          new Promise((_, reject) => {
+            signal.addEventListener('abort', () => {
+              reject(new Error('Request aborted by user'));
+            });
+          })
+        ]);
       } else {
-        result = await geminiModel.generateContent({
-          contents: contents,
-          generationConfig: {
-            maxOutputTokens: max_tokens,
-          },
-        });
+        result = await generatePromise;
       }
 
       const endTime = Date.now();

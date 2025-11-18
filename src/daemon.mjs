@@ -94,12 +94,41 @@ process.on('SIGINT', async () => {
 
   // Normal state - check if in interactive mode
   if (_G.cliFlags.interactive) {
-    // In interactive mode, Ctrl+C should interrupt and prompt for new input
-    log('info', '\n⚠️  Interrupting agent (will prompt after current operation completes)...');
-    
-    // Set interrupt flag for the agent loop to handle
-    _G.signalHandler.interruptRequested = true;
-    return; // Don't exit, let the agent handle the interruption
+    // In interactive mode, implement two-press Ctrl+C behavior
+    ctrlCPressCount++;
+
+    if (ctrlCPressCount === 1) {
+      // First Ctrl+C: Warn and set interrupt flag
+      log('warn', '\n⚠️  Interrupting agent (press Ctrl+C again to abort current API call)...');
+      
+      // Set interrupt flag for the agent loop to handle
+      _G.signalHandler.interruptRequested = true;
+      
+      ctrlCTimeout = setTimeout(() => {
+        ctrlCPressCount = 0;
+      }, 2000);
+      return; // Don't exit, let the agent handle the interruption
+    } else {
+      // Second Ctrl+C: Abort current API call if one is in progress
+      log('warn', '\n🛑 Aborting current AI API call...');
+      
+      if (_G.signalHandler.apiAbortController) {
+        _G.signalHandler.apiAbortController.abort();
+        log('info', '✅ API call cancelled');
+        
+        // Set flag to discard the last user message that triggered this aborted API call
+        _G.signalHandler.discardLastUserMessage = true;
+      }
+      
+      // Reset counter
+      ctrlCPressCount = 0;
+      if (ctrlCTimeout) {
+        clearTimeout(ctrlCTimeout);
+        ctrlCTimeout = null;
+      }
+      
+      return; // Let the agent handle the aborted response
+    }
   }
 
   // Non-interactive mode - clean shutdown

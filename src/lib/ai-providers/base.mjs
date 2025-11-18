@@ -50,12 +50,13 @@ export class BaseProvider {
    * Create a chat completion
    * @param {Object} params
    * @param {string} params.model - Model name
-   * @param {Array} params.messages - Array of message objects
-   * @param {Array} [params.tools] - Optional tool definitions
-   * @param {number} [params.max_tokens] - Optional max tokens
-   * @returns {Promise<Object>} Standardized response object
+   * @param {Array} params.messages - Message history
+   * @param {Array} params.tools - Available tools
+   * @param {number} params.max_tokens - Maximum tokens to generate
+   * @param {AbortSignal} params.signal - Optional AbortSignal for cancellation
+   * @returns {Promise} Normalized response
    */
-  async createChatCompletion({ model, messages, tools = [], max_tokens }) {
+  async createChatCompletion({ model, messages, tools = [], max_tokens, signal }) {
     throw new Error('Provider must implement createChatCompletion() method');
   }
 

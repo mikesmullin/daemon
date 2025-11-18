@@ -49,7 +49,7 @@ export class OpenAIProvider extends BaseProvider {
     );
   }
 
-  async createChatCompletion({ model, messages, tools = [], max_tokens }) {
+  async createChatCompletion({ model, messages, tools = [], max_tokens, signal }) {
     throw new Error('OpenAI provider not yet implemented');
   }
 

@@ -121,7 +121,7 @@ export class OllamaProvider extends BaseProvider {
     });
   }
 
-  async createChatCompletion({ model, messages, tools = [], max_tokens }) {
+  async createChatCompletion({ model, messages, tools = [], max_tokens, signal }) {
     const startTime = Date.now();
     let firstTokenTime = null;
     let tokenCount = 0;
@@ -145,7 +145,22 @@ export class OllamaProvider extends BaseProvider {
         options.tools = ollamaTools;
       }
 
-      const response = await this.client.chat(options);
+      const chatPromise = this.client.chat(options);
+      
+      // If signal provided, race against abort
+      let response;
+      if (signal) {
+        response = await Promise.race([
+          chatPromise,
+          new Promise((_, reject) => {
+            signal.addEventListener('abort', () => {
+              reject(new Error('Request aborted by user'));
+            });
+          })
+        ]);
+      } else {
+        response = await chatPromise;
+      }
 
       const endTime = Date.now();
       firstTokenTime = endTime; // Approximation for non-streaming

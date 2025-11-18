@@ -58,18 +58,23 @@ export class XAIProvider extends BaseProvider {
     log('debug', '✅ xAI provider initialized');
   }
 
-  async createChatCompletion({ model, messages, tools = [], max_tokens }) {
+  async createChatCompletion({ model, messages, tools = [], max_tokens, signal }) {
     const startTime = Date.now();
     let firstTokenTime = null;
 
     try {
-      const response = await this.client.chat.completions.create({
+      const requestOptions = {
         model: model,
         messages: messages,
         tools: tools.length > 0 ? tools : undefined,
         max_tokens: max_tokens,
         stream: false,
-      });
+      };
+      
+      // Add signal to options if provided
+      const sdkOptions = signal ? { signal } : undefined;
+      
+      const response = await this.client.chat.completions.create(requestOptions, sdkOptions);
 
       firstTokenTime = Date.now();
       const endTime = Date.now();

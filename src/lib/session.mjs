@@ -264,6 +264,25 @@ export class Session {
         sessionContent.spec.messages = [];
       }
 
+      // Check if we need to discard the last user message (after API abort)
+      if (_G.signalHandler.discardLastUserMessage) {
+        log('debug', '🗑️  Discarding aborted user message from session');
+        
+        // Find and remove the last user message
+        const messages = sessionContent.spec.messages;
+        
+        const lastUserIndex = messages.map((m, i) => m.role === 'user' ? i : -1)
+                                      .filter(i => i !== -1)
+                                      .pop();
+        
+        if (lastUserIndex !== undefined) {
+          messages.splice(lastUserIndex, 1);
+        }
+        
+        // Clear the flag
+        _G.signalHandler.discardLastUserMessage = false;
+      }
+
       // Add new user message with timestamp
       const newMessage = {
         ts: new Date().toISOString(),

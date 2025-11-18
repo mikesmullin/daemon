@@ -331,30 +331,56 @@ export class Agent {
       // Strip provider prefix from model name if present
       const cleanModelName = registry.stripProviderPrefix(modelName);
 
-      // Make the request
-      const response = await provider.createChatCompletion({
-        model: cleanModelName,
-        messages: messages,
-        tools: tools,
-        max_tokens: max_tokens,
-      });
+      // Create AbortController for this request
+      const controller = new AbortController();
+      _G.signalHandler.apiAbortController = controller;
 
-      // Add provider name to response metadata
-      response.provider = providerName;
+      try {
+        // Make the request with abort signal
+        const response = await provider.createChatCompletion({
+          model: cleanModelName,
+          messages: messages,
+          tools: tools,
+          max_tokens: max_tokens,
+          signal: controller.signal,
+        });
 
-      log('debug', '🤖 ${providerName} AI API Response: ' + JSON.stringify(response, null, 2));
+        // Add provider name to response metadata
+        response.provider = providerName;
 
-      // Log metrics if available
-      provider.logMetrics(response);
+        log('debug', '🤖 ${providerName} AI API Response: ' + JSON.stringify(response, null, 2));
 
-      return response;
+        // Log metrics if available
+        provider.logMetrics(response);
+
+        return response;
+      } finally {
+        // Clear the abort controller reference
+        _G.signalHandler.apiAbortController = null;
+      }
     } catch (error) {
+      // Check if this was an abort error
+      if (error.message && error.message.includes('abort')) {
+        log('warn', '⚠️  AI API request was cancelled by user');
+        // Return a sentinel response indicating cancellation
+        return {
+          id: `cancelled-${Date.now()}`,
+          created: Math.floor(Date.now() / 1000),
+          model: modelName,
+          choices: [],
+          usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+        };
+      }
+      
       log('error', `AI API error: ${error.message}`);
       utils.abort(error);
     }
   }  // evaluate an agent session by sending its context to the LLM as a prompt
   static async eval(session_id) {
     try {
+      // Track current session ID for signal handling
+      _G.signalHandler.currentSessionId = session_id;
+      
       const state = await Agent.state(session_id);
       // if (state !== 'success') {
       //   utils.abort(`Cannot eval session ${session_id} in state ${state}`);
@@ -452,6 +478,25 @@ export class Agent {
           _G.fsmState = 'normal';
           
           if (userInput && userInput.trim()) {
+            // Check if we need to discard the last user message (after API abort)
+            if (_G.signalHandler.discardLastUserMessage) {
+              log('debug', '🗑️  Discarding aborted user message from session');
+              
+              // Find and remove the last user message
+              const messages = sessionContent.spec.messages || [];
+              
+              const lastUserIndex = messages.map((m, i) => m.role === 'user' ? i : -1)
+                                          .filter(i => i !== -1)
+                                          .pop();
+              
+              if (lastUserIndex !== undefined) {
+                messages.splice(lastUserIndex, 1);
+              }
+              
+              // Clear the flag
+              _G.signalHandler.discardLastUserMessage = false;
+            }
+            
             // Add user's new input as a message
             const newUserMessage = {
               ts: utils.unixToIso(utils.unixTime()),
@@ -507,6 +552,25 @@ export class Agent {
           _G.fsmState = 'normal';
           
           if (userInput && userInput.trim()) {
+            // Check if we need to discard the last user message (after API abort)
+            if (_G.signalHandler.discardLastUserMessage) {
+              log('debug', '🗑️  Discarding aborted user message from session');
+              
+              // Find and remove the last user message
+              const messages = sessionContent.spec.messages || [];
+              
+              const lastUserIndex = messages.map((m, i) => m.role === 'user' ? i : -1)
+                                          .filter(i => i !== -1)
+                                          .pop();
+              
+              if (lastUserIndex !== undefined) {
+                messages.splice(lastUserIndex, 1);
+              }
+              
+              // Clear the flag
+              _G.signalHandler.discardLastUserMessage = false;
+            }
+            
             // Add user's new input as a message
             const newUserMessage = {
               ts: utils.unixToIso(utils.unixTime()),
@@ -727,6 +791,9 @@ export class Agent {
     } catch (error) {
       await Agent.state(session_id, 'fail');
       utils.abort(error);
+    } finally {
+      // Clear current session ID tracking
+      _G.signalHandler.currentSessionId = null;
     }
   }
 
