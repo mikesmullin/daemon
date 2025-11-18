@@ -119,13 +119,13 @@ _G.tools.create_agent = {
     type: 'function',
     function: {
       name: 'create_agent',
-      description: 'Create and start a new specialized subagent to handle specific tasks. Use this when you need dedicated expertise (planning, execution, evaluation, etc.) or want to delegate a substantial piece of work. Each agent type has different capabilities - choose based on the task requirements.',
+      description: 'Create and start a new specialized subagent to handle specific tasks. Each agent type has different capabilities - use available_agents tool first to discover what agent templates are available, then choose based on the task requirements.',
       parameters: {
         type: 'object',
         properties: {
           agent: {
             type: 'string',
-            description: 'The specialized agent template to instantiate. Available types: "solo" (general purpose). Choose based on the primary function needed.'
+            description: 'The specialized agent template to instantiate. Use the available_agents tool to see what templates are available and their capabilities. Choose the template that best matches the task requirements.'
           },
           prompt: {
             type: 'string',
