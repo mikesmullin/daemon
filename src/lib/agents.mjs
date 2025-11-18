@@ -104,35 +104,59 @@ export class Agent {
     return Session.list();
   }
 
-  // list available agent templates from agents/templates/*.yaml
+  // list available agent templates from multiple search paths
   static async listAvailable() {
     try {
       const templates = [];
+      const seenNames = new Set(); // Track unique agent names to avoid duplicates
 
-      // Read all yaml files from templates directory
-      const files = await fs.readdir(_G.TEMPLATES_DIR);
+      // Define search directories in priority order
+      const searchDirs = [
+        process.cwd(), // Current working directory
+        path.join(process.cwd(), '.agents'), // Current working directory .agents/ subdirectory
+        _G.TEMPLATES_DIR // Workspace root templates directory
+      ];
 
-      for (const file of files) {
-        if (file.endsWith('.yaml')) {
-          const agentName = path.basename(file, '.yaml');
-          const templatePath = path.join(_G.TEMPLATES_DIR, file);
+      // Scan each directory for YAML templates
+      for (const dir of searchDirs) {
+        try {
+          // Check if directory exists
+          await fs.access(dir);
+          const files = await fs.readdir(dir);
 
-          try {
-            const templateContent = await utils.readYaml(templatePath);
+          for (const file of files) {
+            if (file.endsWith('.yaml')) {
+              const agentName = path.basename(file, '.yaml');
+              
+              // Skip if we've already seen this agent name (higher priority path wins)
+              if (seenNames.has(agentName)) {
+                continue;
+              }
 
-            // Only include agents with 'subagent' label
-            const labels = templateContent.metadata?.labels || [];
-            if (labels.includes('subagent')) {
-              templates.push({
-                name: agentName,
-                description: templateContent.metadata?.description || '',
-                model: templateContent.metadata?.model || 'unknown',
-                tools: templateContent.metadata?.tools || []
-              });
+              const templatePath = path.join(dir, file);
+
+              try {
+                const templateContent = await utils.readYaml(templatePath);
+
+                // Only include agents with 'subagent' label
+                const labels = templateContent.metadata?.labels || [];
+                if (labels.includes('subagent')) {
+                  templates.push({
+                    name: agentName,
+                    description: templateContent.metadata?.description || '',
+                    model: templateContent.metadata?.model || 'unknown',
+                    tools: templateContent.metadata?.tools || []
+                  });
+                  seenNames.add(agentName);
+                }
+              } catch (error) {
+                log('debug', `Warning: Could not read template ${file}: ${error.message}`);
+              }
             }
-          } catch (error) {
-            log('debug', `Warning: Could not read template ${file}: ${error.message}`);
           }
+        } catch (error) {
+          // Directory doesn't exist or can't be read - skip it
+          log('debug', `Skipping directory ${dir}: ${error.message}`);
         }
       }
 
@@ -201,7 +225,8 @@ export class Agent {
         // Creating from a template
         // Support multi-path template resolution:
         // 1. Check current working directory (process.cwd())
-        // 2. Check workspace root templates directory (_G.TEMPLATES_DIR)
+        // 2. Check current working directory .agents/ subdirectory
+        // 3. Check workspace root templates directory (_G.TEMPLATES_DIR)
         
         // Strip .yaml extension if provided by user
         const agentName = agent.endsWith('.yaml') ? agent.slice(0, -5) : agent;
@@ -209,9 +234,11 @@ export class Agent {
         const searchPaths = [
           // Path 1: Current working directory
           path.join(process.cwd(), `${agentName}.yaml`),
-          // Path 2: Workspace root templates directory (for bare names like 'solo')
+          // Path 2: Current working directory .agents/ subdirectory
+          path.join(process.cwd(), '.agents', `${agentName}.yaml`),
+          // Path 3: Workspace root templates directory (for bare names like 'solo')
           path.join(_G.TEMPLATES_DIR, `${agentName}.yaml`),
-          // Path 3: Workspace root templates directory with agent as path
+          // Path 4: Workspace root templates directory with agent as path
           path.join(_G.TEMPLATES_DIR, agent.endsWith('.yaml') ? agent : `${agent}.yaml`)
         ];
         
