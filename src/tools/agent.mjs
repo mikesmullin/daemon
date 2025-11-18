@@ -138,16 +138,19 @@ _G.tools.create_agent = {
   },
   execute: async (args) => {
     try {
-      const result = await Agent.fork({ agent: args.agent, prompt: args.prompt, labels: ['subagent'] });
+      // Strip '@' prefix from agent name if present (for convenience)
+      const agentName = args.agent.startsWith('@') ? args.agent.slice(1) : args.agent;
+      
+      const result = await Agent.fork({ agent: agentName, prompt: args.prompt, labels: ['subagent'] });
 
       // Log the operation
-      utils.logAgent(`Created new ${args.agent} subagent: ${result.session_id}`);
+      utils.logAgent(`Created new ${agentName} subagent: ${result.session_id}`);
 
       return {
         success: true,
-        content: `Successfully created new ${args.agent} subagent with session ID ${result.session_id}.\n\nAgent: ${args.agent}\nSession ID: ${result.session_id}\nPrompt: ${args.prompt}`,
+        content: `Successfully created new ${agentName} subagent with session ID ${result.session_id}.\n\nAgent: ${agentName}\nSession ID: ${result.session_id}\nPrompt: ${args.prompt}`,
         metadata: {
-          agent: args.agent,
+          agent: agentName,
           session_id: result.session_id,
           result: result
         }
