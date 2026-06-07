@@ -1,5 +1,7 @@
 > 📦 **Part of the [Daemon multi-version archive](https://github.com/mikesmullin/daemon).** This is **v3** — a ground-up Bun rewrite: Podman-sandboxed agents, containerized sessions, a plugin architecture, and a persistent db. Shares no history with v1/v2.
 >
+> ⭐ **Bright spot:** the [`youtube`](https://github.com/mikesmullin/daemon/blob/v3/agent/templates/youtube.yaml) agent — search a video, pull its transcript, and get a concise summary — became a heavily-used, everyday feature of this version.
+>
 > **Versions:** [v1](https://github.com/mikesmullin/daemon/tree/v1) · [v2](https://github.com/mikesmullin/daemon/tree/v2) · [v3](https://github.com/mikesmullin/daemon/tree/v3) · [v4](https://github.com/mikesmullin/daemon/tree/v4) · [v2-web-ui](https://github.com/mikesmullin/daemon/tree/v2-web-ui) · [overview](https://github.com/mikesmullin/daemon)
 
 ---
