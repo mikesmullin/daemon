@@ -44,7 +44,7 @@ for context only — they are not part of this repository:
 The v4 line later evolved, outside this repo, into
 [`subd`](https://github.com/mikesmullin/subd) →
 [`wasm1`](https://github.com/mikesmullin/wasm1) →
-[`agl-ai`](https://github.com/mikesmullin/agl-ai) (a minimalist, Pydantic-AI-inspired approach
+[`agl-ai`](https://github.com/mikesmullin/agl) (a minimalist, Pydantic-AI-inspired approach
 using a staged-ECS agent pipeline and microagents).
 
 ## License
