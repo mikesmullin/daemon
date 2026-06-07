@@ -72,8 +72,8 @@ graph LR
     Hub -->|SV_TOOL_DISPATCH| Worker1
     Hub -->|SV_TOOL_DISPATCH| Worker2
     Hub -->|SV_TOOL_DISPATCH| Worker3
-    Worker1 |CL_TOOL_RESULT| Hub
-    Worker2 |CL_TOOL_RESULT| Hub
+    Worker1 -->|CL_TOOL_RESULT| Hub
+    Worker2 -->|CL_TOOL_RESULT| Hub
     Worker3 -->|CL_TOOL_RESULT| Hub
     Hub -->|*| Term1
     Hub -->|*| Term2
@@ -396,7 +396,7 @@ Hub dispatches (potentially to different workers):
   → worker1: SV_TOOL_DISPATCH {tool_call_id: "tc_001", batch_index: 0, batch_total: 3}
   → worker2: SV_TOOL_DISPATCH {tool_call_id: "tc_002", batch_index: 1, batch_total: 3}
   → worker1: SV_TOOL_DISPATCH {tool_call_id: "tc_003", batch_index: 2, batch_total: 3}
-rkers returout of order):
+Workers return (out of order):
   worker1 → hub: CL_TOOL_RESULT {tool_call_id: "tc_003", batch_index: 2, ...}  ← arrives first
   worker2 → hub: CL_TOOL_RESULT {tool_call_id: "tc_002", batch_index: 1, ...}  ← arrives second
   worker1 → hub: CL_TOOL_RESULT {tool_call_id: "tc_001", batch_index: 0, ...}  ← arrives third
@@ -743,10 +743,11 @@ title CL_CMD_REQUEST: Client → Hub (DEPRECATED)
 
 ### B.2 `SV_TOOL_DISPATCH`
 
-```mermaiacket-beta
+```mermaid
+packet-beta
 title SV_TOOL_DISPATCH: Hub → Worker
 0-7: "Code (0x30)"
-8-39: d ID (u32)"
+8-39: "Cmd ID (u32)"
 40-55: "Tool Call ID Length (u16)"
 56-183: "Tool Call ID (Str8)"
 184-199: "Tool Name Length (u16)"
