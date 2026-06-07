@@ -41,8 +41,11 @@ for context only — they are not part of this repository:
 - **Game9** — a game engine experiment that embedded an LLM for real-time NPC and item generation;
   its performance-tuned, cross-platform pieces seeded the v4 rewrite.
 
-The v4 line later evolved, outside this repo, into `subd` → `wasm1` → `agl-ai` (a minimalist,
-Pydantic-AI-inspired approach using a staged-ECS agent pipeline and microagents).
+The v4 line later evolved, outside this repo, into
+[`subd`](https://github.com/mikesmullin/subd) →
+[`wasm1`](https://github.com/mikesmullin/wasm1) →
+[`agl-ai`](https://github.com/mikesmullin/agl-ai) (a minimalist, Pydantic-AI-inspired approach
+using a staged-ECS agent pipeline and microagents).
 
 ## License
 
