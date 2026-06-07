@@ -1,3 +1,9 @@
+> 📦 **Part of the [Daemon multi-version archive](https://github.com/mikesmullin/daemon).** This is **v2** — the most mature `.mjs` line: everything in v1 plus PTY interaction, parallel watch workers, and API-call cancellation.
+>
+> **Versions:** [v1](https://github.com/mikesmullin/daemon/tree/v1) · [v2](https://github.com/mikesmullin/daemon/tree/v2) · [v3](https://github.com/mikesmullin/daemon/tree/v3) · [v4](https://github.com/mikesmullin/daemon/tree/v4) · [v2-web-ui](https://github.com/mikesmullin/daemon/tree/v2-web-ui) · [overview](https://github.com/mikesmullin/daemon)
+
+---
+
 # 👺 Daemon CLI
 
 A Multi-Agent Delegation (MAD) CLI 
