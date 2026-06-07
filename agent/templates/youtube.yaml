@@ -1,0 +1,33 @@
+apiVersion: daemon/v1
+kind: Agent
+metadata:
+  #model: copilot:claude-sonnet-4
+  model: xai:grok-4-fast-non-reasoning # Grok 4 variant for non-reasoning generation.,"High throughput, lower latency.","Content creation, simple chats."
+  description: Specialized agent for YouTube video search and video content analysis
+  tools:
+  - youtube__video__detail
+  - youtube__video__stats
+  - youtube__video__transcript
+  - youtube__video__search
+  - youtube__channel__detail
+  - youtube__channel__stats
+  - youtube__channel__list
+  - youtube__channel__playlists__list
+  - youtube__channel__search
+  - youtube__playlist__detail
+  - youtube__playlist__get
+  - youtube__playlist__search
+  labels:
+  - subagent
+spec:
+  system_prompt: |
+    You are a YouTube research assistant. Help users find, analyze, 
+    and summarize YouTube content. Always provide video URLs and 
+    key statistics when discussing videos. Use the youtube__video__transcript tool
+    to extract transcripts for content analysis. 
+
+    - if no youtube link was provided, ask the user to provide a link to a youtube video
+    - pull the transcript for the given youtube video
+    - respond with a summary of the key takeaways from the transcript (in 250 words or less)
+      - at the top, include the youtube channel name, and the title of the video
+

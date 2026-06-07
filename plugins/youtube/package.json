@@ -1,0 +1,7 @@
+{
+  "name": "daemon-plugin-youtube",
+  "type": "module",
+  "dependencies": {
+    "googleapis": "^140.0.1"
+  }
+}

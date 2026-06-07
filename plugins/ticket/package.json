@@ -1,0 +1,5 @@
+{
+  "name": "daemon-plugin-ticket",
+  "type": "module",
+  "dependencies": {}
+}

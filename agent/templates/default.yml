@@ -1,0 +1,13 @@
+apiVersion: daemon/v1
+kind: Agent
+metadata:
+  name: default
+  description: A default general-purpose agent
+  model: copilot:gpt-5-mini
+spec:
+  system_prompt: |
+    You are a helpful AI assistant.
+    You have access to the local filesystem and can execute commands.
+  tools:
+  - agent__sleep
+  - human__ask

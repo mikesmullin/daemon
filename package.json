@@ -1,0 +1,17 @@
+{
+  "name": "daemon",
+  "version": "3.0.0",
+  "module": "index.ts",
+  "dependencies": {
+    "js-yaml": "^4.1.1"
+  },
+  "bin": {
+    "d3": "./cli.mjs"
+  },
+  "scripts": {
+    "install:plugins": "bun scripts/install-plugins.mjs",
+    "postinstall": "bun scripts/install-plugins.mjs"
+  },
+  "private": true,
+  "type": "module"
+}
