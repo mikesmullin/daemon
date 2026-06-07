@@ -1,0 +1,13 @@
+/.cache/
+/.env
+/.git/
+/.gitignore
+/.lockfile
+/.vscode/
+/daemon.log
+/doc/
+/Dockerfile
+/docs/
+/README.md
+/test/
+/tmp/

@@ -1,0 +1,14 @@
+---
+apiVersion: daemon/v1
+kind: Agent
+metadata:
+  description: Test agent
+  model: xai:grok-4-fast-reasoning
+  tools:
+  - shell__exec
+  - fs__ls
+  - fs__read
+spec:
+  system_prompt: |
+    You are a helpful assistant.
+    Follow instructions carefully.

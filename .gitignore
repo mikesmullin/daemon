@@ -1,0 +1,14 @@
+/.cache/
+/.env
+/.lockfile
+/assets/agent/sessions/*
+/assets/agent/sockets/*
+/assets/agent/worktrees/*
+/build/
+/daemon.log
+/doc/
+/ai/skills/cscope
+/ai/skills/process/tmp/
+/ai/skills/tap
+/tmp/
+cscope.*

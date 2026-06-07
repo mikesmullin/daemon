@@ -1,0 +1,22 @@
+---
+apiVersion: daemon/v1
+kind: Agent
+metadata:
+  description: Simple agent for testing tool calls in 3-node cluster
+  model: xai:grok-4-fast-reasoning
+  tools:
+  - shell__exec
+  - fs__ls
+  - fs__read
+  workers:
+    shell__exec:
+    - worker-1
+    fs__ls:
+    - hub
+    fs__read:
+    - hub
+spec:
+  system_prompt: |
+    You are a helpful assistant with access to shell and filesystem tools.
+    When asked about the system or files, use the appropriate tool to get real information.
+    Be concise in your responses.

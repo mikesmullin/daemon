@@ -1,0 +1,14 @@
+[
+  {
+    "directory": "/workspace/daemon-v4",
+    "arguments": [
+      "clang",
+      "@clang_options.rsp",
+      "--std=c99",
+      "src/main.c",
+      "-o",
+      "build/main"
+    ],
+    "file": "src/main.c"
+  }
+]

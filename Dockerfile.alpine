@@ -1,0 +1,21 @@
+FROM alpine:edge 
+
+WORKDIR /home/app
+
+COPY . .
+
+RUN apk add --no-cache curl-dev clang musl-dev build-base && \
+    adduser -D app && \
+    make rebuild && \
+    find . | grep -vE "^(\.$|\./build|\./assets)" | xargs rm -rf && \
+    chown -R root:root /home/app/build && \
+    chmod -R 755 /home/app/build && \
+    chown -R app:app /home/app/assets && \
+    chmod -R u+rw /home/app/assets && \
+    apk del clang musl-dev build-base
+
+USER app
+
+# Default: run as hub with verbosity level 2, listening on all interfaces
+# XAI_API_KEY should be passed via environment variable
+CMD ["./build/main", "--role", "hub", "-b", "0.0.0.0:6543", "-vv"]
