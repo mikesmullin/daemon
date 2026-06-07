@@ -15,7 +15,7 @@ tool calls wherever the right hardware lives: a GPU box, a router, a phone, a Wi
 
 It is the fastest and most portable line of Daemon, and the direct ancestor of my later projects
 [`subd`](https://github.com/mikesmullin/subd) → [`wasm1`](https://github.com/mikesmullin/wasm1) →
-[`agl-ai`](https://github.com/mikesmullin/agl-ai).
+[`agl-ai`](https://github.com/mikesmullin/agl).
 
 ## What makes v4 distinct
 
