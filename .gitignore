@@ -1,0 +1,11 @@
+node_modules/
+/PROMPT.md
+/.tokens.yaml
+/tmp/
+/agents/proc/
+/agents/sessions/
+/agents/mcp/
+/agents/templates/
+/.env
+.*_cache*.json
+/plugins/**/*

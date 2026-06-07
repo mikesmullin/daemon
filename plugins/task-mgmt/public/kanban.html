@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban Board - Task Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    :root {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2d2d2d;
+      --bg-card: #3a3a3a;
+      --text-primary: #e5e5e5;
+      --text-secondary: #a0a0a0;
+      --accent-cyan: #22d3ee;
+      --accent-blue: #3b82f6;
+    }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    .nav-link {
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
+      transition: background 0.2s;
+    }
+
+    .nav-link:hover {
+      background: var(--bg-secondary);
+    }
+
+    .nav-link.active {
+      background: var(--accent-blue);
+      color: white;
+    }
+
+    .ticket-card {
+      cursor: pointer;
+      margin-bottom: 0.75rem;
+    }
+
+    .column {
+      min-height: 400px;
+    }
+
+    .priority-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .priority-1 { background: #ef4444; color: white; }
+    .priority-2 { background: #f97316; color: white; }
+    .priority-3 { background: #eab308; color: black; }
+    .priority-4 { background: #6b7280; color: white; }
+
+    .status-open { border-left: 4px solid #60a5fa; }
+    .status-progress { border-left: 4px solid #f59e0b; }
+    .status-review { border-left: 4px solid #a78bfa; }
+    .status-done { border-left: 4px solid #10b981; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div x-data="kanbanApp()" x-init="init()">
+    <!-- Navigation -->
+    <nav class="bg-gray-900 border-b border-gray-800">
+      <div class="container mx-auto px-4 py-4">
+        <div class="flex items-center justify-between">
+          <h1 class="text-2xl font-bold text-cyan-400">📋 Task Management</h1>
+          <div class="flex space-x-4">
+            <a href="/kanban" class="nav-link active">Kanban Board</a>
+            <a href="/plan" class="nav-link">Roadmap</a>
+            <a href="/" class="nav-link">Home</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Search Bar -->
+    <div class="bg-gray-900 border-b border-gray-800">
+      <div class="container mx-auto px-4 py-3">
+        <input
+          type="text"
+          x-model="searchQuery"
+          @input="filterTickets()"
+          placeholder="Search tickets by title, assignee, or labels..."
+          class="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-400"
+        />
+      </div>
+    </div>
+
+    <!-- Kanban Board -->
+    <main class="container mx-auto px-4 py-8">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <!-- Open Column -->
+        <div class="bg-gray-800 rounded-lg p-4">
+          <h2 class="text-xl font-bold mb-4 text-blue-400 flex items-center justify-between">
+            <span>📝 Open</span>
+            <span class="text-sm text-gray-400" x-text="getColumnCount('Open')"></span>
+          </h2>
+          <div class="column">
+            <template x-for="ticket in getTicketsByStatus('Open')" :key="ticket.id">
+              <div @click="viewTicket(ticket.id)" class="card ticket-card status-open">
+                <div class="flex items-start justify-between mb-2">
+                  <h3 class="font-semibold text-sm flex-1" x-text="ticket.title"></h3>
+                  <span class="priority-badge ml-2" :class="`priority-${getPriorityQuadrant(ticket.urgency, ticket.importance)}`" x-text="getPriorityLabel(ticket.urgency, ticket.importance)"></span>
+                </div>
+                <div class="text-xs text-gray-400 space-y-1">
+                  <div x-show="ticket.assignee">
+                    <span class="font-medium">👤</span>
+                    <span x-text="ticket.assignee"></span>
+                  </div>
+                  <div x-show="ticket.labels && ticket.labels.length > 0" class="flex flex-wrap gap-1">
+                    <template x-for="label in ticket.labels" :key="label">
+                      <span class="bg-gray-700 px-2 py-0.5 rounded text-xs" x-text="label"></span>
+                    </template>
+                  </div>
+                  <div class="text-gray-500 text-xs mt-2" x-text="formatDate(ticket.updated_at)"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- In Progress Column -->
+        <div class="bg-gray-800 rounded-lg p-4">
+          <h2 class="text-xl font-bold mb-4 text-orange-400 flex items-center justify-between">
+            <span>⚡ In Progress</span>
+            <span class="text-sm text-gray-400" x-text="getColumnCount('In Progress')"></span>
+          </h2>
+          <div class="column">
+            <template x-for="ticket in getTicketsByStatus('In Progress')" :key="ticket.id">
+              <div @click="viewTicket(ticket.id)" class="card ticket-card status-progress">
+                <div class="flex items-start justify-between mb-2">
+                  <h3 class="font-semibold text-sm flex-1" x-text="ticket.title"></h3>
+                  <span class="priority-badge ml-2" :class="`priority-${getPriorityQuadrant(ticket.urgency, ticket.importance)}`" x-text="getPriorityLabel(ticket.urgency, ticket.importance)"></span>
+                </div>
+                <div class="text-xs text-gray-400 space-y-1">
+                  <div x-show="ticket.assignee">
+                    <span class="font-medium">👤</span>
+                    <span x-text="ticket.assignee"></span>
+                  </div>
+                  <div x-show="ticket.labels && ticket.labels.length > 0" class="flex flex-wrap gap-1">
+                    <template x-for="label in ticket.labels" :key="label">
+                      <span class="bg-gray-700 px-2 py-0.5 rounded text-xs" x-text="label"></span>
+                    </template>
+                  </div>
+                  <div class="text-gray-500 text-xs mt-2" x-text="formatDate(ticket.updated_at)"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Review Column -->
+        <div class="bg-gray-800 rounded-lg p-4">
+          <h2 class="text-xl font-bold mb-4 text-purple-400 flex items-center justify-between">
+            <span>👀 Review</span>
+            <span class="text-sm text-gray-400" x-text="getColumnCount('Review')"></span>
+          </h2>
+          <div class="column">
+            <template x-for="ticket in getTicketsByStatus('Review')" :key="ticket.id">
+              <div @click="viewTicket(ticket.id)" class="card ticket-card status-review">
+                <div class="flex items-start justify-between mb-2">
+                  <h3 class="font-semibold text-sm flex-1" x-text="ticket.title"></h3>
+                  <span class="priority-badge ml-2" :class="`priority-${getPriorityQuadrant(ticket.urgency, ticket.importance)}`" x-text="getPriorityLabel(ticket.urgency, ticket.importance)"></span>
+                </div>
+                <div class="text-xs text-gray-400 space-y-1">
+                  <div x-show="ticket.assignee">
+                    <span class="font-medium">👤</span>
+                    <span x-text="ticket.assignee"></span>
+                  </div>
+                  <div x-show="ticket.labels && ticket.labels.length > 0" class="flex flex-wrap gap-1">
+                    <template x-for="label in ticket.labels" :key="label">
+                      <span class="bg-gray-700 px-2 py-0.5 rounded text-xs" x-text="label"></span>
+                    </template>
+                  </div>
+                  <div class="text-gray-500 text-xs mt-2" x-text="formatDate(ticket.updated_at)"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Done Column -->
+        <div class="bg-gray-800 rounded-lg p-4">
+          <h2 class="text-xl font-bold mb-4 text-green-400 flex items-center justify-between">
+            <span>✅ Done</span>
+            <span class="text-sm text-gray-400" x-text="getColumnCount('Done')"></span>
+          </h2>
+          <div class="column">
+            <template x-for="ticket in getTicketsByStatus('Done')" :key="ticket.id">
+              <div @click="viewTicket(ticket.id)" class="card ticket-card status-done">
+                <div class="flex items-start justify-between mb-2">
+                  <h3 class="font-semibold text-sm flex-1" x-text="ticket.title"></h3>
+                  <span class="priority-badge ml-2" :class="`priority-${getPriorityQuadrant(ticket.urgency, ticket.importance)}`" x-text="getPriorityLabel(ticket.urgency, ticket.importance)"></span>
+                </div>
+                <div class="text-xs text-gray-400 space-y-1">
+                  <div x-show="ticket.assignee">
+                    <span class="font-medium">👤</span>
+                    <span x-text="ticket.assignee"></span>
+                  </div>
+                  <div x-show="ticket.labels && ticket.labels.length > 0" class="flex flex-wrap gap-1">
+                    <template x-for="label in ticket.labels" :key="label">
+                      <span class="bg-gray-700 px-2 py-0.5 rounded text-xs" x-text="label"></span>
+                    </template>
+                  </div>
+                  <div class="text-gray-500 text-xs mt-2" x-text="formatDate(ticket.updated_at)"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function kanbanApp() {
+      return {
+        tickets: [],
+        filteredTickets: [],
+        searchQuery: '',
+
+        async init() {
+          await this.loadTickets();
+          // Auto-refresh every 5 seconds
+          setInterval(() => this.loadTickets(), 5000);
+        },
+
+        async loadTickets() {
+          try {
+            const response = await fetch('/api/tickets');
+            this.tickets = await response.json();
+            this.filterTickets();
+          } catch (error) {
+            console.error('Failed to load tickets:', error);
+          }
+        },
+
+        filterTickets() {
+          const query = this.searchQuery.toLowerCase();
+          if (!query) {
+            this.filteredTickets = this.tickets;
+            return;
+          }
+
+          this.filteredTickets = this.tickets.filter(ticket => {
+            const titleMatch = ticket.title.toLowerCase().includes(query);
+            const assigneeMatch = ticket.assignee && ticket.assignee.toLowerCase().includes(query);
+            const labelsMatch = ticket.labels && ticket.labels.some(l => l.toLowerCase().includes(query));
+            return titleMatch || assigneeMatch || labelsMatch;
+          });
+        },
+
+        getTicketsByStatus(status) {
+          return this.filteredTickets.filter(t => t.status === status);
+        },
+
+        getColumnCount(status) {
+          return this.getTicketsByStatus(status).length;
+        },
+
+        getPriorityQuadrant(urgency, importance) {
+          // Eisenhower matrix: combine urgency and importance into quadrant
+          // Quadrant 1 (red): urgent + important (low urgency value + low importance value)
+          // Quadrant 2 (orange): not urgent + important
+          // Quadrant 3 (yellow): urgent + not important
+          // Quadrant 4 (gray): not urgent + not important
+          if (urgency <= 2 && importance <= 2) return 1;
+          if (urgency > 2 && importance <= 2) return 2;
+          if (urgency <= 2 && importance > 2) return 3;
+          return 4;
+        },
+
+        getPriorityLabel(urgency, importance) {
+          const quadrant = this.getPriorityQuadrant(urgency, importance);
+          const labels = {
+            1: 'Do First',
+            2: 'Schedule',
+            3: 'Delegate',
+            4: 'Eliminate'
+          };
+          return labels[quadrant];
+        },
+
+        formatDate(dateStr) {
+          if (!dateStr) return '';
+          const date = new Date(dateStr);
+          const now = new Date();
+          const diff = now - date;
+          const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+          
+          if (days === 0) return 'Today';
+          if (days === 1) return 'Yesterday';
+          if (days < 7) return `${days} days ago`;
+          return date.toLocaleDateString();
+        },
+
+        viewTicket(id) {
+          window.location.href = `/ticket/${id}`;
+        }
+      };
+    }
+  </script>
+</body>
+</html>

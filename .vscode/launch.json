@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Daemon Pump",
+      "type": "bun",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/daemon.mjs",
+      "args": [
+        "agent",
+        "--no-human",
+        "@solo-pty",
+        "open a ptty and type `worklappy` which is a bash alias that will open an ssh connection to my macos work laptop. then look in `~/Workspace/me`."
+      ],
+      "cwd": "${workspaceFolder}",
+      "stopOnEntry": false,
+      "noDebug": false,      
+    }
+  ]
+}

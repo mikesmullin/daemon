@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roadmap - Task Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    :root {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2d2d2d;
+      --bg-card: #3a3a3a;
+      --text-primary: #e5e5e5;
+      --text-secondary: #a0a0a0;
+      --accent-cyan: #22d3ee;
+      --accent-blue: #3b82f6;
+    }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    .nav-link {
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
+      transition: background 0.2s;
+    }
+
+    .nav-link:hover {
+      background: var(--bg-secondary);
+    }
+
+    .nav-link.active {
+      background: var(--accent-blue);
+      color: white;
+    }
+
+    .priority-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .priority-1 { background: #ef4444; color: white; }
+    .priority-2 { background: #f97316; color: white; }
+    .priority-3 { background: #eab308; color: black; }
+    .priority-4 { background: #6b7280; color: white; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .status-open { background: #60a5fa; color: white; }
+    .status-progress { background: #f59e0b; color: white; }
+    .status-review { background: #a78bfa; color: white; }
+    .status-done { background: #10b981; color: white; }
+
+    .overdue {
+      border-left: 4px solid #ef4444;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      text-align: left;
+      padding: 1rem;
+      background: #2d2d2d;
+      border-bottom: 2px solid #4b5563;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    th:hover {
+      background: #374151;
+    }
+
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid #374151;
+    }
+
+    tr:hover {
+      background: #2d2d2d;
+    }
+
+    .sort-icon {
+      display: inline-block;
+      margin-left: 0.5rem;
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div x-data="planApp()" x-init="init()">
+    <!-- Navigation -->
+    <nav class="bg-gray-900 border-b border-gray-800">
+      <div class="container mx-auto px-4 py-4">
+        <div class="flex items-center justify-between">
+          <h1 class="text-2xl font-bold text-cyan-400">📋 Task Management</h1>
+          <div class="flex space-x-4">
+            <a href="/kanban" class="nav-link">Kanban Board</a>
+            <a href="/plan" class="nav-link active">Roadmap</a>
+            <a href="/" class="nav-link">Home</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Filter Bar -->
+    <div class="bg-gray-900 border-b border-gray-800">
+      <div class="container mx-auto px-4 py-3">
+        <div class="flex flex-wrap gap-4">
+          <input
+            type="text"
+            x-model="searchQuery"
+            @input="filterTickets()"
+            placeholder="Search..."
+            class="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-400"
+          />
+          
+          <select x-model="filterStatus" @change="filterTickets()" class="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-400">
+            <option value="">All Statuses</option>
+            <option value="Open">Open</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Review">Review</option>
+            <option value="Done">Done</option>
+          </select>
+
+          <select x-model="groupBy" @change="filterTickets()" class="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-400">
+            <option value="">No Grouping</option>
+            <option value="assignee">Group by Assignee</option>
+            <option value="priority">Group by Priority</option>
+            <option value="status">Group by Status</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Roadmap Table -->
+    <main class="container mx-auto px-4 py-8">
+      <div class="bg-gray-800 rounded-lg overflow-hidden">
+        <table>
+          <thead>
+            <tr>
+              <th @click="sortBy('id')">
+                ID
+                <span class="sort-icon" x-show="sortField === 'id'" x-text="sortDirection === 'asc' ? '▲' : '▼'"></span>
+              </th>
+              <th @click="sortBy('title')">
+                Title
+                <span class="sort-icon" x-show="sortField === 'title'" x-text="sortDirection === 'asc' ? '▲' : '▼'"></span>
+              </th>
+              <th @click="sortBy('status')">
+                Status
+                <span class="sort-icon" x-show="sortField === 'status'" x-text="sortDirection === 'asc' ? '▲' : '▼'"></span>
+              </th>
+              <th @click="sortBy('assignee')">
+                Assignee
+                <span class="sort-icon" x-show="sortField === 'assignee'" x-text="sortDirection === 'asc' ? '▲' : '▼'"></span>
+              </th>
+              <th @click="sortBy('priority')">
+                Priority
+                <span class="sort-icon" x-show="sortField === 'priority'" x-text="sortDirection === 'asc' ? '▲' : '▼'"></span>
+              </th>
+              <th @click="sortBy('urgency')">
+                Urgency
+                <span class="sort-icon" x-show="sortField === 'urgency'" x-text="sortDirection === 'asc' ? '▲' : '▼'"></span>
+              </th>
+              <th @click="sortBy('importance')">
+                Importance
+                <span class="sort-icon" x-show="sortField === 'importance'" x-text="sortDirection === 'asc' ? '▲' : '▼'"></span>
+              </th>
+              <th @click="sortBy('updated_at')">
+                Updated
+                <span class="sort-icon" x-show="sortField === 'updated_at'" x-text="sortDirection === 'asc' ? '▲' : '▼'"></span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="ticket in displayTickets" :key="ticket.id">
+              <tr @click="viewTicket(ticket.id)" class="cursor-pointer" :class="{ 'overdue': isOverdue(ticket) }">
+                <td class="text-gray-400" x-text="`#${ticket.id}`"></td>
+                <td class="font-semibold" x-text="ticket.title"></td>
+                <td>
+                  <span class="status-badge" :class="getStatusClass(ticket.status)" x-text="ticket.status"></span>
+                </td>
+                <td class="text-gray-300" x-text="ticket.assignee || '-'"></td>
+                <td>
+                  <span class="priority-badge" :class="`priority-${getPriorityQuadrant(ticket.urgency, ticket.importance)}`" x-text="getPriorityLabel(ticket.urgency, ticket.importance)"></span>
+                </td>
+                <td class="text-center" x-text="ticket.urgency"></td>
+                <td class="text-center" x-text="ticket.importance"></td>
+                <td class="text-gray-400 text-sm" x-text="formatDate(ticket.updated_at)"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+
+        <div x-show="displayTickets.length === 0" class="text-center py-12 text-gray-400">
+          No tickets found
+        </div>
+      </div>
+
+      <!-- Summary Stats -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+        <div class="bg-gray-800 rounded-lg p-4">
+          <div class="text-2xl font-bold text-blue-400" x-text="getStatusCount('Open')"></div>
+          <div class="text-sm text-gray-400">Open</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4">
+          <div class="text-2xl font-bold text-orange-400" x-text="getStatusCount('In Progress')"></div>
+          <div class="text-sm text-gray-400">In Progress</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4">
+          <div class="text-2xl font-bold text-purple-400" x-text="getStatusCount('Review')"></div>
+          <div class="text-sm text-gray-400">Review</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4">
+          <div class="text-2xl font-bold text-green-400" x-text="getStatusCount('Done')"></div>
+          <div class="text-sm text-gray-400">Done</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function planApp() {
+      return {
+        tickets: [],
+        filteredTickets: [],
+        displayTickets: [],
+        searchQuery: '',
+        filterStatus: '',
+        groupBy: '',
+        sortField: 'updated_at',
+        sortDirection: 'desc',
+
+        async init() {
+          await this.loadTickets();
+          setInterval(() => this.loadTickets(), 5000);
+        },
+
+        async loadTickets() {
+          try {
+            const response = await fetch('/api/tickets');
+            this.tickets = await response.json();
+            this.filterTickets();
+          } catch (error) {
+            console.error('Failed to load tickets:', error);
+          }
+        },
+
+        filterTickets() {
+          let filtered = this.tickets;
+
+          // Apply status filter
+          if (this.filterStatus) {
+            filtered = filtered.filter(t => t.status === this.filterStatus);
+          }
+
+          // Apply search query
+          if (this.searchQuery) {
+            const query = this.searchQuery.toLowerCase();
+            filtered = filtered.filter(ticket => {
+              const titleMatch = ticket.title.toLowerCase().includes(query);
+              const assigneeMatch = ticket.assignee && ticket.assignee.toLowerCase().includes(query);
+              return titleMatch || assigneeMatch;
+            });
+          }
+
+          this.filteredTickets = filtered;
+          this.sortTickets();
+        },
+
+        sortBy(field) {
+          if (this.sortField === field) {
+            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+          } else {
+            this.sortField = field;
+            this.sortDirection = 'asc';
+          }
+          this.sortTickets();
+        },
+
+        sortTickets() {
+          const sorted = [...this.filteredTickets];
+          const field = this.sortField;
+          const direction = this.sortDirection;
+
+          sorted.sort((a, b) => {
+            let aVal = a[field];
+            let bVal = b[field];
+
+            // Special handling for priority (computed field)
+            if (field === 'priority') {
+              aVal = this.getPriorityQuadrant(a.urgency, a.importance);
+              bVal = this.getPriorityQuadrant(b.urgency, b.importance);
+            }
+
+            // Handle null values
+            if (aVal === null || aVal === undefined) return 1;
+            if (bVal === null || bVal === undefined) return -1;
+
+            // Compare
+            if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+            return 0;
+          });
+
+          this.displayTickets = sorted;
+        },
+
+        getPriorityQuadrant(urgency, importance) {
+          if (urgency <= 2 && importance <= 2) return 1;
+          if (urgency > 2 && importance <= 2) return 2;
+          if (urgency <= 2 && importance > 2) return 3;
+          return 4;
+        },
+
+        getPriorityLabel(urgency, importance) {
+          const quadrant = this.getPriorityQuadrant(urgency, importance);
+          const labels = {
+            1: 'Do First',
+            2: 'Schedule',
+            3: 'Delegate',
+            4: 'Eliminate'
+          };
+          return labels[quadrant];
+        },
+
+        getStatusClass(status) {
+          const map = {
+            'Open': 'status-open',
+            'In Progress': 'status-progress',
+            'Review': 'status-review',
+            'Done': 'status-done'
+          };
+          return map[status] || '';
+        },
+
+        getStatusCount(status) {
+          return this.tickets.filter(t => t.status === status).length;
+        },
+
+        isOverdue(ticket) {
+          // Check if ticket has due date and is past due
+          if (!ticket.due_date) return false;
+          const dueDate = new Date(ticket.due_date);
+          const now = new Date();
+          return dueDate < now && ticket.status !== 'Done';
+        },
+
+        formatDate(dateStr) {
+          if (!dateStr) return '';
+          const date = new Date(dateStr);
+          return date.toLocaleDateString();
+        },
+
+        viewTicket(id) {
+          window.location.href = `/ticket/${id}`;
+        }
+      };
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+---
+apiVersion: daemon/v1
+kind: Agent
+metadata:
+  description: Thoughtful assistant
+  #model: xai:grok-4 # "Flagship model, world's top performer in reasoning.","Native tools, 128K+ context, vision processing.","Advanced apps, Q&A, coding agents."
+  model: xai:grok-4-fast-reasoning # Optimized Grok 4 for efficient reasoning tasks.,"Balanced speed/cost, tool calling.",Real-time decision-making.
+  #model: xai:grok-4-fast-non-reasoning # Grok 4 variant for non-reasoning generation.,"High throughput, lower latency.","Content creation, simple chats."
+  #model: xai:grok-3 # "Standard reasoning model, high performance.","Multimodal, search integration.",General-purpose development.
+  #model: xai:grok-3-mini # Compact version for cost-sensitive use.,"Fast inference, reasoning_effort parameter.",Mobile/lightweight integrations.
+  #model: xai:grok-code-fast-1 # Specialized for coding and agentic tasks.,Excels in code gen/debugging.,"Dev tools, automation scripts."
+  #model: xai:grok-2-image-1212 # Vision-focused model for image analysis/generation.,Handles images up to 1212 resolution.,"Multimodal apps, FLUX-based image tools."
+  tools:
+  - view_file
+  - list_directory
+  - grep_search
+  - fetch_webpage
+  - create_file
+  - edit_file
+  - apply_patch
+  - create_directory
+  labels:
+  - orchestrator
+spec:
+  system_prompt: |
+    The current user's name is Mike.
+
+    <environment_info>
+    The user's current OS is: <%= process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux' %> version <%= os.release() %>
+    The user's default shell is: `<%= process.env.SHELL || (process.platform === 'win32' ? 'cmd.exe' : '/bin/bash') %>`. When you generate terminal commands, please generate them correctly for this shell.
+    The user's local time is <%= new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %>
+    I am working from a workspace within the following folder: `<%= process.cwd() %>`
+    </environment_info>
+

@@ -1,0 +1,21 @@
+{
+  "name": "task-mgmt-plugin",
+  "version": "1.0.0",
+  "description": "Task Management Plugin for daemon - Minimalist Jira-like ticket tracking",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "serve": "bun serve.mjs",
+    "serve:dev": "bun serve.mjs --port=3001"
+  },
+  "keywords": [
+    "task-management",
+    "tickets",
+    "kanban",
+    "daemon-plugin"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}

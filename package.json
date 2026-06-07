@@ -1,0 +1,41 @@
+{
+  "name": "daemon",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "File-based multi-agent orchestrator using GitHub Copilot API",
+  "main": "src/daemon.mjs",
+  "bin": {
+    "d": "./src/daemon.mjs"
+  },
+  "scripts": {
+    "help": "bun src/daemon.mjs help",
+    "clean": "bun src/daemon.mjs clean",
+    "postinstall": "bash scripts/install-plugins.sh"
+  },
+  "keywords": [
+    "github",
+    "copilot",
+    "cli",
+    "ai",
+    "multi-agent",
+    "orchestrator",
+    "file-based"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@google/genai": "^0.4.0",
+    "@google/generative-ai": "^0.21.0",
+    "bun-pty": "^0.3.2",
+    "chokidar": "^3.6.0",
+    "clipboardy": "^5.0.0",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "js-yaml": "^4.1.0",
+    "lodash": "^4.17.21",
+    "ollama": "^0.5.11",
+    "open": "^10.2.0",
+    "openai": "^6.1.0"
+  }
+}
