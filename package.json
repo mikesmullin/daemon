@@ -1,0 +1,13 @@
+{
+  "name": "d",
+  "version": "0.1.0",
+  "description": "agentic shell assistant",
+  "type": "module",
+  "bin": {
+    "d": "./bin/d"
+  },
+  "dependencies": {
+    "agl-ai": "file:../agl",
+    "coffeescript": "^2.7.0"
+  }
+}

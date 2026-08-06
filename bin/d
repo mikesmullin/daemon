@@ -1,0 +1,3 @@
+#!/usr/bin/env bun
+import "../coffee-loader.mjs"
+await import("../src/d.coffee")
