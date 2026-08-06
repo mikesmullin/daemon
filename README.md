@@ -21,6 +21,7 @@ secrets / personal data were scrubbed before publishing.
 
 | Version | Branch | Stack | What makes it distinct |
 |---|---|---|---|
+| **v0** | [`v0`](https://github.com/mikesmullin/daemon/tree/v0) | Bun · CoffeeScript | Agentic shell assistant `d` — `d [prompt]` → Arch bash + clipboard via Muse Spark 1.2 contributor microagent (`src/d.coffee`). |
 | **v1** | [`v1`](https://github.com/mikesmullin/daemon/tree/v1) | Bun · `.mjs` | The original Multi-Agent Delegation (MAD) CLI: multi-provider agents, YAML templates, security allowlist, watch-mode workers. |
 | **v2** | [`v2`](https://github.com/mikesmullin/daemon/tree/v2) | Bun · `.mjs` | The most mature `.mjs` line — v1 plus PTY interaction, parallel watch workers, and API-call cancellation. |
 | **v2-web-ui** | [`v2-web-ui`](https://github.com/mikesmullin/daemon/tree/v2-web-ui) | Bun · `.mjs` | v2 plus a browser observability UI (live chat, resizable panels, pty viewer) and a full Playwright + unit test suite. An abandoned "v3" direction explored before the v3 rewrite. |
