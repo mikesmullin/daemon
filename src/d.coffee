@@ -88,10 +88,6 @@ printUsage = ->
 # Microagent factory — one decision, one output_tool, one run
 # ---------------------------------------------------------------------------
 
-# Resolve model: D_MODEL > MUSE_MODEL > muse spark 1.2 contributor (Meta)
-# Per project guidance, default is the Muse Spark 1.2 contributor model via the `muse:` provider.
-modelSpec = process.env.D_MODEL ? process.env.MUSE_MODEL ? "muse:muse-spark-1.2-contributor"
-
 systemPrompt = """
 You are a focused Arch Linux bash microagent. Your sole job is to translate the user's natural language request into ONE valid Arch Linux bash shell command.
 
@@ -114,29 +110,54 @@ Examples of correct mappings:
 - "install neovim" → `sudo pacman -S --needed neovim`
 """
 
-# Single microagent wrapper function: one question, one Agent.factory, one run, one typed output.
-generateCommand = (userPrompt) ->
-  agent = await Agent.factory
-    model: modelSpec
+# Model selection / fallback. If the user pinned D_MODEL, use it directly.
+# Otherwise prefer the user's `default` model (resolves via
+# ~/.config/agl/config.yaml default_model) but give it only a 1s window with no
+# retries. If it is unreachable, fall through to the Muse provider so `d` always
+# has a model to talk to.
+overrideModel  = process.env.D_MODEL
+museModel      = "muse:muse-spark-1.3-contributor"
+DEFAULT_TIMEOUT = 1000
+
+outputTool =
+  description: "Return the single Arch Linux bash command that fulfills the user's request."
+  parameters:
+    command:
+      type: "string"
+      description: "A single valid Arch Linux bash shell command. Must be syntactically correct bash, no placeholders, no markdown, no extra explanation. Chain steps with && or ; if needed, but keep it one command string."
+  required: ["command"]
+
+# Build a fresh agent and run it; normalize the output_tool result to the command.
+runSpec = (spec, userPrompt, factoryOpts = {}) ->
+  agentOpts =
+    model: spec
     system_prompt: systemPrompt
-    output_tool:
-      description: "Return the single Arch Linux bash command that fulfills the user's request."
-      parameters:
-        command:
-          type: "string"
-          description: "A single valid Arch Linux bash shell command. Must be syntactically correct bash, no placeholders, no markdown, no extra explanation. Chain steps with && or ; if needed, but keep it one command string."
-      required: ["command"]
+    output_tool: outputTool
+  if factoryOpts.timeout_ms?
+    agentOpts.timeout_ms = factoryOpts.timeout_ms
+  if factoryOpts.retries?
+    agentOpts.retries = factoryOpts.retries
+  agent = await Agent.factory agentOpts
   result = await agent.run
     prompt: "<user-request>#{userPrompt}</user-request>"
-  # Agent returns the output_tool args directly (or last_output). Normalize.
   if typeof result is "string"
     return result
   if result?.command?
     return String result.command
   if result?.output?
     return String result.output
-  # fallback: stringify
   return String result ? ""
+
+# Single microagent wrapper function: try `default` (1s, no retry); fall back to muse.
+generateCommand = (userPrompt) ->
+  if overrideModel
+    return await runSpec overrideModel, userPrompt
+  try
+    return await runSpec "default", userPrompt, timeout_ms: DEFAULT_TIMEOUT, retries: 0
+  catch err
+    if process.env.DEBUG
+      console.error "[d] default model unavailable (#{err?.message ? String err}); falling back to #{museModel}"
+    return await runSpec museModel, userPrompt
 
 # ---------------------------------------------------------------------------
 # Deterministic CLI boundary — I/O, validation, stdout, clipboard
