@@ -52,7 +52,7 @@ MUSE_API_KEY=your-muse-api-key-here
    - or `export $(cat .env | xargs)` / `op run --env-file=.env -- ...`
    - or `MUSE_API_KEY=... bun src/d.coffee "..."`
 
-3. Model resolution: `D_MODEL` > `MUSE_MODEL` > `FAV_LOCAL_LLM` > `AGL_MODEL` > `muse:muse-1.2-contributor`.
+3. Model resolution: `D_MODEL` > `MUSE_MODEL` > `AGL_MODEL` > AGL `~/.config/agl/config.yaml` `default_model` > `muse:muse-1.2-contributor`.
    Override with `D_MODEL=muse:muse-1.2 bun src/d.coffee "..."` or `D_MODEL=lm-studio:google/gemma-4-12b-qat`.
 
 ## Muse provider

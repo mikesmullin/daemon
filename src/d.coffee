@@ -61,7 +61,7 @@ copyToClipboard = (text) ->
   ]
   for {cmd, args} in candidates
     try
-      res = spawnSync cmd, args, input: text, encoding: "utf8", stdio: ["pipe","pipe","pipe"]
+      res = spawnSync cmd, args, input: text, encoding: "utf8", stdio: ["pipe","ignore","ignore"]
       if res.status is 0
         return true
       # command found but failed -> try next
@@ -168,6 +168,7 @@ try
   copied = copyToClipboard command
   unless copied
     console.error "[d] warning: could not copy to clipboard (install wl-clipboard, xclip, or xsel)"
+  process.exit 0
 catch err
   console.error "[d] error: #{err?.message ? String err}"
   if process.env.DEBUG
